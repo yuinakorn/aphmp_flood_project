@@ -39,6 +39,45 @@ const INFRA_COLOR: Record<string, string> = {
   assembly: 'oklch(0.68 0.15 230)',
 }
 
+const INFRA_LABEL: Record<string, string> = {
+  hospital: 'โรงพยาบาล',
+  clinic: 'รพ.สต.',
+  shelter: 'ศูนย์อพยพ',
+  assembly: 'จุดรวมพล',
+}
+
+// Lucide SVG paths — kept in sync with the icons used in InfraPanel
+// (Hospital, Stethoscope, Tent, Flag)
+const INFRA_SVG: Record<string, string> = {
+  hospital: `<path d="M12 6v4"/><path d="M14 14h-4"/><path d="M14 18h-4"/><path d="M14 8h-4"/><path d="M18 12h2a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6a2 2 0 0 1 2-2h2"/><path d="M18 22V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v18"/>`,
+  clinic: `<path d="M11 2v2"/><path d="M5 2v2"/><path d="M5 3H4a2 2 0 0 0-2 2v4a6 6 0 0 0 12 0V5a2 2 0 0 0-2-2h-1"/><path d="M8 15a6 6 0 0 0 12 0v-3"/><circle cx="20" cy="10" r="2"/>`,
+  shelter: `<path d="M3.5 21 14 3"/><path d="M20.5 21 10 3"/><path d="M15.5 21 12 15l-3.5 6"/><path d="M2 21h20"/>`,
+  assembly: `<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/>`,
+}
+
+function infraMarkerHtml(type: string): string {
+  const tone = INFRA_COLOR[type] ?? 'var(--accent)'
+  const svg = INFRA_SVG[type] ?? ''
+  return `
+    <div style="
+      width:28px;height:28px;
+      display:flex;align-items:center;justify-content:center;
+      border-radius:6px;
+      background:color-mix(in oklch, ${tone} 18%, var(--bg-elevated));
+      border:1.5px solid ${tone};
+      box-shadow:0 2px 6px oklch(0 0 0 / 0.45);
+      color:${tone};
+    ">
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="15" height="15" viewBox="0 0 24 24"
+        fill="none" stroke="currentColor"
+        stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"
+      >${svg}</svg>
+    </div>
+  `
+}
+
 const TILE_URLS: Record<BasemapType, string | string[]> = {
   sat: [
     'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
@@ -88,6 +127,7 @@ export function FloodMap({
   const routeGroupRef = useRef<LayerGroup | null>(null)
   const gistdaRef = useRef<TileLayer.WMS | null>(null)
   const [floodPoints, setFloodPoints] = useState<[number, number, number][]>([])
+  const [mapReady, setMapReady] = useState(false)
 
   // Init Leaflet
   useEffect(() => {
@@ -197,10 +237,13 @@ export function FloodMap({
         opacity: 0.5,
       })
       gistdaRef.current = gistda
+
+      setMapReady(true)
     })()
 
     return () => {
       isMounted = false
+      setMapReady(false)
       if (mapRef.current) {
         mapRef.current.remove()
         mapRef.current = null
@@ -210,7 +253,7 @@ export function FloodMap({
 
   // Vulnerable markers (vector circleMarker, not div-icon)
   useEffect(() => {
-    if (!vulnGroupRef.current) return
+    if (!mapReady || !vulnGroupRef.current) return
     ;(async () => {
       const L = (await import('leaflet')).default
       const vg = vulnGroupRef.current!
@@ -271,36 +314,27 @@ export function FloodMap({
         vg.addLayer(marker)
       })
     })()
-  }, [vulnerable, onRequestRoute])
+  }, [mapReady, vulnerable, onRequestRoute])
 
   // Infra markers (vector squares using divIcon, no emoji)
   useEffect(() => {
-    if (!infraGroupRef.current) return
+    if (!mapReady || !infraGroupRef.current) return
     ;(async () => {
       const L = (await import('leaflet')).default
       const ig = infraGroupRef.current!
       ig.clearLayers()
 
       infra.forEach((i) => {
-        const color = INFRA_COLOR[i.type] ?? 'var(--accent)'
-        const isShelter = i.type === 'shelter' || i.type === 'assembly'
         const icon = L.divIcon({
-          className: '',
-          html: `<div style="width:18px;height:18px;border-radius:${isShelter ? '4px' : '50%'};background:var(--bg);border:2px solid ${color};display:flex;align-items:center;justify-content:center"><span style="width:6px;height:6px;border-radius:${isShelter ? '1px' : '50%'};background:${color}"></span></div>`,
-          iconSize: [18, 18],
-          iconAnchor: [9, 9],
+          className: 'infra-marker',
+          html: infraMarkerHtml(i.type),
+          iconSize: [28, 28],
+          iconAnchor: [14, 14],
         })
         L.marker([i.lat, i.lng], { icon })
           .bindPopup(
             `<div>
-              <div style="font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--fg-subtle);margin-bottom:4px">${
-                {
-                  hospital: 'โรงพยาบาล',
-                  clinic: 'รพ.สต.',
-                  shelter: 'ศูนย์อพยพ',
-                  assembly: 'จุดรวมพล',
-                }[i.type]
-              }</div>
+              <div style="font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--fg-subtle);margin-bottom:4px">${INFRA_LABEL[i.type] ?? i.type}</div>
               <div style="font-size:14px;font-weight:600;margin-bottom:4px">${i.name}</div>
               <div style="font-size:12px;color:var(--fg-muted)">ความจุ: <span style="font-family:var(--font-mono)">${i.cap}</span></div>
             </div>`,
@@ -308,7 +342,7 @@ export function FloodMap({
           .addTo(ig)
       })
     })()
-  }, [infra])
+  }, [mapReady, infra])
 
   // Layer visibility
   useEffect(() => {

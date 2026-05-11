@@ -42,3 +42,4 @@ yarn-error.log*
 # .agents
 # .claude
 node_modules
+docker-compose.yml

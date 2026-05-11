@@ -1,37 +1,39 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# FloodWatch
 
-## Getting Started
+ระบบติดตามน้ำท่วม ด้วยข้อมูล Sentinel-1/2 SAR และ GISTDA เป็นระบบที่สร้างขึ้นเพื่อเฝ้าระวังและแจ้งเตือนกลุ่มเปราะบางก่อนเหตุการณ์น้ำหลาก พร้อมแสดงจุดเสี่ยง สถานที่ปลอดภัย และเส้นทางการอพยพไปยังศูนย์พักพิง
 
-First, run the development server:
+## ภาพหน้าจอการทำงานของระบบ (Screenshots)
 
+### 1. หน้าจอแผนที่ติดตามน้ำท่วม
+![Map View 1](./public/screen_short/Screenshot%202569-05-12%20at%2000.00.52.png)
+
+### 2. ข้อมูลกลุ่มเปราะบางและระดับความเสี่ยง
+![Map View 2](./public/screen_short/Screenshot%202569-05-12%20at%2000.00.55.png)
+
+### 3. การแสดงผลเส้นทางอพยพ
+![Map View 3](./public/screen_short/Screenshot%202569-05-12%20at%2000.01.03.png)
+
+### 4. การจัดการ Layer / พื้นหลังแผนที่ Google Maps
+![Map View 4](./public/screen_short/Screenshot%202569-05-12%20at%2000.01.46.png)
+
+### 5. ข้อมูลสถานที่ / ศูนย์รวมพล
+![Map View 5](./public/screen_short/Screenshot%202569-05-12%20at%2000.01.33.png)
+
+## การติดตั้งและใช้งานระบบ (Getting Started)
+
+1. ทำการติดตั้งแพ็กเกจที่จำเป็น
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. คัดลอกและสร้างไฟล์ Environment (ถ้ามี)
+```bash
+cp .env.local.example .env.local
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+3. รันเซิร์ฟเวอร์ในโหมด Development
+```bash
+npm run dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-# aphmp_flood_project
+เปิดเบราว์เซอร์ไปที่ [http://localhost:3000](http://localhost:3000) เพื่อใช้งานระบบ

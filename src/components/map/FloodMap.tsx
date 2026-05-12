@@ -16,8 +16,15 @@ import type {
   Infrastructure,
   EvacRoute,
   RiskLevel,
+  GistdaLayerKey,
+  FloodPeriod,
 } from '@/types'
-import { buildEvacRoute, nearestShelter } from '@/lib/geo'
+import { GISTDA_LAYERS, FLOOD_PERIODS } from '@/types'
+import { buildEvacRoute, floodFeatureToPoint, nearestShelter } from '@/lib/geo'
+
+// Nan province bbox-ish — keeps responses small + relevant
+const NAN_BBOX = '100.0,17.5,101.5,20.0'
+const FLOOD_LIMIT = 500
 
 const RISK_COLOR: Record<RiskLevel, string> = {
   flood: 'oklch(0.66 0.20 30)',
@@ -100,6 +107,7 @@ interface Props {
   heatRadius: number
   opacity: number
   basemap: BasemapType
+  floodPeriod: FloodPeriod
   onMapReady?: (map: LeafletMap) => void
   onRequestRoute?: (personId: number) => void
 }
@@ -112,6 +120,7 @@ export function FloodMap({
   heatRadius,
   opacity,
   basemap,
+  floodPeriod,
   onMapReady,
   onRequestRoute,
 }: Props) {
@@ -125,7 +134,7 @@ export function FloodMap({
   const vulnGroupRef = useRef<LayerGroup | null>(null)
   const infraGroupRef = useRef<LayerGroup | null>(null)
   const routeGroupRef = useRef<LayerGroup | null>(null)
-  const gistdaRef = useRef<TileLayer.WMS | null>(null)
+  const gistdaRefs = useRef<Partial<Record<GistdaLayerKey, TileLayer>>>({})
   const [floodPoints, setFloodPoints] = useState<[number, number, number][]>([])
   const [mapReady, setMapReady] = useState(false)
 
@@ -167,18 +176,9 @@ export function FloodMap({
         baseLayers.current = [l]
       }
 
-      const res = await fetch('/api/flood-points')
-      const geojson = await res.json()
-      const pts: [number, number, number][] = geojson.features.map((f: any) => [
-        f.geometry.coordinates[1],
-        f.geometry.coordinates[0],
-        f.properties.intensity * 0.5,
-      ])
-      setFloodPoints(pts)
-
-      // Heatmap with risk palette (amber → orange → red)
+      // Heatmap with risk palette (amber → orange → red) — points filled in by effect below
       const heat = (L as any)
-        .heatLayer(pts, {
+        .heatLayer([], {
           radius: 18,
           blur: 14,
           maxZoom: 14,
@@ -195,11 +195,9 @@ export function FloodMap({
 
       const cg = L.layerGroup().addTo(map)
       circleGroupRef.current = cg
-      renderCircles(L, cg, pts, 300, 0.45)
 
-      const s2Res = await fetch('/api/flood-polygons')
-      const s2Data = await s2Res.json()
-      const s2Layer = L.geoJSON(s2Data, {
+      // Polygon layer is populated by the period-driven effect below
+      const s2Layer = L.geoJSON(undefined, {
         style: () => ({
           color: 'oklch(0.68 0.15 230)',
           weight: 1.25,
@@ -207,22 +205,6 @@ export function FloodMap({
           fillOpacity: 0.22,
           opacity: 0.9,
         }),
-        onEachFeature: (f, layer) => {
-          const name = f.properties?.name || 'พื้นที่น้ำท่วม'
-          layer.bindPopup(
-            `<div>
-              <div style="font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:var(--fg-subtle);margin-bottom:4px">Sentinel-2 polygon</div>
-              <div style="font-size:14px;font-weight:600;margin-bottom:6px">${name}</div>
-              <div style="font-size:11px;color:var(--fg-muted);font-family:var(--font-mono)">2025-07-24 10:36 UTC</div>
-            </div>`,
-          )
-          layer.on('mouseover', () =>
-            (layer as any).setStyle({ weight: 2.5, fillOpacity: 0.35 }),
-          )
-          layer.on('mouseout', () =>
-            (layer as any).setStyle({ weight: 1.25, fillOpacity: 0.22 }),
-          )
-        },
       }).addTo(map)
       s2LayerRef.current = s2Layer
 
@@ -230,13 +212,19 @@ export function FloodMap({
       infraGroupRef.current = L.layerGroup().addTo(map)
       routeGroupRef.current = L.layerGroup().addTo(map)
 
-      const gistda = L.tileLayer.wms('https://flood.gistda.or.th/geoserver/flood/wms', {
-        layers: 'flood:flood_2024_geo',
-        transparent: true,
-        format: 'image/png',
-        opacity: 0.5,
+      GISTDA_LAYERS.forEach((cfg) => {
+        const tile = L.tileLayer(
+          `/api/gistda/maps/${cfg.tmsPath}/tms/{z}/{x}/{y}`,
+          {
+            maxZoom: 18,
+            opacity: 0.7,
+            // GISTDA's `/tms/` endpoint serves standard XYZ (top-left origin)
+            // per the QGIS XYZ-Tiles example in the manual.
+            tms: false,
+          },
+        )
+        gistdaRefs.current[cfg.key] = tile
       })
-      gistdaRef.current = gistda
 
       setMapReady(true)
     })()
@@ -250,6 +238,79 @@ export function FloodMap({
       }
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fetch real flood polygons from GISTDA — feeds both heatmap centroids
+  // and the polygon (s2flood) layer
+  useEffect(() => {
+    if (!mapReady) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const url = `/api/gistda/features/flood/${floodPeriod}?bbox=${NAN_BBOX}&limit=${FLOOD_LIMIT}&offset=0`
+        const res = await fetch(url)
+        if (!res.ok) {
+          console.warn('[gistda] flood features failed', res.status)
+          if (!cancelled) {
+            setFloodPoints([])
+            s2LayerRef.current?.clearLayers()
+          }
+          return
+        }
+        const geo = await res.json()
+        const feats: any[] = geo?.features ?? []
+        const pts = feats
+          .map(floodFeatureToPoint)
+          .filter((p): p is [number, number, number] => p !== null)
+        if (cancelled) return
+
+        setFloodPoints(pts)
+
+        const s2 = s2LayerRef.current
+        if (s2) {
+          s2.clearLayers()
+          s2.addData(geo)
+          const periodLabel =
+            FLOOD_PERIODS.find((p) => p.key === floodPeriod)?.label ?? floodPeriod
+          s2.eachLayer((layer: any) => {
+            const props = layer.feature?.properties ?? {}
+            const name =
+              props.tb_tn || props.ap_tn || props.pv_tn || 'พื้นที่น้ำท่วม'
+            const region = [props.ap_tn, props.pv_tn].filter(Boolean).join(' · ')
+            const date = props.flood_date || props.date || ''
+            layer.bindPopup(
+              `<div>
+                <div style="font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:var(--fg-subtle);margin-bottom:4px">GISTDA · ${periodLabel}</div>
+                <div style="font-size:14px;font-weight:600;margin-bottom:4px">${name}</div>
+                ${region ? `<div style="font-size:11.5px;color:var(--fg-muted);margin-bottom:4px">${region}</div>` : ''}
+                ${date ? `<div style="font-size:11px;color:var(--fg-muted);font-family:var(--font-mono)">${date}</div>` : ''}
+              </div>`,
+            )
+            layer.on('mouseover', () =>
+              layer.setStyle({ weight: 2.5, fillOpacity: 0.35 }),
+            )
+            layer.on('mouseout', () =>
+              layer.setStyle({ weight: 1.25, fillOpacity: 0.22 }),
+            )
+          })
+        }
+      } catch (err) {
+        console.error('[gistda] flood features error', err)
+        if (!cancelled) {
+          setFloodPoints([])
+          s2LayerRef.current?.clearLayers()
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [mapReady, floodPeriod])
+
+  // Push points into heatmap whenever they change
+  useEffect(() => {
+    if (!heatLayerRef.current) return
+    heatLayerRef.current.setLatLngs(floodPoints)
+  }, [floodPoints])
 
   // Vulnerable markers (vector circleMarker, not div-icon)
   useEffect(() => {
@@ -359,7 +420,9 @@ export function FloodMap({
     toggle(vulnGroupRef.current, layers.vulnerable)
     toggle(infraGroupRef.current, layers.infra)
     toggle(routeGroupRef.current, layers.routes)
-    toggle(gistdaRef.current, layers.gistda)
+    GISTDA_LAYERS.forEach((cfg) => {
+      toggle(gistdaRefs.current[cfg.key], layers.gistda[cfg.key])
+    })
   }, [layers])
 
   // Tune sliders

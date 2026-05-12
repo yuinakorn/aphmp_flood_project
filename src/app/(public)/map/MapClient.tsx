@@ -15,7 +15,9 @@ import { MapOverlay } from '@/components/map/MapOverlay'
 import { buildEvacRoute, nearestShelter } from '@/lib/geo'
 import type {
   BasemapType,
+  FloodPeriod,
   FloodStats,
+  GistdaLayerKey,
   Infrastructure,
   LayerState,
   VulnerablePerson,
@@ -25,7 +27,14 @@ import type {
 const DEFAULT_LAYERS: LayerState = {
   heatmap: true,
   circles: false,
-  gistda: false,
+  gistda: {
+    flood1d: false,
+    flood3d: false,
+    flood7d: false,
+    flood30d: false,
+    floodFreq: false,
+    waterHyacinth: false,
+  },
   s2flood: true,
   vulnerable: true,
   infra: true,
@@ -55,6 +64,7 @@ export function MapClient() {
   const [heatRadius, setHeatRadius] = useState(18)
   const [opacity, setOpacity] = useState(45)
   const [basemap, setBasemap] = useState<BasemapType>('google_sat')
+  const [floodPeriod, setFloodPeriod] = useState<FloodPeriod>('7days')
 
   const mapRef = useRef<LeafletMap | null>(null)
   const routeGroupRef = useRef<LayerGroup | null>(null)
@@ -103,6 +113,10 @@ export function MapClient() {
 
   const onLayerChange = useCallback((k: keyof LayerState, v: boolean) => {
     setLayers((p) => ({ ...p, [k]: v }))
+  }, [])
+
+  const onGistdaChange = useCallback((k: GistdaLayerKey, v: boolean) => {
+    setLayers((p) => ({ ...p, gistda: { ...p.gistda, [k]: v } }))
   }, [])
 
   const flyTo = useCallback((person: VulnerablePerson) => {
@@ -187,6 +201,7 @@ export function MapClient() {
           <LayersPanel
             layers={layers}
             onChange={onLayerChange}
+            onGistdaChange={onGistdaChange}
             onClose={() => setActivePanel(null)}
           />
         )}
@@ -220,10 +235,12 @@ export function MapClient() {
             heatRadius={heatRadius}
             opacity={opacity}
             basemap={basemap === 'hybrid' ? 'sat' : basemap}
+            floodPeriod={floodPeriod}
             onRadius={setRadius}
             onHeatRadius={setHeatRadius}
             onOpacity={setOpacity}
             onBasemap={setBasemap}
+            onFloodPeriod={setFloodPeriod}
             onClose={() => setActivePanel(null)}
           />
         )}
@@ -237,6 +254,7 @@ export function MapClient() {
             heatRadius={heatRadius}
             opacity={opacity}
             basemap={basemap}
+            floodPeriod={floodPeriod}
             onMapReady={(m) => (mapRef.current = m)}
             onRequestRoute={drawRoute}
           />
@@ -244,6 +262,7 @@ export function MapClient() {
             onFitProvince={fitProvince}
             onZoomCity={zoomCity}
             onRouteAll={routeAll}
+            floodPeriod={floodPeriod}
           />
         </div>
       </div>

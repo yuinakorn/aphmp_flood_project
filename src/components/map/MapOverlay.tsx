@@ -1,14 +1,19 @@
 'use client'
 
 import { Maximize2, MapPin, Route as RouteIcon } from 'lucide-react'
+import type { FloodPeriod } from '@/types'
+import { FLOOD_PERIODS } from '@/types'
 
 interface Props {
   onFitProvince: () => void
   onZoomCity: () => void
   onRouteAll: () => void
+  floodPeriod: FloodPeriod
 }
 
-export function MapOverlay({ onFitProvince, onZoomCity, onRouteAll }: Props) {
+export function MapOverlay({ onFitProvince, onZoomCity, onRouteAll, floodPeriod }: Props) {
+  const periodLabel =
+    FLOOD_PERIODS.find((p) => p.key === floodPeriod)?.label ?? floodPeriod
   return (
     <div className="pointer-events-none absolute inset-0 z-[400]">
       {/* Bottom-left: data attribution */}
@@ -17,8 +22,9 @@ export function MapOverlay({ onFitProvince, onZoomCity, onRouteAll }: Props) {
           Data sources
         </div>
         <div className="mt-1.5 flex flex-col gap-1 font-mono text-[10.5px] leading-tight text-[var(--fg-muted)]">
-          <span>Sentinel-1 SAR (ESA) ส.ค.–ก.ย. 2024 · GEE VV &lt; −15 dB</span>
-          <span>Sentinel-2 polygons (GISTDA) · 24 ก.ค. 2568</span>
+          <span>GISTDA Disaster API · features/flood · {periodLabel}</span>
+          <span>GISTDA Maps API · TMS (flood, flood-freq, water_hyacinth)</span>
+          <span className="text-[var(--fg-subtle)]">api-gateway.gistda.or.th · v2.0</span>
         </div>
       </div>
 

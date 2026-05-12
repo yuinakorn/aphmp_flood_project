@@ -1,17 +1,20 @@
 'use client'
 
 import { PanelShell } from './PanelShell'
-import type { BasemapType } from '@/types'
+import type { BasemapType, FloodPeriod } from '@/types'
+import { FLOOD_PERIODS } from '@/types'
 
 interface Props {
   radius: number
   heatRadius: number
   opacity: number
   basemap: BasemapType
+  floodPeriod: FloodPeriod
   onRadius: (v: number) => void
   onHeatRadius: (v: number) => void
   onOpacity: (v: number) => void
   onBasemap: (b: BasemapType) => void
+  onFloodPeriod: (p: FloodPeriod) => void
   onClose: () => void
 }
 
@@ -66,15 +69,42 @@ export function TunePanel({
   heatRadius,
   opacity,
   basemap,
+  floodPeriod,
   onRadius,
   onHeatRadius,
   onOpacity,
   onBasemap,
+  onFloodPeriod,
   onClose,
 }: Props) {
   return (
     <PanelShell title="ปรับการแสดงผล" hint="Render controls" onClose={onClose}>
       <div className="flex flex-col">
+        <div className="flex flex-col gap-3 border-b border-[var(--border)] px-5 py-4">
+          <span className="text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--fg-subtle)]">
+            ช่วงเวลาข้อมูลน้ำท่วม (GISTDA)
+          </span>
+          <div role="radiogroup" className="grid grid-cols-2 gap-1.5">
+            {FLOOD_PERIODS.map((p) => {
+              const on = floodPeriod === p.key
+              return (
+                <button
+                  key={p.key}
+                  role="radio"
+                  aria-checked={on}
+                  onClick={() => onFloodPeriod(p.key)}
+                  className={`rounded-md border px-3 py-2 text-[12px] transition-colors ${
+                    on
+                      ? 'border-[var(--accent)] bg-[var(--bg)] text-[var(--fg)]'
+                      : 'border-[var(--border)] text-[var(--fg-muted)] hover:bg-[var(--bg)] hover:text-[var(--fg)]'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
         <div className="border-b border-[var(--border)] py-1">
           <Slider
             label="รัศมีจุดน้ำท่วม"

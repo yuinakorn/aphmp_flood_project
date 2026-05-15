@@ -1,6 +1,7 @@
 'use client'
 
-import { Maximize2, MapPin, Route as RouteIcon } from 'lucide-react'
+import { useState } from 'react'
+import { Maximize2, MapPin, Route as RouteIcon, X } from 'lucide-react'
 import type { FloodPeriod } from '@/types'
 import { FLOOD_PERIODS } from '@/types'
 
@@ -12,21 +13,35 @@ interface Props {
 }
 
 export function MapOverlay({ onFitProvince, onZoomCity, onRouteAll, floodPeriod }: Props) {
+  const [showDataSources, setShowDataSources] = useState(true)
+
   const periodLabel =
     FLOOD_PERIODS.find((p) => p.key === floodPeriod)?.label ?? floodPeriod
   return (
     <div className="pointer-events-none absolute inset-0 z-[400]">
       {/* Bottom-left: data attribution */}
-      <div className="pointer-events-auto absolute bottom-4 left-4 max-w-[380px] rounded-md border border-[var(--border)] bg-[oklch(0.18_0.012_245/0.88)] px-4 py-2.5 backdrop-blur">
-        <div className="text-[9.5px] font-medium uppercase tracking-[0.14em] text-[var(--fg-subtle)]">
-          Data sources
+      {showDataSources && (
+        <div className="pointer-events-auto absolute bottom-4 left-4 max-w-[380px] rounded-md border border-[var(--border)] bg-[oklch(0.18_0.012_245/0.88)] px-4 py-2.5 backdrop-blur">
+          <div className="flex items-center justify-between">
+            <div className="text-[9.5px] font-medium uppercase tracking-[0.14em] text-[var(--fg-subtle)]">
+              Data sources
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowDataSources(false)}
+              className="text-[var(--fg-subtle)] hover:text-[var(--fg)] transition-colors"
+              aria-label="Close data sources"
+            >
+              <X size={12} strokeWidth={2} />
+            </button>
+          </div>
+          <div className="mt-1.5 flex flex-col gap-1 font-mono text-[10.5px] leading-tight text-[var(--fg-muted)]">
+            <span>GISTDA Disaster API · features/flood · {periodLabel}</span>
+            <span>GISTDA Maps API · TMS (flood, flood-freq, water_hyacinth)</span>
+            <span className="text-[var(--fg-subtle)]">api-gateway.gistda.or.th · v2.0</span>
+          </div>
         </div>
-        <div className="mt-1.5 flex flex-col gap-1 font-mono text-[10.5px] leading-tight text-[var(--fg-muted)]">
-          <span>GISTDA Disaster API · features/flood · {periodLabel}</span>
-          <span>GISTDA Maps API · TMS (flood, flood-freq, water_hyacinth)</span>
-          <span className="text-[var(--fg-subtle)]">api-gateway.gistda.or.th · v2.0</span>
-        </div>
-      </div>
+      )}
 
       {/* Right side: vertical action cluster, vertically centered, separate from Leaflet zoom */}
       <div className="pointer-events-auto absolute right-4 top-1/2 flex -translate-y-1/2 flex-col gap-2">

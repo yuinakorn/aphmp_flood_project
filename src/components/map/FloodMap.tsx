@@ -277,8 +277,12 @@ export function FloodMap({
         FLOOD_MARK_LEVELS.forEach((cfg) => {
           floodMarkGroupRefs.current[cfg.key] = L.layerGroup()
         })
-        CMU_FLOOD_LAYERS.forEach((cfg) => {
+        CMU_FLOOD_LAYERS.forEach((cfg, i) => {
           cmuFloodGroupRefs.current[cfg.key] = L.layerGroup()
+          if (cfg.kind === 'flood') {
+            map.createPane(cfg.key)
+            map.getPane(cfg.key)!.style.zIndex = String(450 - i)
+          }
         })
 
         GISTDA_LAYERS.forEach((cfg) => {
@@ -767,6 +771,7 @@ function renderCmuKmlLayer(
         opacity: 0.9,
         fillColor: cfg.color,
         fillOpacity: 0.45,
+        pane: cfg.kind === 'flood' ? cfg.key : 'overlayPane',
       })
         .bindPopup(popup)
         .addTo(group)

@@ -2,21 +2,16 @@
 
 import { useState } from 'react'
 import { Maximize2, MapPin, Route as RouteIcon, X } from 'lucide-react'
-import type { FloodPeriod } from '@/types'
-import { FLOOD_PERIODS } from '@/types'
 
 interface Props {
   onFitProvince: () => void
   onZoomCity: () => void
   onRouteAll: () => void
-  floodPeriod: FloodPeriod
 }
 
-export function MapOverlay({ onFitProvince, onZoomCity, onRouteAll, floodPeriod }: Props) {
+export function MapOverlay({ onFitProvince, onZoomCity, onRouteAll }: Props) {
   const [showDataSources, setShowDataSources] = useState(true)
 
-  const periodLabel =
-    FLOOD_PERIODS.find((p) => p.key === floodPeriod)?.label ?? floodPeriod
   return (
     <div className="pointer-events-none absolute inset-0 z-[400]">
       {/* Bottom-left: data attribution */}
@@ -36,8 +31,8 @@ export function MapOverlay({ onFitProvince, onZoomCity, onRouteAll, floodPeriod 
             </button>
           </div>
           <div className="mt-1.5 flex flex-col gap-1 font-mono text-[10.5px] leading-tight text-[var(--fg-muted)]">
-            <span>GISTDA Disaster API · features/flood · {periodLabel}</span>
             <span>GISTDA Maps API · TMS (flood, flood-freq, water_hyacinth)</span>
+            <span>CMU Water Center · watercenter.scmc.cmu.ac.th</span>
             <span className="text-[var(--fg-subtle)]">api-gateway.gistda.or.th · v2.0</span>
           </div>
         </div>

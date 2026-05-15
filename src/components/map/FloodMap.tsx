@@ -7,7 +7,6 @@ import type {
   Layer,
   LayerGroup,
   TileLayer,
-  GeoJSON as LeafletGeoJSON,
 } from 'leaflet'
 import type { GeoJsonObject } from 'geojson'
 import type {
@@ -21,37 +20,11 @@ import type {
   Infrastructure,
   RiskLevel,
   GistdaLayerKey,
-  FloodPeriod,
 } from '@/types'
-import { CMU_FLOOD_LAYERS, FLOOD_MARK_LEVELS, GISTDA_LAYERS, FLOOD_PERIODS } from '@/types'
-import { buildEvacRoute, floodFeatureToPoint, nearestShelter } from '@/lib/geo'
-
-// Chiang Mai province bbox
-const CHIANG_MAI_BBOX = '98.0,17.0,99.6,20.2'
-const FLOOD_LIMIT = 500
+import { CMU_FLOOD_LAYERS, FLOOD_MARK_LEVELS, GISTDA_LAYERS } from '@/types'
+import { buildEvacRoute, nearestShelter } from '@/lib/geo'
 
 type LeafletContainer = HTMLDivElement & { _leaflet_id?: number | null }
-
-interface HeatLayer extends Layer {
-  setLatLngs(latlngs: [number, number, number][]): void
-  setOptions(options: { radius?: number }): void
-}
-
-type LeafletWithHeat = typeof import('leaflet') & {
-  heatLayer(latlngs: [number, number, number][], options: object): HeatLayer
-}
-
-interface FloodFeatureCollection {
-  features?: unknown[]
-}
-
-type FloodPolygonLayer = Layer & {
-  feature?: {
-    properties?: Record<string, string | number | null | undefined>
-  }
-  bindPopup(content: string): FloodPolygonLayer
-  setStyle(style: { weight: number; fillOpacity: number }): FloodPolygonLayer
-}
 
 const RISK_COLOR: Record<RiskLevel, string> = {
   flood: 'oklch(0.66 0.20 30)',
@@ -161,11 +134,7 @@ interface Props {
   layers: LayerState
   vulnerable: VulnerablePerson[]
   infra: Infrastructure[]
-  radius: number
-  heatRadius: number
-  opacity: number
   basemap: BasemapType
-  floodPeriod: FloodPeriod
   floodMarkProvince: string | null
   onMapReady?: (map: LeafletMap) => void
   onRequestRoute?: (personId: number) => void
@@ -175,11 +144,7 @@ export function FloodMap({
   layers,
   vulnerable,
   infra,
-  radius,
-  heatRadius,
-  opacity,
   basemap,
-  floodPeriod,
   floodMarkProvince,
   onMapReady,
   onRequestRoute,
@@ -187,9 +152,6 @@ export function FloodMap({
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<LeafletMap | null>(null)
   const baseLayers = useRef<TileLayer[]>([])
-  const heatLayerRef = useRef<HeatLayer | null>(null)
-  const circleGroupRef = useRef<LayerGroup | null>(null)
-  const s2LayerRef = useRef<LeafletGeoJSON | null>(null)
   const vulnGroupRef = useRef<LayerGroup | null>(null)
   const infraGroupRef = useRef<LayerGroup | null>(null)
   const routeGroupRef = useRef<LayerGroup | null>(null)
@@ -198,7 +160,6 @@ export function FloodMap({
   const floodMarkCacheRef = useRef<Partial<Record<FloodMarkLevel, FloodMark[]>>>({})
   const cmuFloodGroupRefs = useRef<Partial<Record<CmuFloodLayerKey, LayerGroup>>>({})
   const cmuFloodLoadedRef = useRef<Partial<Record<CmuFloodLayerKey, boolean>>>({})
-  const [floodPoints, setFloodPoints] = useState<[number, number, number][]>([])
   const [mapReady, setMapReady] = useState(false)
 
   // Init Leaflet
@@ -207,8 +168,6 @@ export function FloodMap({
     let isMounted = true
       ; (async () => {
         const L = (await import('leaflet')).default
-        await import('leaflet.heat')
-
         if (!isMounted || !containerRef.current) return
 
         const container = containerRef.current as LeafletContainer
@@ -238,38 +197,6 @@ export function FloodMap({
           l.addTo(map)
           baseLayers.current = [l]
         }
-
-        // Heatmap with risk palette (amber → orange → red) — points filled in by effect below
-        const heat = (L as LeafletWithHeat)
-          .heatLayer([], {
-            radius: 18,
-            blur: 14,
-            maxZoom: 14,
-            max: 3,
-            gradient: {
-              0.2: 'oklch(0.78 0.16 75)',
-              0.5: 'oklch(0.68 0.18 50)',
-              0.75: 'oklch(0.66 0.20 30)',
-              1.0: 'oklch(0.54 0.22 25)',
-            },
-          })
-          .addTo(map)
-        heatLayerRef.current = heat
-
-        const cg = L.layerGroup().addTo(map)
-        circleGroupRef.current = cg
-
-        // Polygon layer is populated by the period-driven effect below
-        const s2Layer = L.geoJSON(undefined, {
-          style: () => ({
-            color: 'oklch(0.68 0.15 230)',
-            weight: 1.25,
-            fillColor: 'oklch(0.68 0.15 230)',
-            fillOpacity: 0.22,
-            opacity: 0.9,
-          }),
-        }).addTo(map)
-        s2LayerRef.current = s2Layer
 
         vulnGroupRef.current = L.layerGroup().addTo(map)
         infraGroupRef.current = L.layerGroup().addTo(map)
@@ -311,80 +238,6 @@ export function FloodMap({
       }
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Fetch real flood polygons from GISTDA — feeds both heatmap centroids
-  // and the polygon (s2flood) layer
-  useEffect(() => {
-    if (!mapReady) return
-    let cancelled = false
-      ; (async () => {
-        try {
-          const url = `/api/gistda/features/flood/${floodPeriod}?bbox=${CHIANG_MAI_BBOX}&limit=${FLOOD_LIMIT}&offset=0`
-          const res = await fetch(url)
-          if (!res.ok) {
-            console.warn('[gistda] flood features failed', res.status)
-            if (!cancelled) {
-              setFloodPoints([])
-              s2LayerRef.current?.clearLayers()
-            }
-            return
-          }
-          const geo = (await res.json()) as GeoJsonObject & FloodFeatureCollection
-          const feats = geo.features ?? []
-          const pts = feats
-            .map(floodFeatureToPoint)
-            .filter((p): p is [number, number, number] => p !== null)
-          if (cancelled) return
-
-          setFloodPoints(pts)
-
-          const s2 = s2LayerRef.current
-          if (s2) {
-            s2.clearLayers()
-            s2.addData(geo)
-            const periodLabel =
-              FLOOD_PERIODS.find((p) => p.key === floodPeriod)?.label ?? floodPeriod
-            s2.eachLayer((rawLayer) => {
-              const layer = rawLayer as FloodPolygonLayer
-              const props = layer.feature?.properties ?? {}
-              const name =
-                props.tb_tn || props.ap_tn || props.pv_tn || 'พื้นที่น้ำท่วม'
-              const region = [props.ap_tn, props.pv_tn].filter(Boolean).join(' · ')
-              const date = props.flood_date || props.date || ''
-              layer.bindPopup(
-                `<div>
-                <div style="font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:var(--fg-subtle);margin-bottom:4px">GISTDA · ${periodLabel}</div>
-                <div style="font-size:14px;font-weight:600;margin-bottom:4px">${name}</div>
-                ${region ? `<div style="font-size:11.5px;color:var(--fg-muted);margin-bottom:4px">${region}</div>` : ''}
-                ${date ? `<div style="font-size:11px;color:var(--fg-muted);font-family:var(--font-mono)">${date}</div>` : ''}
-              </div>`,
-              )
-              layer.on('mouseover', () =>
-                layer.setStyle({ weight: 2.5, fillOpacity: 0.35 }),
-              )
-              layer.on('mouseout', () =>
-                layer.setStyle({ weight: 1.25, fillOpacity: 0.22 }),
-              )
-            })
-          }
-        } catch (err) {
-          console.error('[gistda] flood features error', err)
-          if (!cancelled) {
-            setFloodPoints([])
-            s2LayerRef.current?.clearLayers()
-          }
-        }
-      })()
-    return () => {
-      cancelled = true
-    }
-  }, [mapReady, floodPeriod])
-
-  // Push points into heatmap whenever they change
-  useEffect(() => {
-    if (!heatLayerRef.current) return
-    heatLayerRef.current.setLatLngs(floodPoints)
-  }, [floodPoints])
 
   // Vulnerable markers (vector circleMarker, not div-icon)
   useEffect(() => {
@@ -574,9 +427,6 @@ export function FloodMap({
       if (on && !map.hasLayer(layer)) map.addLayer(layer)
       if (!on && map.hasLayer(layer)) map.removeLayer(layer)
     }
-    toggle(heatLayerRef.current, layers.heatmap)
-    toggle(circleGroupRef.current, layers.circles)
-    toggle(s2LayerRef.current, layers.s2flood)
     toggle(vulnGroupRef.current, layers.vulnerable)
     toggle(infraGroupRef.current, layers.infra)
     toggle(routeGroupRef.current, layers.routes)
@@ -590,20 +440,6 @@ export function FloodMap({
       toggle(cmuFloodGroupRefs.current[cfg.key], layers.cmuFlood[cfg.key])
     })
   }, [layers, mapReady])
-
-  // Tune sliders
-  useEffect(() => {
-    if (!circleGroupRef.current || !floodPoints.length) return
-      ; (async () => {
-        const L = (await import('leaflet')).default
-        renderCircles(L, circleGroupRef.current!, floodPoints, radius, opacity / 100)
-      })()
-  }, [radius, opacity, floodPoints])
-
-  useEffect(() => {
-    if (!heatLayerRef.current) return
-    heatLayerRef.current.setOptions({ radius: heatRadius })
-  }, [heatRadius])
 
   // Basemap switching
   useEffect(() => {
@@ -628,26 +464,6 @@ export function FloodMap({
   }, [basemap])
 
   return <div ref={containerRef} className="size-full" />
-}
-
-function renderCircles(
-  L: typeof import('leaflet'),
-  group: import('leaflet').LayerGroup,
-  points: [number, number, number][],
-  radius: number,
-  fillOpacity: number,
-) {
-  group.clearLayers()
-  points.forEach(([lat, lng]) => {
-    L.circle([lat, lng], {
-      radius,
-      color: 'oklch(0.66 0.20 30)',
-      weight: 1,
-      opacity: 0.55,
-      fillColor: 'oklch(0.66 0.20 30)',
-      fillOpacity,
-    }).addTo(group)
-  })
 }
 
 function escapeHtml(value: string): string {

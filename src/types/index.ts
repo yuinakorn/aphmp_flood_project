@@ -172,7 +172,6 @@ export interface VulnerableStats {
   total: number
 }
 
-export type FloodPeriod = '1day' | '3days' | '7days' | '30days'
 export type FloodMarkLevel = '1' | '2' | '3' | '4' | '5'
 export type CmuFloodLayerKey =
   | 'flood1'
@@ -184,13 +183,6 @@ export type CmuFloodLayerKey =
   | 'parking'
   | 'shelter'
   | 'pole'
-
-export const FLOOD_PERIODS: { key: FloodPeriod; label: string }[] = [
-  { key: '1day', label: '1 วันล่าสุด' },
-  { key: '3days', label: '3 วันล่าสุด' },
-  { key: '7days', label: '7 วันล่าสุด' },
-  { key: '30days', label: '30 วันล่าสุด' },
-]
 
 export type GistdaLayerKey =
   | 'flood1d'
@@ -205,12 +197,9 @@ export type FloodMarkLayers = Record<FloodMarkLevel, boolean>
 export type CmuFloodLayers = Record<CmuFloodLayerKey, boolean>
 
 export interface LayerState {
-  heatmap: boolean
-  circles: boolean
   gistda: GistdaLayers
   floodMarks: FloodMarkLayers
   cmuFlood: CmuFloodLayers
-  s2flood: boolean
   vulnerable: boolean
   infra: boolean
   routes: boolean

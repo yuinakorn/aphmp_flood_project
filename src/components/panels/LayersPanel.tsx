@@ -21,11 +21,8 @@ import { PanelShell } from './PanelShell'
 
 type BooleanLayerKey = Exclude<keyof LayerState, 'gistda' | 'floodMarks' | 'cmuFlood'>
 type SwatchKind =
-  | 'heat'
-  | 'flood-circle'
   | 'flood-mark'
   | 'gistda'
-  | 's2'
   | 'vuln'
   | 'infra'
   | 'route'
@@ -43,9 +40,6 @@ interface Row {
 }
 
 const rows: Row[] = [
-  { key: 'heatmap', label: 'Heatmap น้ำท่วม', meta: 'GISTDA · centroid พื้นที่น้ำท่วม', swatch: 'heat' },
-  { key: 'circles', label: 'จุดน้ำท่วม', meta: 'GISTDA · วงกลมตามรัศมี', swatch: 'flood-circle' },
-  { key: 's2flood', label: 'พื้นที่น้ำท่วม', meta: 'GISTDA · polygon ตามช่วงเวลา', swatch: 's2' },
   { key: 'vulnerable', label: 'กลุ่มเปราะบาง', meta: 'แสดง risk ตามตำแหน่ง', swatch: 'vuln' },
   { key: 'infra', label: 'สถานพยาบาล / ศูนย์อพยพ', meta: '7 จุด', swatch: 'infra' },
   { key: 'routes', label: 'เส้นทางอพยพ', meta: 'คำนวณ shelter ใกล้สุด', swatch: 'route' },
@@ -53,28 +47,6 @@ const rows: Row[] = [
 
 function Swatch({ kind }: { kind: SwatchKind }) {
   switch (kind) {
-    case 'heat':
-      return (
-        <span
-          aria-hidden
-          className="size-3 rounded-sm"
-          style={{
-            background:
-              'linear-gradient(90deg, oklch(0.78 0.16 75), oklch(0.66 0.20 30), oklch(0.55 0.22 25))',
-          }}
-        />
-      )
-    case 'flood-circle':
-      return (
-        <span
-          aria-hidden
-          className="size-3 rounded-full ring-1 ring-inset"
-          style={{
-            background: 'oklch(0.66 0.20 30 / 0.35)',
-            boxShadow: 'inset 0 0 0 1px oklch(0.66 0.20 30 / 0.8)',
-          }}
-        />
-      )
     case 'flood-mark':
       return (
         <span
@@ -83,17 +55,6 @@ function Swatch({ kind }: { kind: SwatchKind }) {
           style={{
             background: 'oklch(0.78 0.16 75 / 0.35)',
             boxShadow: 'inset 0 0 0 1px oklch(0.66 0.20 30 / 0.8)',
-          }}
-        />
-      )
-    case 's2':
-      return (
-        <span
-          aria-hidden
-          className="size-3 rounded-sm border"
-          style={{
-            background: 'oklch(0.68 0.15 230 / 0.25)',
-            borderColor: 'oklch(0.68 0.15 230 / 0.8)',
           }}
         />
       )

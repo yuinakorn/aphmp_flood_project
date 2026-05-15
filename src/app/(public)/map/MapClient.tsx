@@ -18,7 +18,6 @@ import type {
   CmuFloodLayerKey,
   FloodMarkLevel,
   FloodMarkProvince,
-  FloodPeriod,
   FloodStats,
   GistdaLayerKey,
   Infrastructure,
@@ -28,8 +27,6 @@ import type {
 } from '@/types'
 
 const DEFAULT_LAYERS: LayerState = {
-  heatmap: true,
-  circles: false,
   gistda: {
     flood1d: false,
     flood3d: false,
@@ -56,7 +53,6 @@ const DEFAULT_LAYERS: LayerState = {
     shelter: false,
     pole: false,
   },
-  s2flood: true,
   vulnerable: true,
   infra: true,
   routes: true,
@@ -83,11 +79,7 @@ export function MapClient() {
     total: 0,
   })
 
-  const [radius, setRadius] = useState(300)
-  const [heatRadius, setHeatRadius] = useState(18)
-  const [opacity, setOpacity] = useState(45)
   const [basemap, setBasemap] = useState<BasemapType>('google_sat')
-  const [floodPeriod, setFloodPeriod] = useState<FloodPeriod>('7days')
 
   const mapRef = useRef<LeafletMap | null>(null)
   const routeGroupRef = useRef<LayerGroup | null>(null)
@@ -292,16 +284,8 @@ export function MapClient() {
         )}
         {activePanel === 'tune' && (
           <TunePanel
-            radius={radius}
-            heatRadius={heatRadius}
-            opacity={opacity}
             basemap={basemap === 'hybrid' ? 'sat' : basemap}
-            floodPeriod={floodPeriod}
-            onRadius={setRadius}
-            onHeatRadius={setHeatRadius}
-            onOpacity={setOpacity}
             onBasemap={setBasemap}
-            onFloodPeriod={setFloodPeriod}
             onClose={() => setActivePanel(null)}
           />
         )}
@@ -311,11 +295,7 @@ export function MapClient() {
             layers={layers}
             vulnerable={vulnerable}
             infra={infra}
-            radius={radius}
-            heatRadius={heatRadius}
-            opacity={opacity}
             basemap={basemap}
-            floodPeriod={floodPeriod}
             floodMarkProvince={floodMarkProvince}
             onMapReady={(m) => (mapRef.current = m)}
             onRequestRoute={drawRoute}
@@ -324,7 +304,6 @@ export function MapClient() {
             onFitProvince={fitProvince}
             onZoomCity={zoomCity}
             onRouteAll={routeAll}
-            floodPeriod={floodPeriod}
           />
         </div>
       </div>

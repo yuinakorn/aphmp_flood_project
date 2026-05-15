@@ -1,11 +1,42 @@
+'use client'
+
 import { Waves } from 'lucide-react'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 
 interface Props {
   session?: { role: string; name: string } | null
 }
 
+function NavLink({
+  href,
+  active,
+  children,
+}: {
+  href: string
+  active: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <Link
+      href={href}
+      aria-current={active ? 'page' : undefined}
+      className={
+        active
+          ? 'rounded-md bg-[var(--bg-elevated)] px-3 py-1.5 font-medium text-[var(--fg)] shadow-[inset_0_-1px_0_var(--accent)]'
+          : 'rounded-md px-3 py-1.5 text-[var(--fg-muted)] transition-colors hover:bg-[var(--bg-elevated)] hover:text-[var(--fg)]'
+      }
+    >
+      {children}
+    </Link>
+  )
+}
+
 export function Masthead({ session }: Props) {
+  const pathname = usePathname() ?? ''
+  const isActive = (href: string) =>
+    href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(href + '/')
+
   return (
     <header className="flex h-14 shrink-0 items-center gap-6 border-b border-[var(--border)] bg-[var(--bg)] px-6">
       <Link
@@ -25,26 +56,18 @@ export function Masthead({ session }: Props) {
       <span className="h-5 w-px bg-[var(--border)]" aria-hidden />
 
       <nav className="flex items-center gap-1 text-[12.5px]">
-        <Link
-          href="/map"
-          className="rounded-md px-3 py-1.5 text-[var(--fg-muted)] transition-colors hover:bg-[var(--bg-elevated)] hover:text-[var(--fg)]"
-        >
-          แผนที่
-        </Link>
+        <NavLink href="/map" active={isActive('/map')}>แผนที่</NavLink>
         {session && (
           <>
-            <Link
-              href="/admin/vulnerable"
-              className="rounded-md px-3 py-1.5 text-[var(--fg-muted)] transition-colors hover:bg-[var(--bg-elevated)] hover:text-[var(--fg)]"
-            >
+            <NavLink href="/admin/vulnerable" active={isActive('/admin/vulnerable')}>
               เปราะบาง
-            </Link>
-            <Link
-              href="/admin/infra"
-              className="rounded-md px-3 py-1.5 text-[var(--fg-muted)] transition-colors hover:bg-[var(--bg-elevated)] hover:text-[var(--fg)]"
-            >
+            </NavLink>
+            <NavLink href="/admin/infra" active={isActive('/admin/infra')}>
               สถานที่
-            </Link>
+            </NavLink>
+            <NavLink href="/admin/water-level" active={isActive('/admin/water-level')}>
+              ระดับน้ำ
+            </NavLink>
           </>
         )}
       </nav>

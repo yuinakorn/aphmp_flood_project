@@ -12,6 +12,8 @@ import type {
 import type { GeoJsonObject } from 'geojson'
 import type {
   BasemapType,
+  CmuFloodLayerConfig,
+  CmuFloodLayerKey,
   FloodMark,
   FloodMarkLevel,
   LayerState,
@@ -21,11 +23,11 @@ import type {
   GistdaLayerKey,
   FloodPeriod,
 } from '@/types'
-import { FLOOD_MARK_LEVELS, GISTDA_LAYERS, FLOOD_PERIODS } from '@/types'
+import { CMU_FLOOD_LAYERS, FLOOD_MARK_LEVELS, GISTDA_LAYERS, FLOOD_PERIODS } from '@/types'
 import { buildEvacRoute, floodFeatureToPoint, nearestShelter } from '@/lib/geo'
 
-// Nan province bbox-ish — keeps responses small + relevant
-const NAN_BBOX = '100.0,17.5,101.5,20.0'
+// Chiang Mai province bbox
+const CHIANG_MAI_BBOX = '98.0,17.0,99.6,20.2'
 const FLOOD_LIMIT = 500
 
 type LeafletContainer = HTMLDivElement & { _leaflet_id?: number | null }
@@ -194,6 +196,8 @@ export function FloodMap({
   const gistdaRefs = useRef<Partial<Record<GistdaLayerKey, TileLayer>>>({})
   const floodMarkGroupRefs = useRef<Partial<Record<FloodMarkLevel, LayerGroup>>>({})
   const floodMarkCacheRef = useRef<Partial<Record<FloodMarkLevel, FloodMark[]>>>({})
+  const cmuFloodGroupRefs = useRef<Partial<Record<CmuFloodLayerKey, LayerGroup>>>({})
+  const cmuFloodLoadedRef = useRef<Partial<Record<CmuFloodLayerKey, boolean>>>({})
   const [floodPoints, setFloodPoints] = useState<[number, number, number][]>([])
   const [mapReady, setMapReady] = useState(false)
 
@@ -201,95 +205,98 @@ export function FloodMap({
   useEffect(() => {
     if (mapRef.current || !containerRef.current) return
     let isMounted = true
-    ;(async () => {
-      const L = (await import('leaflet')).default
-      await import('leaflet.heat')
+      ; (async () => {
+        const L = (await import('leaflet')).default
+        await import('leaflet.heat')
 
-      if (!isMounted || !containerRef.current) return
+        if (!isMounted || !containerRef.current) return
 
-      const container = containerRef.current as LeafletContainer
-      if (container._leaflet_id) {
-        container._leaflet_id = null
-      }
+        const container = containerRef.current as LeafletContainer
+        if (container._leaflet_id) {
+          container._leaflet_id = null
+        }
 
-      const map = L.map(container, {
-        center: [18.78, 100.78],
-        zoom: 11,
-        zoomControl: false,
-        attributionControl: true,
-      })
-      L.control.zoom({ position: 'bottomright' }).addTo(map)
-      mapRef.current = map
-      onMapReady?.(map)
-
-      const urls = TILE_URLS[basemap]
-      if (Array.isArray(urls)) {
-        const ls = urls.map((u, i) =>
-          L.tileLayer(u, { maxZoom: 19, opacity: i === 1 ? 0.7 : 1 }),
-        )
-        ls.forEach((l) => l.addTo(map))
-        baseLayers.current = ls
-      } else {
-        const l = L.tileLayer(urls, { maxZoom: 19, subdomains: 'abcd' })
-        l.addTo(map)
-        baseLayers.current = [l]
-      }
-
-      // Heatmap with risk palette (amber → orange → red) — points filled in by effect below
-      const heat = (L as LeafletWithHeat)
-        .heatLayer([], {
-          radius: 18,
-          blur: 14,
-          maxZoom: 14,
-          max: 3,
-          gradient: {
-            0.2: 'oklch(0.78 0.16 75)',
-            0.5: 'oklch(0.68 0.18 50)',
-            0.75: 'oklch(0.66 0.20 30)',
-            1.0: 'oklch(0.54 0.22 25)',
-          },
+        const map = L.map(container, {
+          center: [18.78, 98.98],
+          zoom: 11,
+          zoomControl: false,
+          attributionControl: true,
         })
-        .addTo(map)
-      heatLayerRef.current = heat
+        L.control.zoom({ position: 'bottomright' }).addTo(map)
+        mapRef.current = map
+        onMapReady?.(map)
 
-      const cg = L.layerGroup().addTo(map)
-      circleGroupRef.current = cg
+        const urls = TILE_URLS[basemap]
+        if (Array.isArray(urls)) {
+          const ls = urls.map((u, i) =>
+            L.tileLayer(u, { maxZoom: 19, opacity: i === 1 ? 0.7 : 1 }),
+          )
+          ls.forEach((l) => l.addTo(map))
+          baseLayers.current = ls
+        } else {
+          const l = L.tileLayer(urls, { maxZoom: 19, subdomains: 'abcd' })
+          l.addTo(map)
+          baseLayers.current = [l]
+        }
 
-      // Polygon layer is populated by the period-driven effect below
-      const s2Layer = L.geoJSON(undefined, {
-        style: () => ({
-          color: 'oklch(0.68 0.15 230)',
-          weight: 1.25,
-          fillColor: 'oklch(0.68 0.15 230)',
-          fillOpacity: 0.22,
-          opacity: 0.9,
-        }),
-      }).addTo(map)
-      s2LayerRef.current = s2Layer
+        // Heatmap with risk palette (amber → orange → red) — points filled in by effect below
+        const heat = (L as LeafletWithHeat)
+          .heatLayer([], {
+            radius: 18,
+            blur: 14,
+            maxZoom: 14,
+            max: 3,
+            gradient: {
+              0.2: 'oklch(0.78 0.16 75)',
+              0.5: 'oklch(0.68 0.18 50)',
+              0.75: 'oklch(0.66 0.20 30)',
+              1.0: 'oklch(0.54 0.22 25)',
+            },
+          })
+          .addTo(map)
+        heatLayerRef.current = heat
 
-      vulnGroupRef.current = L.layerGroup().addTo(map)
-      infraGroupRef.current = L.layerGroup().addTo(map)
-      routeGroupRef.current = L.layerGroup().addTo(map)
-      FLOOD_MARK_LEVELS.forEach((cfg) => {
-        floodMarkGroupRefs.current[cfg.key] = L.layerGroup()
-      })
+        const cg = L.layerGroup().addTo(map)
+        circleGroupRef.current = cg
 
-      GISTDA_LAYERS.forEach((cfg) => {
-        const tile = L.tileLayer(
-          `/api/gistda/maps/${cfg.tmsPath}/tms/{z}/{x}/{y}`,
-          {
-            maxZoom: 18,
-            opacity: 0.7,
-            // GISTDA's `/tms/` endpoint serves standard XYZ (top-left origin)
-            // per the QGIS XYZ-Tiles example in the manual.
-            tms: false,
-          },
-        )
-        gistdaRefs.current[cfg.key] = tile
-      })
+        // Polygon layer is populated by the period-driven effect below
+        const s2Layer = L.geoJSON(undefined, {
+          style: () => ({
+            color: 'oklch(0.68 0.15 230)',
+            weight: 1.25,
+            fillColor: 'oklch(0.68 0.15 230)',
+            fillOpacity: 0.22,
+            opacity: 0.9,
+          }),
+        }).addTo(map)
+        s2LayerRef.current = s2Layer
 
-      setMapReady(true)
-    })()
+        vulnGroupRef.current = L.layerGroup().addTo(map)
+        infraGroupRef.current = L.layerGroup().addTo(map)
+        routeGroupRef.current = L.layerGroup().addTo(map)
+        FLOOD_MARK_LEVELS.forEach((cfg) => {
+          floodMarkGroupRefs.current[cfg.key] = L.layerGroup()
+        })
+        CMU_FLOOD_LAYERS.forEach((cfg) => {
+          cmuFloodGroupRefs.current[cfg.key] = L.layerGroup()
+        })
+
+        GISTDA_LAYERS.forEach((cfg) => {
+          const tile = L.tileLayer(
+            `/api/gistda/maps/${cfg.tmsPath}/tms/{z}/{x}/{y}`,
+            {
+              maxZoom: 18,
+              opacity: 0.7,
+              // GISTDA's `/tms/` endpoint serves standard XYZ (top-left origin)
+              // per the QGIS XYZ-Tiles example in the manual.
+              tms: false,
+            },
+          )
+          gistdaRefs.current[cfg.key] = tile
+        })
+
+        setMapReady(true)
+      })()
 
     return () => {
       isMounted = false
@@ -306,64 +313,64 @@ export function FloodMap({
   useEffect(() => {
     if (!mapReady) return
     let cancelled = false
-    ;(async () => {
-      try {
-        const url = `/api/gistda/features/flood/${floodPeriod}?bbox=${NAN_BBOX}&limit=${FLOOD_LIMIT}&offset=0`
-        const res = await fetch(url)
-        if (!res.ok) {
-          console.warn('[gistda] flood features failed', res.status)
-          if (!cancelled) {
-            setFloodPoints([])
-            s2LayerRef.current?.clearLayers()
+      ; (async () => {
+        try {
+          const url = `/api/gistda/features/flood/${floodPeriod}?bbox=${CHIANG_MAI_BBOX}&limit=${FLOOD_LIMIT}&offset=0`
+          const res = await fetch(url)
+          if (!res.ok) {
+            console.warn('[gistda] flood features failed', res.status)
+            if (!cancelled) {
+              setFloodPoints([])
+              s2LayerRef.current?.clearLayers()
+            }
+            return
           }
-          return
-        }
-        const geo = (await res.json()) as GeoJsonObject & FloodFeatureCollection
-        const feats = geo.features ?? []
-        const pts = feats
-          .map(floodFeatureToPoint)
-          .filter((p): p is [number, number, number] => p !== null)
-        if (cancelled) return
+          const geo = (await res.json()) as GeoJsonObject & FloodFeatureCollection
+          const feats = geo.features ?? []
+          const pts = feats
+            .map(floodFeatureToPoint)
+            .filter((p): p is [number, number, number] => p !== null)
+          if (cancelled) return
 
-        setFloodPoints(pts)
+          setFloodPoints(pts)
 
-        const s2 = s2LayerRef.current
-        if (s2) {
-          s2.clearLayers()
-          s2.addData(geo)
-          const periodLabel =
-            FLOOD_PERIODS.find((p) => p.key === floodPeriod)?.label ?? floodPeriod
-          s2.eachLayer((rawLayer) => {
-            const layer = rawLayer as FloodPolygonLayer
-            const props = layer.feature?.properties ?? {}
-            const name =
-              props.tb_tn || props.ap_tn || props.pv_tn || 'พื้นที่น้ำท่วม'
-            const region = [props.ap_tn, props.pv_tn].filter(Boolean).join(' · ')
-            const date = props.flood_date || props.date || ''
-            layer.bindPopup(
-              `<div>
+          const s2 = s2LayerRef.current
+          if (s2) {
+            s2.clearLayers()
+            s2.addData(geo)
+            const periodLabel =
+              FLOOD_PERIODS.find((p) => p.key === floodPeriod)?.label ?? floodPeriod
+            s2.eachLayer((rawLayer) => {
+              const layer = rawLayer as FloodPolygonLayer
+              const props = layer.feature?.properties ?? {}
+              const name =
+                props.tb_tn || props.ap_tn || props.pv_tn || 'พื้นที่น้ำท่วม'
+              const region = [props.ap_tn, props.pv_tn].filter(Boolean).join(' · ')
+              const date = props.flood_date || props.date || ''
+              layer.bindPopup(
+                `<div>
                 <div style="font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:var(--fg-subtle);margin-bottom:4px">GISTDA · ${periodLabel}</div>
                 <div style="font-size:14px;font-weight:600;margin-bottom:4px">${name}</div>
                 ${region ? `<div style="font-size:11.5px;color:var(--fg-muted);margin-bottom:4px">${region}</div>` : ''}
                 ${date ? `<div style="font-size:11px;color:var(--fg-muted);font-family:var(--font-mono)">${date}</div>` : ''}
               </div>`,
-            )
-            layer.on('mouseover', () =>
-              layer.setStyle({ weight: 2.5, fillOpacity: 0.35 }),
-            )
-            layer.on('mouseout', () =>
-              layer.setStyle({ weight: 1.25, fillOpacity: 0.22 }),
-            )
-          })
+              )
+              layer.on('mouseover', () =>
+                layer.setStyle({ weight: 2.5, fillOpacity: 0.35 }),
+              )
+              layer.on('mouseout', () =>
+                layer.setStyle({ weight: 1.25, fillOpacity: 0.22 }),
+              )
+            })
+          }
+        } catch (err) {
+          console.error('[gistda] flood features error', err)
+          if (!cancelled) {
+            setFloodPoints([])
+            s2LayerRef.current?.clearLayers()
+          }
         }
-      } catch (err) {
-        console.error('[gistda] flood features error', err)
-        if (!cancelled) {
-          setFloodPoints([])
-          s2LayerRef.current?.clearLayers()
-        }
-      }
-    })()
+      })()
     return () => {
       cancelled = true
     }
@@ -378,32 +385,32 @@ export function FloodMap({
   // Vulnerable markers (vector circleMarker, not div-icon)
   useEffect(() => {
     if (!mapReady || !vulnGroupRef.current) return
-    ;(async () => {
-      const L = (await import('leaflet')).default
-      const vg = vulnGroupRef.current!
-      vg.clearLayers()
+      ; (async () => {
+        const L = (await import('leaflet')).default
+        const vg = vulnGroupRef.current!
+        vg.clearLayers()
 
-      vulnerable.forEach((p) => {
-        const risk: RiskLevel = (p.risk ?? 'safe') as RiskLevel
-        const ringColor = RISK_COLOR[risk]
+        vulnerable.forEach((p) => {
+          const risk: RiskLevel = (p.risk ?? 'safe') as RiskLevel
+          const ringColor = RISK_COLOR[risk]
 
-        const icon = L.divIcon({
-          className: 'vuln-marker',
-          html: vulnMarkerHtml(p.type, risk),
-          iconSize: [28, 28],
-          iconAnchor: [14, 14],
-        })
+          const icon = L.divIcon({
+            className: 'vuln-marker',
+            html: vulnMarkerHtml(p.type, risk),
+            iconSize: [28, 28],
+            iconAnchor: [14, 14],
+          })
 
-        const marker = L.marker([p.lat, p.lng], { icon })
+          const marker = L.marker([p.lat, p.lng], { icon })
 
-        const riskLabel: Record<RiskLevel, string> = {
-          flood: 'ในเขตน้ำท่วม',
-          near: 'ใกล้เขต',
-          safe: 'ปลอดภัย',
-        }
+          const riskLabel: Record<RiskLevel, string> = {
+            flood: 'ในเขตน้ำท่วม',
+            near: 'ใกล้เขต',
+            safe: 'ปลอดภัย',
+          }
 
-        marker.bindPopup(
-          `<div style="min-width:200px">
+          marker.bindPopup(
+            `<div style="min-width:200px">
             <div style="font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--fg-subtle);margin-bottom:4px">${p.label}</div>
             <div style="font-size:14px;font-weight:600;color:var(--fg);margin-bottom:8px">${p.name}</div>
             <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12px;margin-bottom:10px">
@@ -420,95 +427,139 @@ export function FloodMap({
               แสดงเส้นทางอพยพ →
             </button>
           </div>`,
-        )
+          )
 
-        marker.on('popupopen', () => {
-          setTimeout(() => {
-            const btn = document.getElementById(`evac-${p.id}`)
-            btn?.addEventListener(
-              'click',
-              () => onRequestRoute?.(p.id),
-              { once: true },
-            )
-          }, 0)
+          marker.on('popupopen', () => {
+            setTimeout(() => {
+              const btn = document.getElementById(`evac-${p.id}`)
+              btn?.addEventListener(
+                'click',
+                () => onRequestRoute?.(p.id),
+                { once: true },
+              )
+            }, 0)
+          })
+
+          vg.addLayer(marker)
         })
-
-        vg.addLayer(marker)
-      })
-    })()
+      })()
   }, [mapReady, vulnerable, onRequestRoute])
 
   // Infra markers (vector squares using divIcon, no emoji)
   useEffect(() => {
     if (!mapReady || !infraGroupRef.current) return
-    ;(async () => {
-      const L = (await import('leaflet')).default
-      const ig = infraGroupRef.current!
-      ig.clearLayers()
+      ; (async () => {
+        const L = (await import('leaflet')).default
+        const ig = infraGroupRef.current!
+        ig.clearLayers()
 
-      infra.forEach((i) => {
-        const icon = L.divIcon({
-          className: 'infra-marker',
-          html: infraMarkerHtml(i.type),
-          iconSize: [28, 28],
-          iconAnchor: [14, 14],
-        })
-        L.marker([i.lat, i.lng], { icon })
-          .bindPopup(
-            `<div>
+        infra.forEach((i) => {
+          const icon = L.divIcon({
+            className: 'infra-marker',
+            html: infraMarkerHtml(i.type),
+            iconSize: [28, 28],
+            iconAnchor: [14, 14],
+          })
+          L.marker([i.lat, i.lng], { icon })
+            .bindPopup(
+              `<div>
               <div style="font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--fg-subtle);margin-bottom:4px">${INFRA_LABEL[i.type] ?? i.type}</div>
               <div style="font-size:14px;font-weight:600;margin-bottom:4px">${i.name}</div>
               <div style="font-size:12px;color:var(--fg-muted)">ความจุ: <span style="font-family:var(--font-mono)">${i.cap}</span></div>
             </div>`,
-          )
-          .addTo(ig)
-      })
-    })()
+            )
+            .addTo(ig)
+        })
+      })()
   }, [mapReady, infra])
 
   // Flood Mark survey points from CMU Water Center, loaded only for active levels.
   useEffect(() => {
     if (!mapReady) return
     let cancelled = false
-    ;(async () => {
-      const L = (await import('leaflet')).default
+      ; (async () => {
+        const L = (await import('leaflet')).default
 
-      await Promise.all(
-        FLOOD_MARK_LEVELS.map(async (cfg) => {
-          if (!layers.floodMarks[cfg.key]) return
+        await Promise.all(
+          FLOOD_MARK_LEVELS.map(async (cfg) => {
+            if (!layers.floodMarks[cfg.key]) return
 
-          const group = floodMarkGroupRefs.current[cfg.key]
-          if (!group) return
+            const group = floodMarkGroupRefs.current[cfg.key]
+            if (!group) return
 
-          const cached = floodMarkCacheRef.current[cfg.key]
-          if (cached) {
-            renderFloodMarks(L, group, cached, cfg.key, floodMarkProvince)
-            return
-          }
-
-          try {
-            const res = await fetch(`/api/flood-marks/${cfg.key}`)
-            if (!res.ok) {
-              console.warn('[flood-marks] request failed', cfg.key, res.status)
+            const cached = floodMarkCacheRef.current[cfg.key]
+            if (cached) {
+              renderFloodMarks(L, group, cached, cfg.key, floodMarkProvince)
               return
             }
 
-            const marks = (await res.json()) as FloodMark[]
-            if (cancelled) return
+            try {
+              const res = await fetch(`/api/flood-marks/${cfg.key}`)
+              if (!res.ok) {
+                console.warn('[flood-marks] request failed', cfg.key, res.status)
+                return
+              }
 
-            floodMarkCacheRef.current[cfg.key] = marks
-            renderFloodMarks(L, group, marks, cfg.key, floodMarkProvince)
-          } catch (err) {
-            console.error('[flood-marks] request error', cfg.key, err)
-          }
-        }),
-      )
-    })()
+              const marks = (await res.json()) as FloodMark[]
+              if (cancelled) return
+
+              floodMarkCacheRef.current[cfg.key] = marks
+              renderFloodMarks(L, group, marks, cfg.key, floodMarkProvince)
+            } catch (err) {
+              console.error('[flood-marks] request error', cfg.key, err)
+            }
+          }),
+        )
+      })()
 
     return () => {
       cancelled = true
     }
   }, [mapReady, layers.floodMarks, floodMarkProvince])
+
+  // CMU Water Center layers for Chiang Mai flood scenarios and response points.
+  useEffect(() => {
+    if (!mapReady) return
+    let cancelled = false
+      ; (async () => {
+        const L = (await import('leaflet')).default
+
+        await Promise.all(
+          CMU_FLOOD_LAYERS.map(async (cfg) => {
+            if (!layers.cmuFlood[cfg.key] || cmuFloodLoadedRef.current[cfg.key]) return
+
+            const group = cmuFloodGroupRefs.current[cfg.key]
+            if (!group) return
+
+            try {
+              const res = await fetch(`/api/cmu-flood/${cfg.path}`)
+              if (!res.ok) {
+                console.warn('[cmu-flood] request failed', cfg.key, res.status)
+                return
+              }
+
+              if (cfg.format === 'kml') {
+                const xml = await res.text()
+                if (cancelled) return
+                renderCmuKmlLayer(L, group, xml, cfg)
+              } else {
+                const geo = (await res.json()) as GeoJsonObject
+                if (cancelled) return
+                renderCmuGeoJsonLayer(L, group, geo, cfg)
+              }
+
+              cmuFloodLoadedRef.current[cfg.key] = true
+            } catch (err) {
+              console.error('[cmu-flood] request error', cfg.key, err)
+            }
+          }),
+        )
+      })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [mapReady, layers.cmuFlood])
 
   // Layer visibility
   useEffect(() => {
@@ -531,15 +582,18 @@ export function FloodMap({
     GISTDA_LAYERS.forEach((cfg) => {
       toggle(gistdaRefs.current[cfg.key], layers.gistda[cfg.key])
     })
+    CMU_FLOOD_LAYERS.forEach((cfg) => {
+      toggle(cmuFloodGroupRefs.current[cfg.key], layers.cmuFlood[cfg.key])
+    })
   }, [layers, mapReady])
 
   // Tune sliders
   useEffect(() => {
     if (!circleGroupRef.current || !floodPoints.length) return
-    ;(async () => {
-      const L = (await import('leaflet')).default
-      renderCircles(L, circleGroupRef.current!, floodPoints, radius, opacity / 100)
-    })()
+      ; (async () => {
+        const L = (await import('leaflet')).default
+        renderCircles(L, circleGroupRef.current!, floodPoints, radius, opacity / 100)
+      })()
   }, [radius, opacity, floodPoints])
 
   useEffect(() => {
@@ -551,22 +605,22 @@ export function FloodMap({
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
-    ;(async () => {
-      const L = (await import('leaflet')).default
-      baseLayers.current.forEach((l) => map.removeLayer(l))
-      const urls = TILE_URLS[basemap]
-      if (Array.isArray(urls)) {
-        const ls = urls.map((u, i) =>
-          L.tileLayer(u, { maxZoom: 19, opacity: i === 1 ? 0.7 : 1 }),
-        )
-        ls.forEach((l) => l.addTo(map))
-        baseLayers.current = ls
-      } else {
-        const l = L.tileLayer(urls, { maxZoom: 19, subdomains: 'abcd' })
-        l.addTo(map)
-        baseLayers.current = [l]
-      }
-    })()
+      ; (async () => {
+        const L = (await import('leaflet')).default
+        baseLayers.current.forEach((l) => map.removeLayer(l))
+        const urls = TILE_URLS[basemap]
+        if (Array.isArray(urls)) {
+          const ls = urls.map((u, i) =>
+            L.tileLayer(u, { maxZoom: 19, opacity: i === 1 ? 0.7 : 1 }),
+          )
+          ls.forEach((l) => l.addTo(map))
+          baseLayers.current = ls
+        } else {
+          const l = L.tileLayer(urls, { maxZoom: 19, subdomains: 'abcd' })
+          l.addTo(map)
+          baseLayers.current = [l]
+        }
+      })()
   }, [basemap])
 
   return <div ref={containerRef} className="size-full" />
@@ -629,21 +683,21 @@ function renderFloodMarks(
   marks
     .filter((mark) => !province || mark.province === province)
     .forEach((mark) => {
-    const waterLevel = mark.waterLevel ?? 0
-    const radius = Math.max(4.5, Math.min(9, 4 + waterLevel / 45))
-    const detail = mark.placeDetail ?? mark.otherDetail ?? 'ไม่ระบุสถานที่'
-    const reportUrl = `https://watercenter.scmc.cmu.ac.th/cmflood/flood24/report/${encodeURIComponent(mark.code)}`
+      const waterLevel = mark.waterLevel ?? 0
+      const radius = Math.max(4.5, Math.min(9, 4 + waterLevel / 45))
+      const detail = mark.placeDetail ?? mark.otherDetail ?? 'ไม่ระบุสถานที่'
+      const reportUrl = `https://watercenter.scmc.cmu.ac.th/cmflood/flood24/report/${encodeURIComponent(mark.code)}`
 
-    L.circleMarker([mark.latitude, mark.longitude], {
-      radius,
-      color,
-      weight: 1.75,
-      opacity: 0.95,
-      fillColor: color,
-      fillOpacity: 0.45,
-    })
-      .bindPopup(
-        `<div style="min-width:220px">
+      L.circleMarker([mark.latitude, mark.longitude], {
+        radius,
+        color,
+        weight: 1.75,
+        opacity: 0.95,
+        fillColor: color,
+        fillOpacity: 0.45,
+      })
+        .bindPopup(
+          `<div style="min-width:220px">
           <div style="font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--fg-subtle);margin-bottom:4px">${escapeHtml(label)}</div>
           <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px">
             <a href="${reportUrl}" target="_blank" rel="noopener" style="font-size:13px;font-weight:600;color:var(--accent);text-decoration:none">${popupText(mark.code)}</a>
@@ -657,9 +711,153 @@ function renderFloodMarks(
             <span style="color:var(--fg-subtle)">ใกล้เคียง</span><span>${popupText(mark.placeAround)}</span>
           </div>
         </div>`,
-      )
-      .addTo(group)
+        )
+        .addTo(group)
     })
+}
+
+function firstText(parent: Element, tag: string): string {
+  return parent.getElementsByTagName(tag)[0]?.textContent?.trim() ?? ''
+}
+
+function parseKmlCoordinates(value: string): [number, number][] {
+  return value
+    .trim()
+    .split(/\s+/)
+    .map((part) => {
+      const [lng, lat] = part.split(',').map(Number)
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null
+      return [lat, lng] as [number, number]
+    })
+    .filter((point): point is [number, number] => point !== null)
+}
+
+function cmuPopup(label: string, meta: string, title: string, detail?: string): string {
+  return `<div style="min-width:200px">
+    <div style="font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--fg-subtle);margin-bottom:4px">CMU Water Center · ${escapeHtml(meta)}</div>
+    <div style="font-size:14px;font-weight:600;margin-bottom:4px">${escapeHtml(title || label)}</div>
+    ${detail ? `<div style="font-size:12px;color:var(--fg-muted);line-height:1.45">${escapeHtml(detail)}</div>` : ''}
+  </div>`
+}
+
+function renderCmuKmlLayer(
+  L: typeof import('leaflet'),
+  group: import('leaflet').LayerGroup,
+  xml: string,
+  cfg: CmuFloodLayerConfig,
+) {
+  group.clearLayers()
+  const doc = new DOMParser().parseFromString(xml, 'application/xml')
+  const placemarks = Array.from(doc.getElementsByTagName('Placemark'))
+
+  placemarks.forEach((placemark) => {
+    const title = firstText(placemark, 'name') || cfg.label
+    const detail = firstText(placemark, 'description')
+    const popup = cmuPopup(cfg.label, cfg.meta, title, detail)
+    const polygon = placemark.getElementsByTagName('Polygon')[0]
+    const line = placemark.getElementsByTagName('LineString')[0]
+    const point = placemark.getElementsByTagName('Point')[0]
+
+    if (polygon) {
+      const coords = parseKmlCoordinates(firstText(polygon, 'coordinates'))
+      if (coords.length < 3) return
+      L.polygon(coords, {
+        color: cfg.color,
+        weight: 1.3,
+        opacity: 0.9,
+        fillColor: cfg.color,
+        fillOpacity: 0.45,
+      })
+        .bindPopup(popup)
+        .addTo(group)
+      return
+    }
+
+    if (line) {
+      const coords = parseKmlCoordinates(firstText(line, 'coordinates'))
+      if (coords.length < 2) return
+      L.polyline(coords, {
+        color: cfg.color,
+        weight: 2.2,
+        opacity: 0.95,
+      })
+        .bindPopup(popup)
+        .addTo(group)
+      return
+    }
+
+    if (point) {
+      const [coord] = parseKmlCoordinates(firstText(point, 'coordinates'))
+      if (!coord) return
+      L.circleMarker(coord, {
+        radius: 5,
+        color: cfg.color,
+        weight: 1.5,
+        fillColor: cfg.color,
+        fillOpacity: 0.65,
+      })
+        .bindPopup(popup)
+        .addTo(group)
+    }
+  })
+}
+
+function geoJsonTitle(properties: Record<string, unknown>, fallback: string): string {
+  const value =
+    properties.name ??
+    properties.Name ??
+    properties.NAME ??
+    properties.title ??
+    properties.Title ??
+    properties.place ??
+    properties.Place
+  return value === undefined || value === null || value === '' ? fallback : String(value)
+}
+
+function geoJsonDetail(properties: Record<string, unknown>): string {
+  return Object.entries(properties)
+    .filter(([, value]) => value !== null && value !== undefined && value !== '')
+    .slice(0, 4)
+    .map(([key, value]) => `${key}: ${String(value)}`)
+    .join('\n')
+}
+
+function renderCmuGeoJsonLayer(
+  L: typeof import('leaflet'),
+  group: import('leaflet').LayerGroup,
+  geo: GeoJsonObject,
+  cfg: CmuFloodLayerConfig,
+) {
+  group.clearLayers()
+  L.geoJSON(geo, {
+    pointToLayer: (_feature, latlng) =>
+      L.circleMarker(latlng, {
+        radius: cfg.kind === 'pole' ? 4.5 : 6,
+        color: cfg.color,
+        weight: 1.5,
+        opacity: 0.95,
+        fillColor: cfg.color,
+        fillOpacity: cfg.kind === 'pole' ? 0.5 : 0.72,
+      }),
+    style: () => ({
+      color: cfg.color,
+      weight: cfg.kind === 'river' ? 2.2 : 1.3,
+      opacity: 0.9,
+      fillColor: cfg.color,
+      fillOpacity: 0.22,
+    }),
+    onEachFeature: (feature, layer) => {
+      const properties = (feature.properties ?? {}) as Record<string, unknown>
+      layer.bindPopup(
+        cmuPopup(
+          cfg.label,
+          cfg.meta,
+          geoJsonTitle(properties, cfg.label),
+          geoJsonDetail(properties),
+        ),
+      )
+    },
+  }).addTo(group)
 }
 
 export function useShowRoute() {

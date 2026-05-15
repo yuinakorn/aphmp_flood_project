@@ -15,6 +15,7 @@ const layers = {
 
 console.table(layers);
 
+
 เส้น api | ความหมาย | ประเภท
 https://watercenter.cmu.ac.th/chiangmai/cmflood/data/KML5Layer/L1.kml | ขอบเขตน้ำท่วมลำดับที่ 1 (P.1 = 4.30 เมตร) | KML (Polygon GIS)
 https://watercenter.cmu.ac.th/chiangmai/cmflood/data/KML5Layer/L2.kml | ขอบเขตน้ำท่วมลำดับที่ 2 (P.1 = 4.50 เมตร) | KML (Polygon GIS)
@@ -31,3 +32,12 @@ https://watercenter.cmu.ac.th/chiangmai/cmflood/warning/floodmark | หน้า
 https://watercenter.cmu.ac.th/chiangmai/cmflood/warning/flooddepth | หน้าแผนที่ประมาณความลึกน้ำท่วม | Web Page
 https://watercenter.cmu.ac.th/chiangmai/cmflood/warning/floodforecast | หน้าพยากรณ์ระดับน้ำ P.1 (คาดว่ามี API realtime/forecast ซ่อนอยู่) | Dynamic Web/API Candidate
 
+
+เส้นใหม่
+เส้น api | ความหมาย | ประเภท
+https://watercenter.cmu.ac.th/data/KML5Layer/L1.kml | ขอบเขตน้ำท่วมลำดับที่ 1 (P.1 = 4.30 เมตร) | KML (Polygon GIS)
+https://watercenter.cmu.ac.th/data/KML5Layer/L2.kml | ขอบเขตน้ำท่วมลำดับที่ 2 (P.1 = 4.50 เมตร) | KML (Polygon GIS)
+https://watercenter.cmu.ac.th/data/KML5Layer/L3new.kml | ขอบเขตน้ำท่วมลำดับที่ 3 (P.1 = 4.70 เมตร) | KML (Polygon GIS)
+https://watercenter.cmu.ac.th/data/KML5Layer/L4new.kml | ขอบเขตน้ำท่วมลำดับที่ 4 (P.1 = 5.00 เมตร) | KML (Polygon GIS)
+https://watercenter.cmu.ac.th/data/KML5Layer/L5.kml | ขอบเขตน้ำท่วมลำดับที่ 5 (P.1 = 5.30 เมตร) | KML (Polygon GIS)
+https://watercenter.cmu.ac.th/data/KML/river_main.kml | แม่น้ำ/ลำน้ำ (CNX Stream) | KML (LineString GIS)

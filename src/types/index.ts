@@ -174,6 +174,16 @@ export interface VulnerableStats {
 
 export type FloodPeriod = '1day' | '3days' | '7days' | '30days'
 export type FloodMarkLevel = '1' | '2' | '3' | '4' | '5'
+export type CmuFloodLayerKey =
+  | 'flood1'
+  | 'flood2'
+  | 'flood3'
+  | 'flood4'
+  | 'flood5'
+  | 'river'
+  | 'parking'
+  | 'shelter'
+  | 'pole'
 
 export const FLOOD_PERIODS: { key: FloodPeriod; label: string }[] = [
   { key: '1day', label: '1 วันล่าสุด' },
@@ -192,12 +202,14 @@ export type GistdaLayerKey =
 
 export type GistdaLayers = Record<GistdaLayerKey, boolean>
 export type FloodMarkLayers = Record<FloodMarkLevel, boolean>
+export type CmuFloodLayers = Record<CmuFloodLayerKey, boolean>
 
 export interface LayerState {
   heatmap: boolean
   circles: boolean
   gistda: GistdaLayers
   floodMarks: FloodMarkLayers
+  cmuFlood: CmuFloodLayers
   s2flood: boolean
   vulnerable: boolean
   infra: boolean
@@ -312,6 +324,100 @@ export const GISTDA_LAYERS: GistdaLayerConfig[] = [
     label: 'ผักตบชวา',
     meta: 'water_hyacinth · TMS',
     tmsPath: 'water_hyacinth',
+  },
+]
+
+export interface CmuFloodLayerConfig {
+  key: CmuFloodLayerKey
+  label: string
+  meta: string
+  path: string
+  format: 'kml' | 'geojson'
+  kind: 'flood' | 'river' | 'parking' | 'shelter' | 'pole'
+  color: string
+}
+
+export const CMU_FLOOD_LAYERS: CmuFloodLayerConfig[] = [
+  {
+    key: 'flood1',
+    label: 'ขอบเขตน้ำท่วม ลำดับ 1',
+    meta: 'P.1 = 4.30 ม. · KML Polygon',
+    path: 'data/KML5Layer/L1.kml',
+    format: 'kml',
+    kind: 'flood',
+    color: 'oklch(0.54 0.22 25)',
+  },
+  {
+    key: 'flood2',
+    label: 'ขอบเขตน้ำท่วม ลำดับ 2',
+    meta: 'P.1 = 4.50 ม. · KML Polygon',
+    path: 'data/KML5Layer/L2.kml',
+    format: 'kml',
+    kind: 'flood',
+    color: 'oklch(0.66 0.20 30)',
+  },
+  {
+    key: 'flood3',
+    label: 'ขอบเขตน้ำท่วม ลำดับ 3',
+    meta: 'P.1 = 4.70 ม. · KML Polygon',
+    path: 'data/KML5Layer/L3new.kml',
+    format: 'kml',
+    kind: 'flood',
+    color: 'oklch(0.68 0.18 50)',
+  },
+  {
+    key: 'flood4',
+    label: 'ขอบเขตน้ำท่วม ลำดับ 4',
+    meta: 'P.1 = 5.00 ม. · KML Polygon',
+    path: 'data/KML5Layer/L4new.kml',
+    format: 'kml',
+    kind: 'flood',
+    color: 'oklch(0.72 0.17 62)',
+  },
+  {
+    key: 'flood5',
+    label: 'ขอบเขตน้ำท่วม ลำดับ 5',
+    meta: 'P.1 = 5.30 ม. · KML Polygon',
+    path: 'data/KML5Layer/L5.kml',
+    format: 'kml',
+    kind: 'flood',
+    color: 'oklch(0.78 0.16 75)',
+  },
+  {
+    key: 'river',
+    label: 'แม่น้ำ / ลำน้ำหลัก',
+    meta: 'CNX Stream · KML LineString',
+    path: 'data/KML/river_main.kml',
+    format: 'kml',
+    kind: 'river',
+    color: 'oklch(0.68 0.15 230)',
+  },
+  {
+    key: 'parking',
+    label: 'จุดจอดรถกรณีน้ำท่วม',
+    meta: 'ประมาณ 19 จุด · GeoJSON',
+    path: 'data/parking_flood.geojson',
+    format: 'geojson',
+    kind: 'parking',
+    color: 'oklch(0.78 0.16 75)',
+  },
+  {
+    key: 'shelter',
+    label: 'ศูนย์พักพิงชั่วคราว',
+    meta: 'ประมาณ 39 จุด · GeoJSON',
+    path: 'data/Shelter.geojson',
+    format: 'geojson',
+    kind: 'shelter',
+    color: 'oklch(0.74 0.10 145)',
+  },
+  {
+    key: 'pole',
+    label: 'หลักเตือนระดับน้ำท่วม',
+    meta: 'P.1 สะพานนวรัฐ · GeoJSON',
+    path: 'data/PoleCNX2025_v2.geojson',
+    format: 'geojson',
+    kind: 'pole',
+    color: 'oklch(0.62 0.18 305)',
   },
 ]
 

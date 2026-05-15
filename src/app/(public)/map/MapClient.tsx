@@ -15,6 +15,7 @@ import { MapOverlay } from '@/components/map/MapOverlay'
 import { buildEvacRoute, nearestShelter } from '@/lib/geo'
 import type {
   BasemapType,
+  CmuFloodLayerKey,
   FloodMarkLevel,
   FloodMarkProvince,
   FloodPeriod,
@@ -43,6 +44,17 @@ const DEFAULT_LAYERS: LayerState = {
     '3': false,
     '4': false,
     '5': false,
+  },
+  cmuFlood: {
+    flood1: false,
+    flood2: false,
+    flood3: false,
+    flood4: false,
+    flood5: false,
+    river: false,
+    parking: false,
+    shelter: false,
+    pole: false,
   },
   s2flood: true,
   vulnerable: true,
@@ -141,6 +153,10 @@ export function MapClient() {
 
   const onFloodMarkChange = useCallback((k: FloodMarkLevel, v: boolean) => {
     setLayers((p) => ({ ...p, floodMarks: { ...p.floodMarks, [k]: v } }))
+  }, [])
+
+  const onCmuFloodChange = useCallback((k: CmuFloodLayerKey, v: boolean) => {
+    setLayers((p) => ({ ...p, cmuFlood: { ...p.cmuFlood, [k]: v } }))
   }, [])
 
   const onFloodMarkProvinceChange = useCallback(
@@ -245,6 +261,7 @@ export function MapClient() {
             onChange={onLayerChange}
             onGistdaChange={onGistdaChange}
             onFloodMarkChange={onFloodMarkChange}
+            onCmuFloodChange={onCmuFloodChange}
             onFloodMarkProvinceChange={onFloodMarkProvinceChange}
             onClose={() => setActivePanel(null)}
           />

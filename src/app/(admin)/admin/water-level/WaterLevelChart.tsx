@@ -24,9 +24,16 @@ export function WaterLevelChart({ data, thresholds }: Props) {
         .flatMap((d) => [d.p67, d.p1])
         .filter((v): v is number => v != null)
 
-      const lo = Math.min(...allLevels, 0)
-      const hi = Math.max(...allLevels, 1)
-      const padY = Math.max(0.2, (hi - lo) * 0.15)
+      // Always include critical thresholds in the visible range so the dashed
+      // lines stay on-screen even in dry season when actual levels are far below.
+      const reach = [
+        ...allLevels,
+        thresholds.p67,
+        thresholds.p1,
+      ]
+      const lo = Math.min(...reach)
+      const hi = Math.max(...reach)
+      const padY = Math.max(0.3, (hi - lo) * 0.12)
       const yMin = Math.floor((lo - padY) * 10) / 10
       const yMax = Math.ceil((hi + padY) * 10) / 10
 
@@ -76,7 +83,7 @@ export function WaterLevelChart({ data, thresholds }: Props) {
         yMin,
         yMax,
       }
-    }, [data])
+    }, [data, thresholds])
 
   const hoverPt = hover != null ? data[hover] : null
   const hoverX = hover != null ? px(hover) : 0
@@ -136,29 +143,35 @@ export function WaterLevelChart({ data, thresholds }: Props) {
           </g>
         ))}
 
-        {/* threshold lines (only if in visible range) */}
-        {thresholds.p67 >= yMin && thresholds.p67 <= yMax && (
-          <line
-            x1={PAD.left}
-            x2={W - PAD.right}
-            y1={pyP67(thresholds.p67)}
-            y2={pyP67(thresholds.p67)}
-            stroke="#f87171"
-            strokeDasharray="4 4"
-            strokeOpacity={0.6}
-          />
-        )}
-        {thresholds.p1 >= yMin && thresholds.p1 <= yMax && (
-          <line
-            x1={PAD.left}
-            x2={W - PAD.right}
-            y1={pyP1(thresholds.p1)}
-            y2={pyP1(thresholds.p1)}
-            stroke="#fb923c"
-            strokeDasharray="4 4"
-            strokeOpacity={0.6}
-          />
-        )}
+        {/* threshold lines per station */}
+        {[
+          { v: thresholds.p67, color: '#38bdf8', label: `P.67 วิกฤต ${thresholds.p67.toFixed(1)}m`, py: pyP67 },
+          { v: thresholds.p1, color: '#fbbf24', label: `P.1 วิกฤต ${thresholds.p1.toFixed(1)}m`, py: pyP1 },
+        ].map((t, i) => (
+          <g key={i}>
+            <line
+              x1={PAD.left}
+              x2={W - PAD.right}
+              y1={t.py(t.v)}
+              y2={t.py(t.v)}
+              stroke={t.color}
+              strokeDasharray="5 4"
+              strokeOpacity={0.55}
+              strokeWidth={1}
+            />
+            <text
+              x={W - PAD.right - 4}
+              y={t.py(t.v) - 4}
+              textAnchor="end"
+              fontSize="9"
+              fontFamily="ui-monospace, monospace"
+              fill={t.color}
+              fillOpacity={0.85}
+            >
+              {t.label}
+            </text>
+          </g>
+        ))}
 
         {xTicks.map((t, i) => (
           <text

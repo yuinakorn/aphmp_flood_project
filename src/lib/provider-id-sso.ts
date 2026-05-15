@@ -1,3 +1,4 @@
+import { customFetch } from 'next-auth'
 import type { OAuthConfig } from 'next-auth/providers'
 import type { UserRole } from '@/types'
 
@@ -14,6 +15,7 @@ interface ProviderOrganization {
 
 export interface ProviderIdSsoProfile {
   id?: string
+  sub?: string
   provider_id?: string
   account_id?: string
   name_prefix?: string | null
@@ -25,13 +27,6 @@ export interface ProviderIdSsoProfile {
   name_th?: string | null
   name_eng?: string | null
   organizations?: ProviderOrganization[]
-}
-
-interface ProviderTokenResponse {
-  token_type: string
-  expires_in: number
-  access_token: string
-  user: ProviderIdSsoProfile
 }
 
 export function isProviderIdSsoConfigured() {
@@ -67,10 +62,18 @@ export function providerIdSsoProvider(): OAuthConfig<ProviderIdSsoProfile> {
     throw new Error('Provider ID SSO is not configured')
   }
 
+  const tokenUrl = new URL('/api/oauth/token', ssoUrl).toString()
+  const introspectUrl = new URL('/api/oauth/introspect', ssoUrl).toString()
+
   return {
     id: 'provider-id-sso',
     name: 'Provider ID SSO',
     type: 'oauth',
+    clientId: clientId,
+    clientSecret: clientSecret,
+    client: {
+      token_endpoint_auth_method: 'client_secret_post',
+    },
     checks: ['state'],
     authorization: {
       url: new URL('/authorize', ssoUrl).toString(),
@@ -82,49 +85,54 @@ export function providerIdSsoProvider(): OAuthConfig<ProviderIdSsoProfile> {
       },
     },
     token: {
-      url: new URL('/api/oauth/token', ssoUrl).toString(),
-      async request({ params }: { params: { code?: string } }) {
-        const response = await fetch(new URL('/api/oauth/token', ssoUrl), {
+      url: tokenUrl,
+    },
+    userinfo: {
+      url: introspectUrl,
+      async request({ tokens }: { tokens: Record<string, unknown> }) {
+        const accessToken = tokens.access_token
+        if (typeof accessToken !== 'string') return {}
+
+        const response = await fetch(introspectUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            grant_type: 'authorization_code',
-            code: params.code,
-            redirect_uri: redirectUri,
+            token: accessToken,
             client_id: clientId,
             client_secret: clientSecret,
           }),
         })
 
-        if (!response.ok) {
-          throw new Error(`Provider ID SSO token exchange failed: ${response.status}`)
-        }
+        if (!response.ok) return {}
 
-        const data = (await response.json()) as ProviderTokenResponse
-        return {
-          tokens: {
-            access_token: data.access_token,
-            token_type: data.token_type,
-            expires_at: Math.floor(Date.now() / 1000) + Number(data.expires_in ?? 900),
-            user: data.user,
-          },
-        }
-      },
-    },
-    userinfo: {
-      url: new URL('/api/oauth/introspect', ssoUrl).toString(),
-      async request({ tokens }: { tokens: Record<string, unknown> }) {
-        return (tokens as typeof tokens & { user?: ProviderIdSsoProfile }).user ?? {}
+        const profile = (await response.json()) as ProviderIdSsoProfile & { active?: boolean }
+        return profile.active === false ? {} : profile
       },
     },
     profile(profile) {
-      const providerId = profile.provider_id ?? profile.id ?? profile.account_id
+      const providerId = profile.provider_id ?? profile.sub ?? profile.id ?? profile.account_id
       return {
         id: providerId ?? crypto.randomUUID(),
         email: providerId ? `${providerId}@provider-id.local` : `${crypto.randomUUID()}@provider-id.local`,
         name: profileName(profile),
         role: mapProviderProfileRole(profile),
       }
+    },
+    async [customFetch](input, init) {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
+      if (url === tokenUrl && init?.body instanceof URLSearchParams) {
+        const body = Object.fromEntries(init.body.entries())
+        return fetch(input, {
+          ...init,
+          headers: {
+            ...Object.fromEntries(new Headers(init.headers).entries()),
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify(body),
+        })
+      }
+
+      return fetch(input, init)
     },
   }
 }

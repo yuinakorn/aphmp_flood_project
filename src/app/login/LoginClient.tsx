@@ -66,12 +66,13 @@ export function LoginClient({ ssoEnabled }: LoginClientProps) {
               Public Health Flood Operations (PHFO)
             </p>
             <h1 className="mt-3 text-[26px] font-semibold leading-tight tracking-tight">
-              ระบบติดตามสถานการณ์น้ำ
+              ติดตามสถานการณ์น้ำ
               <br />
               น้ำท่วมช่วยทัน กลุ่มเปราะบาง
             </h1>
             <p className="mt-4 max-w-sm text-[13px] leading-relaxed text-[var(--fg-muted)]">
               ระบบสาธารณสุขเพื่อการติดตามและช่วยเหลือกลุ่มเปราะบาง
+              <br />
               ก่อน-ระหว่าง-หลังน้ำท่วม
             </p>
           </div>

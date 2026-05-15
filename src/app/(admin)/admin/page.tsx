@@ -1,6 +1,6 @@
 import { auth } from '@/lib/auth'
 import Link from 'next/link'
-import { Users, Building2, Map, BarChart3, ArrowUpRight } from 'lucide-react'
+import { Users, Building2, Map, BarChart3, Droplets, ArrowUpRight } from 'lucide-react'
 
 export const metadata = { title: 'Dashboard — FloodWatch Admin' }
 
@@ -18,6 +18,13 @@ const cards = [
     title: 'สถานที่สำคัญ',
     desc: 'รพ. รพ.สต. ศูนย์อพยพ จุดรวมพล',
     meta: '7 จุด',
+  },
+  {
+    href: '/admin/water-level',
+    icon: Droplets,
+    title: 'ระดับน้ำรายชั่วโมง',
+    desc: 'P.67 → P.1 ลุ่มน้ำปิง · กราฟ + ตารางย้อนหลัง 72 ชม.',
+    meta: 'live',
   },
   {
     href: '/map',

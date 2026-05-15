@@ -126,8 +126,8 @@ const TILE_URLS: Record<BasemapType, string | string[]> = {
   topo: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
   hybrid:
     'https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png',
-  google: 'https://mt1.google.com/vt/lyrs=r&x={x}&y={y}&z={z}',
-  google_sat: 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+  google: 'https://mt1.google.com/vt/lyrs=r&x={x}&y={y}&z={z}&apistyle=s.t%3A33%7Cp.v%3Aoff',
+  google_sat: 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}&apistyle=s.t%3A33%7Cp.v%3Aoff',
 }
 
 interface Props {

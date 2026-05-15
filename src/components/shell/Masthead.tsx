@@ -3,6 +3,7 @@
 import { Waves } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { ThemeToggle } from '@/components/ThemeToggle'
 
 interface Props {
   session?: { role: string; name: string } | null
@@ -72,10 +73,11 @@ export function Masthead({ session }: Props) {
         )}
       </nav>
 
-      <div className="ml-auto flex items-center gap-5 text-[11px] text-[var(--fg-subtle)]">
+      <div className="ml-auto flex items-center gap-4 text-[11px] text-[var(--fg-subtle)]">
         <span className="hidden font-mono uppercase tracking-[0.12em] lg:inline">
           Sentinel-1 · GISTDA
         </span>
+        <ThemeToggle />
         {session ? (
           <div className="flex items-center gap-3">
             <span className="font-mono text-[10.5px] uppercase tracking-[0.12em] text-[var(--accent)]">

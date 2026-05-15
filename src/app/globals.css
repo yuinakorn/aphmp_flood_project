@@ -37,7 +37,7 @@ a {
   color: var(--fg) !important;
   border: 1px solid var(--border) !important;
   border-radius: var(--radius-md) !important;
-  box-shadow: 0 8px 24px oklch(0 0 0 / 0.45) !important;
+  box-shadow: 0 8px 24px var(--shadow-elevation) !important;
   font-family: var(--font-sans) !important;
 }
 .leaflet-popup-content {
@@ -56,7 +56,7 @@ a {
   border-color: var(--border) !important;
 }
 .leaflet-control-attribution {
-  background: oklch(0 0 0 / 0.4) !important;
+  background: oklch(0 0 0 / 0.15) !important;
   color: var(--fg-subtle) !important;
   font-size: 10px;
 }
@@ -113,8 +113,31 @@ a {
   --radius-xl: 14px;
 }
 
+/* ── Light theme (default) ── */
 :root {
-  /* Calibrated dim surface: cool slate, hue 245 */
+  --bg: oklch(0.97 0.004 245);
+  --bg-elevated: oklch(1.00 0.000 245);
+  --bg-sunken: oklch(0.94 0.006 245);
+  --border: oklch(0.88 0.008 245);
+  --border-strong: oklch(0.78 0.010 245);
+  --fg: oklch(0.18 0.012 245);
+  --fg-muted: oklch(0.42 0.012 245);
+  --fg-subtle: oklch(0.58 0.010 245);
+
+  --accent: oklch(0.55 0.18 230);
+  --accent-fg: oklch(0.98 0.004 245);
+
+  --risk-flood: oklch(0.55 0.22 30);
+  --risk-near: oklch(0.62 0.18 75);
+  --risk-safe: oklch(0.52 0.14 145);
+  --signal-data: oklch(0.55 0.16 200);
+
+  --radius: 0.625rem;
+  --shadow-elevation: oklch(0 0 0 / 0.08);
+}
+
+/* ── Dark theme ── */
+.dark {
   --bg: oklch(0.18 0.012 245);
   --bg-elevated: oklch(0.22 0.011 245);
   --bg-sunken: oklch(0.15 0.010 245);
@@ -132,7 +155,7 @@ a {
   --risk-safe: oklch(0.74 0.10 145);
   --signal-data: oklch(0.78 0.14 200);
 
-  --radius: 0.625rem;
+  --shadow-elevation: oklch(0 0 0 / 0.45);
 }
 
 @layer base {
@@ -144,7 +167,7 @@ a {
     color: var(--fg);
   }
   ::selection {
-    background: oklch(0.68 0.15 230 / 0.35);
+    background: color-mix(in oklch, var(--accent) 35%, transparent);
   }
   :focus-visible {
     outline: 2px solid var(--accent);

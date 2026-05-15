@@ -2,9 +2,9 @@
 
 ## Theme
 
-**Single calibrated dim surface.** Justified by physical scene: a duty officer at 2am in a low-light command center reading from 2–3m away, glancing back and forth between the screen and a paper map. A photic-bright white surface fatigues at that distance and that hour. A pure-black surface kills the operator's night vision when they look away. The chosen surface is a deep cool slate (oklch ~0.18) — readable as "calm" in daylight too.
+**Dual calibrated surfaces — dark and light.** The dark theme preserves the original design: a deep cool slate (oklch ~0.18) for duty officers in low-light environments. The light theme uses a soft cool-white surface (oklch ~0.97) for comfortable daytime reading. Both carry a subtle cool-slate tint (hue 245) so the application reads as composed in either mode.
 
-No theme switcher (PRODUCT.md principle 7).
+Theme toggle in the Masthead. Default: dark. Preference persisted via `next-themes`.
 
 ## Color (OKLCH, restrained strategy)
 

@@ -1,7 +1,46 @@
 export type VulnerableType = 'bedridden' | 'elderly' | 'disabled' | 'pregnant'
 export type RiskLevel = 'flood' | 'near' | 'safe'
-export type InfraType = 'hospital' | 'clinic' | 'shelter' | 'assembly'
-export type UserRole = 'admin' | 'officer' | 'viewer'
+export type InfraType =
+  | 'hospital'
+  | 'clinic'
+  | 'shelter'
+  | 'assembly'
+  | 'temporary_health_post'
+export type UserRole =
+  | 'admin'
+  | 'officer'
+  | 'viewer'
+  | 'eoc'
+  | 'vhv'
+  | 'ems'
+  | 'rescue'
+  | 'ddpm'
+export type MedicalPriority = 'A' | 'B' | 'C'
+export type FollowUpStatus =
+  | 'pending'
+  | 'contacted'
+  | 'needs_help'
+  | 'moved'
+  | 'referred'
+  | 'closed'
+export type VisitStatus = 'pending' | 'completed' | 'unreachable' | 'needs_follow_up'
+export type PersonFieldStatus = 'safe' | 'needs_help' | 'evacuated' | 'referred' | 'unknown'
+export type HelpRequestType =
+  | 'medical'
+  | 'evacuation'
+  | 'supplies'
+  | 'rescue'
+  | 'shelter'
+  | 'other'
+export type HelpRequestPriority = 'low' | 'normal' | 'high' | 'critical'
+export type HelpRequestStatus =
+  | 'new'
+  | 'triaged'
+  | 'assigned'
+  | 'en_route'
+  | 'resolved'
+  | 'cancelled'
+export type ShelterReadinessStatus = 'open' | 'near_capacity' | 'full' | 'closed' | 'unsafe'
 
 export interface FloodPoint {
   lat: number
@@ -17,10 +56,19 @@ export interface VulnerablePerson {
   age: number
   cond: string
   vil: string
+  tambon?: string
+  amphoe?: string
   lat: number
   lng: number
   eq?: string
   risk?: RiskLevel
+  medicalPriority?: MedicalPriority
+  followUpStatus?: FollowUpStatus
+  careUnit?: string
+  assignedVhvId?: string
+  lastContactedAt?: string
+  lastVisitedAt?: string
+  lastKnownStatus?: string
 }
 
 export interface Infrastructure {
@@ -31,6 +79,83 @@ export interface Infrastructure {
   lng: number
   icon: string
   cap: string
+  occupancy?: number
+  readinessStatus?: ShelterReadinessStatus
+  healthCapacity?: number
+  bedriddenCapacity?: number
+  wheelchairSupport?: boolean
+  oxygenSupport?: boolean
+  electricitySupport?: boolean
+  waterSanitationStatus?: string
+  healthResources?: Record<string, unknown>
+}
+
+export interface HealthVisit {
+  id: string
+  vulnerablePersonId?: string
+  visitedBy?: string
+  visitStatus: VisitStatus
+  personStatus?: PersonFieldStatus
+  needsHelp: boolean
+  helpType?: string
+  notes?: string
+  lat?: number
+  lng?: number
+  observedAt: string
+  syncedAt?: string
+}
+
+export interface HelpRequest {
+  id: string
+  vulnerablePersonId?: string
+  requestedBy?: string
+  sourceRole: UserRole | 'public'
+  requestType: HelpRequestType
+  priority: HelpRequestPriority
+  status: HelpRequestStatus
+  description?: string
+  lat?: number
+  lng?: number
+  preferredShelterId?: string
+  observedAt: string
+  syncedAt?: string
+}
+
+export interface CaseAssignment {
+  id: string
+  helpRequestId: string
+  assignedTo?: string
+  assignedTeam?: string
+  assignedBy?: string
+  status: 'assigned' | 'accepted' | 'en_route' | 'arrived' | 'transferred' | 'closed'
+  etaMinutes?: number
+  notes?: string
+  assignedAt: string
+}
+
+export interface ShelterStatusSnapshot {
+  id: number
+  shelterId: string
+  occupancy: number
+  capacity?: number
+  readinessStatus: ShelterReadinessStatus
+  healthResources?: Record<string, unknown>
+  reportedBy?: string
+  observedAt: string
+  syncedAt?: string
+}
+
+export interface ShelterAdmission {
+  id: string
+  shelterId: string
+  vulnerablePersonId?: string
+  helpRequestId?: string
+  admittedBy?: string
+  status: 'admitted' | 'transferred' | 'discharged' | 'cancelled'
+  needsFollowUp: boolean
+  notes?: string
+  admittedAt: string
+  dischargedAt?: string
 }
 
 export interface FloodStats {
@@ -48,6 +173,7 @@ export interface VulnerableStats {
 }
 
 export type FloodPeriod = '1day' | '3days' | '7days' | '30days'
+export type FloodMarkLevel = '1' | '2' | '3' | '4' | '5'
 
 export const FLOOD_PERIODS: { key: FloodPeriod; label: string }[] = [
   { key: '1day', label: '1 วันล่าสุด' },
@@ -65,16 +191,82 @@ export type GistdaLayerKey =
   | 'waterHyacinth'
 
 export type GistdaLayers = Record<GistdaLayerKey, boolean>
+export type FloodMarkLayers = Record<FloodMarkLevel, boolean>
 
 export interface LayerState {
   heatmap: boolean
   circles: boolean
   gistda: GistdaLayers
+  floodMarks: FloodMarkLayers
   s2flood: boolean
   vulnerable: boolean
   infra: boolean
   routes: boolean
 }
+
+export interface FloodMark {
+  code: string
+  dateSurvey: string | null
+  affectedArea: string | null
+  otherDetail: string | null
+  placeDetail: string | null
+  latitude: number
+  longitude: number
+  placeAround: string | null
+  waterLevel: number | null
+  tool: string | null
+  toolDetail: string | null
+  note: string | null
+  image: string | null
+  level: FloodMarkLevel
+  province: string | null
+}
+
+export interface FloodMarkProvince {
+  name: string
+  count: number
+  bounds: [[number, number], [number, number]]
+}
+
+export interface FloodMarkLevelConfig {
+  key: FloodMarkLevel
+  label: string
+  meta: string
+  color: string
+}
+
+export const FLOOD_MARK_LEVELS: FloodMarkLevelConfig[] = [
+  {
+    key: '1',
+    label: 'Flood Mark ระดับ 1',
+    meta: 'ระดับน้ำต่ำกว่า 50 ซม.',
+    color: 'oklch(0.74 0.10 145)',
+  },
+  {
+    key: '2',
+    label: 'Flood Mark ระดับ 2',
+    meta: 'ระดับน้ำ 50-100 ซม.',
+    color: 'oklch(0.78 0.16 75)',
+  },
+  {
+    key: '3',
+    label: 'Flood Mark ระดับ 3',
+    meta: 'ระดับน้ำ 100-150 ซม.',
+    color: 'oklch(0.68 0.18 50)',
+  },
+  {
+    key: '4',
+    label: 'Flood Mark ระดับ 4',
+    meta: 'ระดับน้ำ 150-200 ซม.',
+    color: 'oklch(0.66 0.20 30)',
+  },
+  {
+    key: '5',
+    label: 'Flood Mark ระดับ 5',
+    meta: 'ระดับน้ำมากกว่า 200 ซม.',
+    color: 'oklch(0.54 0.22 25)',
+  },
+]
 
 export interface GistdaLayerConfig {
   key: GistdaLayerKey

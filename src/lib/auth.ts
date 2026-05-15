@@ -1,6 +1,7 @@
 import NextAuth from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
 import type { UserRole } from '@/types'
+import { isProviderIdSsoConfigured, providerIdSsoProvider } from '@/lib/provider-id-sso'
 
 declare module 'next-auth' {
   interface User {
@@ -17,7 +18,9 @@ declare module 'next-auth' {
 }
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  trustHost: true,
   providers: [
+    ...(isProviderIdSsoConfigured() ? [providerIdSsoProvider()] : []),
     Credentials({
       credentials: {
         email: { label: 'Email', type: 'email' },
@@ -40,11 +43,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   ],
   callbacks: {
     jwt({ token, user }) {
-      if (user) token.role = user.role
+      if (user) {
+        token.id = user.id
+        token.role = user.role
+      }
       return token
     },
     session({ session, token }) {
       if (session.user && token.role) {
+        session.user.id = String(token.id ?? '')
         session.user.role = token.role as UserRole
       }
       return session

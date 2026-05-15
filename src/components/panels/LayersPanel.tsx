@@ -1,15 +1,30 @@
 'use client'
 
 import { useState } from 'react'
-import type { GistdaLayerKey, LayerState } from '@/types'
-import { GISTDA_LAYERS } from '@/types'
+import { ChevronDown, MapPin } from 'lucide-react'
+import type {
+  FloodMarkLevel,
+  FloodMarkProvince,
+  GistdaLayerKey,
+  LayerState,
+} from '@/types'
+import { FLOOD_MARK_LEVELS, GISTDA_LAYERS } from '@/types'
+import { Button } from '@/components/ui/button'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
+import { ScrollArea } from '@/components/ui/scroll-area'
 import { PanelShell } from './PanelShell'
 
+type BooleanLayerKey = Exclude<keyof LayerState, 'gistda' | 'floodMarks'>
+
 interface Row {
-  key: keyof LayerState
+  key: BooleanLayerKey
   label: string
   meta: string
-  swatch: 'heat' | 'flood-circle' | 'gistda' | 's2' | 'vuln' | 'infra' | 'route'
+  swatch: 'heat' | 'flood-circle' | 'flood-mark' | 'gistda' | 's2' | 'vuln' | 'infra' | 'route'
 }
 
 const rows: Row[] = [
@@ -41,6 +56,17 @@ function Swatch({ kind }: { kind: Row['swatch'] }) {
           className="size-3 rounded-full ring-1 ring-inset"
           style={{
             background: 'oklch(0.66 0.20 30 / 0.35)',
+            boxShadow: 'inset 0 0 0 1px oklch(0.66 0.20 30 / 0.8)',
+          }}
+        />
+      )
+    case 'flood-mark':
+      return (
+        <span
+          aria-hidden
+          className="size-3 rounded-full ring-1 ring-inset"
+          style={{
+            background: 'oklch(0.78 0.16 75 / 0.35)',
             boxShadow: 'inset 0 0 0 1px oklch(0.66 0.20 30 / 0.8)',
           }}
         />
@@ -122,14 +148,29 @@ function Checkbox({ on }: { on: boolean }) {
 
 interface Props {
   layers: LayerState
-  onChange: (key: keyof LayerState, value: boolean) => void
+  floodMarkProvince: string | null
+  floodMarkProvinces: FloodMarkProvince[]
+  onChange: (key: BooleanLayerKey, value: boolean) => void
   onGistdaChange: (key: GistdaLayerKey, value: boolean) => void
+  onFloodMarkChange: (key: FloodMarkLevel, value: boolean) => void
+  onFloodMarkProvinceChange: (province: string | null) => void
   onClose: () => void
 }
 
-export function LayersPanel({ layers, onChange, onGistdaChange, onClose }: Props) {
+export function LayersPanel({
+  layers,
+  floodMarkProvince,
+  floodMarkProvinces,
+  onChange,
+  onGistdaChange,
+  onFloodMarkChange,
+  onFloodMarkProvinceChange,
+  onClose,
+}: Props) {
   const gistdaActive = Object.values(layers.gistda).filter(Boolean).length
+  const floodMarkActive = Object.values(layers.floodMarks).filter(Boolean).length
   const [gistdaOpen, setGistdaOpen] = useState(gistdaActive > 0)
+  const [floodMarkOpen, setFloodMarkOpen] = useState(floodMarkActive > 0)
 
   return (
     <PanelShell title="ชั้นข้อมูล" hint="Layers" onClose={onClose}>
@@ -138,11 +179,12 @@ export function LayersPanel({ layers, onChange, onGistdaChange, onClose }: Props
           const on = layers[row.key] as boolean
           return (
             <li key={row.key}>
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 aria-pressed={on}
                 onClick={() => onChange(row.key, !on)}
-                className={`flex w-full items-center gap-3.5 px-5 py-3 text-left transition-colors ease-quart duration-150 ${
+                className={`h-auto w-full justify-start gap-3.5 rounded-none border-0 px-5 py-3 text-left transition-colors ease-quart duration-150 ${
                   on
                     ? 'bg-[var(--bg)] text-[var(--fg)]'
                     : 'text-[var(--fg-muted)] hover:bg-[var(--bg)]'
@@ -160,17 +202,166 @@ export function LayersPanel({ layers, onChange, onGistdaChange, onClose }: Props
                   </span>
                 </span>
                 <Checkbox on={on} />
-              </button>
+              </Button>
             </li>
           )
         })}
 
         <li className="mt-1 border-t border-[var(--border)]">
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            aria-expanded={floodMarkOpen}
+            onClick={() => setFloodMarkOpen((v) => !v)}
+            className="h-auto w-full justify-start gap-3.5 rounded-none border-0 px-5 py-3 text-left transition-colors hover:bg-[var(--bg)]"
+          >
+            <span className="flex size-5 items-center justify-center">
+              <Swatch kind="flood-mark" />
+            </span>
+            <span className="flex-1">
+              <span className="block text-[13px] font-medium leading-tight text-[var(--fg)]">
+                Flood Mark
+              </span>
+              <span className="mt-0.5 block text-[11px] leading-tight text-[var(--fg-subtle)]">
+                watercenter.scmc · {floodMarkActive}/{FLOOD_MARK_LEVELS.length} active
+              </span>
+            </span>
+            <svg
+              aria-hidden
+              viewBox="0 0 16 16"
+              className={`size-3.5 shrink-0 stroke-[var(--fg-subtle)] transition-transform ${
+                floodMarkOpen ? 'rotate-90' : ''
+              }`}
+              strokeWidth={2}
+              fill="none"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M6 4l4 4-4 4" />
+            </svg>
+          </Button>
+
+          {floodMarkOpen && (
+            <ul className="pb-2">
+              <li className="px-5 pb-2 pl-12 pt-1">
+                <Popover>
+                  <PopoverTrigger
+                    render={
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-auto w-full justify-between gap-3 rounded-md border-[var(--border)] bg-[var(--bg-sunken)] px-3 py-2 text-left text-[12px] text-[var(--fg)] hover:bg-[var(--bg)]"
+                      >
+                        <span className="flex min-w-0 items-center gap-2">
+                          <MapPin className="size-3.5 shrink-0 text-[var(--accent)]" />
+                          <span className="truncate">
+                            {floodMarkProvince
+                              ? `จังหวัด${floodMarkProvince}`
+                              : 'ทุกจังหวัด'}
+                          </span>
+                        </span>
+                        <ChevronDown className="size-3.5 shrink-0 text-[var(--fg-subtle)]" />
+                      </Button>
+                    }
+                  />
+                  <PopoverContent
+                    align="start"
+                    side="right"
+                    sideOffset={8}
+                    className="w-64 border border-[var(--border)] bg-[var(--bg-elevated)] p-1.5 text-[var(--fg)]"
+                  >
+                    <div className="px-2 py-1.5 text-[10.5px] font-medium uppercase tracking-[0.1em] text-[var(--fg-subtle)]">
+                      โฟกัสจังหวัด
+                    </div>
+                    <ScrollArea className="max-h-72">
+                      <div className="flex flex-col">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() => onFloodMarkProvinceChange(null)}
+                          className={`h-auto justify-start rounded-md px-2.5 py-2 text-left text-[12px] ${
+                            !floodMarkProvince
+                              ? 'bg-[var(--bg)] text-[var(--fg)]'
+                              : 'text-[var(--fg-muted)] hover:bg-[var(--bg)] hover:text-[var(--fg)]'
+                          }`}
+                        >
+                          <span className="flex-1">ทุกจังหวัด</span>
+                          <span className="font-mono text-[10.5px] text-[var(--fg-subtle)]">
+                            {floodMarkProvinces
+                              .reduce((sum, item) => sum + item.count, 0)
+                              .toLocaleString()}
+                          </span>
+                        </Button>
+                        {floodMarkProvinces.map((province) => (
+                          <Button
+                            key={province.name}
+                            type="button"
+                            variant="ghost"
+                            onClick={() => onFloodMarkProvinceChange(province.name)}
+                            className={`h-auto justify-start rounded-md px-2.5 py-2 text-left text-[12px] ${
+                              floodMarkProvince === province.name
+                                ? 'bg-[var(--bg)] text-[var(--fg)]'
+                                : 'text-[var(--fg-muted)] hover:bg-[var(--bg)] hover:text-[var(--fg)]'
+                            }`}
+                          >
+                            <span className="flex-1">จังหวัด{province.name}</span>
+                            <span className="font-mono text-[10.5px] text-[var(--fg-subtle)]">
+                              {province.count.toLocaleString()}
+                            </span>
+                          </Button>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </PopoverContent>
+                </Popover>
+              </li>
+              {FLOOD_MARK_LEVELS.map((cfg) => {
+                const on = layers.floodMarks[cfg.key]
+                return (
+                  <li key={cfg.key}>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      aria-pressed={on}
+                      onClick={() => onFloodMarkChange(cfg.key, !on)}
+                      className={`h-auto w-full justify-start gap-3.5 rounded-none border-0 py-2 pl-12 pr-5 text-left transition-colors ${
+                        on
+                          ? 'bg-[var(--bg)] text-[var(--fg)]'
+                          : 'text-[var(--fg-muted)] hover:bg-[var(--bg)]'
+                      }`}
+                    >
+                      <span
+                        aria-hidden
+                        className="size-2.5 rounded-full ring-1 ring-inset"
+                        style={{
+                          background: `color-mix(in oklch, ${cfg.color} 35%, transparent)`,
+                          boxShadow: `inset 0 0 0 1px ${cfg.color}`,
+                        }}
+                      />
+                      <span className="flex-1">
+                        <span className="block text-[12.5px] font-medium leading-tight">
+                          {cfg.label}
+                        </span>
+                        <span className="mt-0.5 block text-[10.5px] leading-tight text-[var(--fg-subtle)] font-mono">
+                          {cfg.meta}
+                        </span>
+                      </span>
+                      <Checkbox on={on} />
+                    </Button>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </li>
+
+        <li className="mt-1 border-t border-[var(--border)]">
+          <Button
+            type="button"
+            variant="ghost"
             aria-expanded={gistdaOpen}
             onClick={() => setGistdaOpen((v) => !v)}
-            className="flex w-full items-center gap-3.5 px-5 py-3 text-left transition-colors hover:bg-[var(--bg)]"
+            className="h-auto w-full justify-start gap-3.5 rounded-none border-0 px-5 py-3 text-left transition-colors hover:bg-[var(--bg)]"
           >
             <span className="flex size-5 items-center justify-center">
               <Swatch kind="gistda" />
@@ -196,7 +387,7 @@ export function LayersPanel({ layers, onChange, onGistdaChange, onClose }: Props
             >
               <path d="M6 4l4 4-4 4" />
             </svg>
-          </button>
+          </Button>
 
           {gistdaOpen && (
             <ul className="pb-2">
@@ -204,11 +395,12 @@ export function LayersPanel({ layers, onChange, onGistdaChange, onClose }: Props
                 const on = layers.gistda[cfg.key]
                 return (
                   <li key={cfg.key}>
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
                       aria-pressed={on}
                       onClick={() => onGistdaChange(cfg.key, !on)}
-                      className={`flex w-full items-center gap-3.5 py-2 pl-12 pr-5 text-left transition-colors ${
+                      className={`h-auto w-full justify-start gap-3.5 rounded-none border-0 py-2 pl-12 pr-5 text-left transition-colors ${
                         on
                           ? 'bg-[var(--bg)] text-[var(--fg)]'
                           : 'text-[var(--fg-muted)] hover:bg-[var(--bg)]'
@@ -223,7 +415,7 @@ export function LayersPanel({ layers, onChange, onGistdaChange, onClose }: Props
                         </span>
                       </span>
                       <Checkbox on={on} />
-                    </button>
+                    </Button>
                   </li>
                 )
               })}

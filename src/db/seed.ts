@@ -2,10 +2,36 @@
  * npm run db:seed
  * นำข้อมูล demo จาก public/data/ เข้า DB
  */
-import { getDb } from '@/lib/db'
-import { floodPoints, floodPolygons, vulnerablePersons, infrastructures } from './schema'
+import { existsSync, readFileSync } from 'node:fs'
+
+if (!process.env.DATABASE_URL && existsSync('.env.local')) {
+  for (const line of readFileSync('.env.local', 'utf8').split(/\r?\n/)) {
+    if (!line || line.trimStart().startsWith('#')) continue
+    const i = line.indexOf('=')
+    if (i <= 0) continue
+    const key = line.slice(0, i)
+    const value = line.slice(i + 1)
+    process.env[key] ??= value
+  }
+}
+
+function parseCapacity(value: unknown) {
+  if (typeof value !== 'string') return null
+  const n = Number(value.replace(/[^\d]/g, ''))
+  return Number.isFinite(n) && n > 0 ? n : null
+}
+
+function medicalPriority(type: string, equipment?: string) {
+  if (type === 'bedridden') return 'A'
+  if (equipment?.includes('O2') || equipment?.includes('suction')) return 'A'
+  if (type === 'elderly' || type === 'disabled' || type === 'pregnant') return 'B'
+  return 'C'
+}
 
 async function main() {
+  const { getDb } = await import('@/lib/db')
+  const { floodPoints, floodPolygons, vulnerablePersons, infrastructures } =
+    await import('./schema')
   const db = getDb()
 
   // --- Flood Points ---
@@ -43,6 +69,8 @@ async function main() {
     village: p.vil,
     lat: String(p.lat),
     lng: String(p.lng),
+    medicalPriority: medicalPriority(p.type, p.eq),
+    followUpStatus: 'pending',
     consent: true,
   }))
   await db.insert(vulnerablePersons).values(vulnRows).onConflictDoNothing()
@@ -53,7 +81,13 @@ async function main() {
   const infraRows = (infra.default as any[]).map((i) => ({
     name: i.name,
     type: i.type,
-    capacity: parseInt(i.cap) || null,
+    capacity: parseCapacity(i.cap),
+    occupancy: 0,
+    readinessStatus: 'open',
+    healthCapacity: i.type === 'hospital' || i.type === 'clinic' ? parseCapacity(i.cap) : null,
+    wheelchairSupport: i.type === 'hospital' || i.type === 'shelter',
+    oxygenSupport: i.type === 'hospital' || i.type === 'clinic',
+    electricitySupport: i.type === 'hospital' || i.type === 'clinic' || i.type === 'shelter',
     lat: String(i.lat),
     lng: String(i.lng),
     icon: i.icon,

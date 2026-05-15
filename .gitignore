@@ -43,3 +43,4 @@ yarn-error.log*
 # .claude
 node_modules
 docker-compose.yml
+.serena

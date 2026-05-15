@@ -4,27 +4,52 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import 'leaflet/dist/leaflet.css'
 import type {
   Map as LeafletMap,
+  Layer,
   LayerGroup,
   TileLayer,
-  GeoJSON,
-  CircleMarker,
+  GeoJSON as LeafletGeoJSON,
 } from 'leaflet'
+import type { GeoJsonObject } from 'geojson'
 import type {
   BasemapType,
+  FloodMark,
+  FloodMarkLevel,
   LayerState,
   VulnerablePerson,
   Infrastructure,
-  EvacRoute,
   RiskLevel,
   GistdaLayerKey,
   FloodPeriod,
 } from '@/types'
-import { GISTDA_LAYERS, FLOOD_PERIODS } from '@/types'
+import { FLOOD_MARK_LEVELS, GISTDA_LAYERS, FLOOD_PERIODS } from '@/types'
 import { buildEvacRoute, floodFeatureToPoint, nearestShelter } from '@/lib/geo'
 
 // Nan province bbox-ish — keeps responses small + relevant
 const NAN_BBOX = '100.0,17.5,101.5,20.0'
 const FLOOD_LIMIT = 500
+
+type LeafletContainer = HTMLDivElement & { _leaflet_id?: number | null }
+
+interface HeatLayer extends Layer {
+  setLatLngs(latlngs: [number, number, number][]): void
+  setOptions(options: { radius?: number }): void
+}
+
+type LeafletWithHeat = typeof import('leaflet') & {
+  heatLayer(latlngs: [number, number, number][], options: object): HeatLayer
+}
+
+interface FloodFeatureCollection {
+  features?: unknown[]
+}
+
+type FloodPolygonLayer = Layer & {
+  feature?: {
+    properties?: Record<string, string | number | null | undefined>
+  }
+  bindPopup(content: string): FloodPolygonLayer
+  setStyle(style: { weight: number; fillOpacity: number }): FloodPolygonLayer
+}
 
 const RISK_COLOR: Record<RiskLevel, string> = {
   flood: 'oklch(0.66 0.20 30)',
@@ -60,6 +85,37 @@ const INFRA_SVG: Record<string, string> = {
   clinic: `<path d="M11 2v2"/><path d="M5 2v2"/><path d="M5 3H4a2 2 0 0 0-2 2v4a6 6 0 0 0 12 0V5a2 2 0 0 0-2-2h-1"/><path d="M8 15a6 6 0 0 0 12 0v-3"/><circle cx="20" cy="10" r="2"/>`,
   shelter: `<path d="M3.5 21 14 3"/><path d="M20.5 21 10 3"/><path d="M15.5 21 12 15l-3.5 6"/><path d="M2 21h20"/>`,
   assembly: `<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/>`,
+}
+
+const VULN_SVG: Record<string, string> = {
+  bedridden: `<path d="M2 4v16"/><path d="M2 8h18a2 2 0 0 1 2 2v10"/><path d="M2 17h20"/><path d="M6 8v9"/>`,
+  elderly: `<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>`,
+  disabled: `<circle cx="16" cy="4" r="1"/><path d="m18 19 1-7-6 1"/><path d="m5 8 3-3 5.5 3-2.36 3.5"/><path d="M4.24 14.5a5 5 0 0 0 6.88 6"/><path d="M13.76 17.5a5 5 0 0 0-6.88-6"/>`,
+  pregnant: `<path d="M9 12h.01"/><path d="M15 12h.01"/><path d="M10 16c.5.3 1.2.5 2 .5s1.5-.2 2-.5"/><path d="M19 6.3a9 9 0 0 1 1.8 3.9 2 2 0 0 1 0 3.6 9 9 0 0 1-17.6 0 2 2 0 0 1 0-3.6A9 9 0 0 1 12 3c2 0 3.5 1.1 3.5 2.5s-.9 2.5-2 2.5c-.8 0-1.5-.4-1.5-1"/>`,
+}
+
+function vulnMarkerHtml(type: string, risk: RiskLevel): string {
+  const tone = TYPE_COLOR[type] ?? 'var(--fg-muted)'
+  const ringColor = RISK_COLOR[risk] ?? 'var(--border)'
+  const svg = VULN_SVG[type] ?? VULN_SVG.elderly
+  return `
+    <div style="
+      width:28px;height:28px;
+      display:flex;align-items:center;justify-content:center;
+      border-radius:50%;
+      background:color-mix(in oklch, ${tone} 20%, var(--bg-elevated));
+      border:2.5px solid ${ringColor};
+      box-shadow:0 2px 6px oklch(0 0 0 / 0.45);
+      color:${tone};
+    ">
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="14" height="14" viewBox="0 0 24 24"
+        fill="none" stroke="currentColor"
+        stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+      >${svg}</svg>
+    </div>
+  `
 }
 
 function infraMarkerHtml(type: string): string {
@@ -108,6 +164,7 @@ interface Props {
   opacity: number
   basemap: BasemapType
   floodPeriod: FloodPeriod
+  floodMarkProvince: string | null
   onMapReady?: (map: LeafletMap) => void
   onRequestRoute?: (personId: number) => void
 }
@@ -121,20 +178,22 @@ export function FloodMap({
   opacity,
   basemap,
   floodPeriod,
+  floodMarkProvince,
   onMapReady,
   onRequestRoute,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<LeafletMap | null>(null)
   const baseLayers = useRef<TileLayer[]>([])
-  const heatLayerRef = useRef<any>(null)
+  const heatLayerRef = useRef<HeatLayer | null>(null)
   const circleGroupRef = useRef<LayerGroup | null>(null)
-  const circleMarkersRef = useRef<CircleMarker[]>([])
-  const s2LayerRef = useRef<GeoJSON | null>(null)
+  const s2LayerRef = useRef<LeafletGeoJSON | null>(null)
   const vulnGroupRef = useRef<LayerGroup | null>(null)
   const infraGroupRef = useRef<LayerGroup | null>(null)
   const routeGroupRef = useRef<LayerGroup | null>(null)
   const gistdaRefs = useRef<Partial<Record<GistdaLayerKey, TileLayer>>>({})
+  const floodMarkGroupRefs = useRef<Partial<Record<FloodMarkLevel, LayerGroup>>>({})
+  const floodMarkCacheRef = useRef<Partial<Record<FloodMarkLevel, FloodMark[]>>>({})
   const [floodPoints, setFloodPoints] = useState<[number, number, number][]>([])
   const [mapReady, setMapReady] = useState(false)
 
@@ -148,9 +207,9 @@ export function FloodMap({
 
       if (!isMounted || !containerRef.current) return
 
-      const container = containerRef.current
-      if ((container as any)._leaflet_id) {
-        (container as any)._leaflet_id = null
+      const container = containerRef.current as LeafletContainer
+      if (container._leaflet_id) {
+        container._leaflet_id = null
       }
 
       const map = L.map(container, {
@@ -177,7 +236,7 @@ export function FloodMap({
       }
 
       // Heatmap with risk palette (amber → orange → red) — points filled in by effect below
-      const heat = (L as any)
+      const heat = (L as LeafletWithHeat)
         .heatLayer([], {
           radius: 18,
           blur: 14,
@@ -211,6 +270,9 @@ export function FloodMap({
       vulnGroupRef.current = L.layerGroup().addTo(map)
       infraGroupRef.current = L.layerGroup().addTo(map)
       routeGroupRef.current = L.layerGroup().addTo(map)
+      FLOOD_MARK_LEVELS.forEach((cfg) => {
+        floodMarkGroupRefs.current[cfg.key] = L.layerGroup()
+      })
 
       GISTDA_LAYERS.forEach((cfg) => {
         const tile = L.tileLayer(
@@ -256,8 +318,8 @@ export function FloodMap({
           }
           return
         }
-        const geo = await res.json()
-        const feats: any[] = geo?.features ?? []
+        const geo = (await res.json()) as GeoJsonObject & FloodFeatureCollection
+        const feats = geo.features ?? []
         const pts = feats
           .map(floodFeatureToPoint)
           .filter((p): p is [number, number, number] => p !== null)
@@ -271,7 +333,8 @@ export function FloodMap({
           s2.addData(geo)
           const periodLabel =
             FLOOD_PERIODS.find((p) => p.key === floodPeriod)?.label ?? floodPeriod
-          s2.eachLayer((layer: any) => {
+          s2.eachLayer((rawLayer) => {
+            const layer = rawLayer as FloodPolygonLayer
             const props = layer.feature?.properties ?? {}
             const name =
               props.tb_tn || props.ap_tn || props.pv_tn || 'พื้นที่น้ำท่วม'
@@ -323,17 +386,15 @@ export function FloodMap({
       vulnerable.forEach((p) => {
         const risk: RiskLevel = (p.risk ?? 'safe') as RiskLevel
         const ringColor = RISK_COLOR[risk]
-        const fillColor = TYPE_COLOR[p.type] ?? 'var(--fg-muted)'
-        const size = risk === 'flood' ? 6 : risk === 'near' ? 5 : 4
 
-        const marker = L.circleMarker([p.lat, p.lng], {
-          radius: size,
-          color: ringColor,
-          weight: 2,
-          fillColor,
-          fillOpacity: 0.95,
-          opacity: 1,
+        const icon = L.divIcon({
+          className: 'vuln-marker',
+          html: vulnMarkerHtml(p.type, risk),
+          iconSize: [28, 28],
+          iconAnchor: [14, 14],
         })
+
+        const marker = L.marker([p.lat, p.lng], { icon })
 
         const riskLabel: Record<RiskLevel, string> = {
           flood: 'ในเขตน้ำท่วม',
@@ -346,8 +407,8 @@ export function FloodMap({
             <div style="font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--fg-subtle);margin-bottom:4px">${p.label}</div>
             <div style="font-size:14px;font-weight:600;color:var(--fg);margin-bottom:8px">${p.name}</div>
             <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12px;margin-bottom:10px">
-              <span style="color:var(--fg-subtle)">อายุ</span><span style="font-family:var(--font-mono)">${p.age} ปี</span>
-              <span style="color:var(--fg-subtle)">ภาวะ</span><span>${p.cond}</span>
+              ${p.age !== undefined ? `<span style="color:var(--fg-subtle)">อายุ</span><span style="font-family:var(--font-mono)">${p.age} ปี</span>` : ''}
+              ${p.cond !== undefined ? `<span style="color:var(--fg-subtle)">ภาวะ</span><span>${p.cond}</span>` : ''}
               <span style="color:var(--fg-subtle)">หมู่บ้าน</span><span>${p.vil}</span>
               ${p.eq ? `<span style="color:var(--fg-subtle)">อุปกรณ์</span><span>${p.eq}</span>` : ''}
             </div>
@@ -405,11 +466,55 @@ export function FloodMap({
     })()
   }, [mapReady, infra])
 
+  // Flood Mark survey points from CMU Water Center, loaded only for active levels.
+  useEffect(() => {
+    if (!mapReady) return
+    let cancelled = false
+    ;(async () => {
+      const L = (await import('leaflet')).default
+
+      await Promise.all(
+        FLOOD_MARK_LEVELS.map(async (cfg) => {
+          if (!layers.floodMarks[cfg.key]) return
+
+          const group = floodMarkGroupRefs.current[cfg.key]
+          if (!group) return
+
+          const cached = floodMarkCacheRef.current[cfg.key]
+          if (cached) {
+            renderFloodMarks(L, group, cached, cfg.key, floodMarkProvince)
+            return
+          }
+
+          try {
+            const res = await fetch(`/api/flood-marks/${cfg.key}`)
+            if (!res.ok) {
+              console.warn('[flood-marks] request failed', cfg.key, res.status)
+              return
+            }
+
+            const marks = (await res.json()) as FloodMark[]
+            if (cancelled) return
+
+            floodMarkCacheRef.current[cfg.key] = marks
+            renderFloodMarks(L, group, marks, cfg.key, floodMarkProvince)
+          } catch (err) {
+            console.error('[flood-marks] request error', cfg.key, err)
+          }
+        }),
+      )
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [mapReady, layers.floodMarks, floodMarkProvince])
+
   // Layer visibility
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
-    const toggle = (layer: any, on: boolean) => {
+    const toggle = (layer: Layer | null | undefined, on: boolean) => {
       if (!layer) return
       if (on && !map.hasLayer(layer)) map.addLayer(layer)
       if (!on && map.hasLayer(layer)) map.removeLayer(layer)
@@ -420,10 +525,13 @@ export function FloodMap({
     toggle(vulnGroupRef.current, layers.vulnerable)
     toggle(infraGroupRef.current, layers.infra)
     toggle(routeGroupRef.current, layers.routes)
+    FLOOD_MARK_LEVELS.forEach((cfg) => {
+      toggle(floodMarkGroupRefs.current[cfg.key], layers.floodMarks[cfg.key])
+    })
     GISTDA_LAYERS.forEach((cfg) => {
       toggle(gistdaRefs.current[cfg.key], layers.gistda[cfg.key])
     })
-  }, [layers])
+  }, [layers, mapReady])
 
   // Tune sliders
   useEffect(() => {
@@ -482,6 +590,76 @@ function renderCircles(
       fillOpacity,
     }).addTo(group)
   })
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
+
+function popupText(value: string | number | null | undefined, fallback = '-'): string {
+  if (value === null || value === undefined || value === '') return fallback
+  return escapeHtml(String(value))
+}
+
+function floodMarkColor(level: FloodMarkLevel): string {
+  return (
+    FLOOD_MARK_LEVELS.find((cfg) => cfg.key === level)?.color ??
+    'oklch(0.78 0.16 75)'
+  )
+}
+
+function renderFloodMarks(
+  L: typeof import('leaflet'),
+  group: import('leaflet').LayerGroup,
+  marks: FloodMark[],
+  level: FloodMarkLevel,
+  province: string | null,
+) {
+  group.clearLayers()
+  const color = floodMarkColor(level)
+  const label =
+    FLOOD_MARK_LEVELS.find((cfg) => cfg.key === level)?.label ??
+    `Flood Mark ระดับ ${level}`
+
+  marks
+    .filter((mark) => !province || mark.province === province)
+    .forEach((mark) => {
+    const waterLevel = mark.waterLevel ?? 0
+    const radius = Math.max(4.5, Math.min(9, 4 + waterLevel / 45))
+    const detail = mark.placeDetail ?? mark.otherDetail ?? 'ไม่ระบุสถานที่'
+    const reportUrl = `https://watercenter.scmc.cmu.ac.th/cmflood/flood24/report/${encodeURIComponent(mark.code)}`
+
+    L.circleMarker([mark.latitude, mark.longitude], {
+      radius,
+      color,
+      weight: 1.75,
+      opacity: 0.95,
+      fillColor: color,
+      fillOpacity: 0.45,
+    })
+      .bindPopup(
+        `<div style="min-width:220px">
+          <div style="font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--fg-subtle);margin-bottom:4px">${escapeHtml(label)}</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px">
+            <a href="${reportUrl}" target="_blank" rel="noopener" style="font-size:13px;font-weight:600;color:var(--accent);text-decoration:none">${popupText(mark.code)}</a>
+            <span style="font-family:var(--font-mono);font-size:12px;color:${color}">${popupText(mark.waterLevel)} ซม.</span>
+          </div>
+          <div style="font-size:12px;color:var(--fg);line-height:1.45;margin-bottom:8px">${popupText(detail)}</div>
+          <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:11.5px">
+            <span style="color:var(--fg-subtle)">วันที่</span><span style="font-family:var(--font-mono)">${popupText(mark.dateSurvey)}</span>
+            <span style="color:var(--fg-subtle)">ประเภท</span><span>${popupText(mark.affectedArea)}</span>
+            <span style="color:var(--fg-subtle)">เครื่องมือ</span><span>${popupText(mark.tool)}</span>
+            <span style="color:var(--fg-subtle)">ใกล้เคียง</span><span>${popupText(mark.placeAround)}</span>
+          </div>
+        </div>`,
+      )
+      .addTo(group)
+    })
 }
 
 export function useShowRoute() {

@@ -15,6 +15,8 @@ import { MapOverlay } from '@/components/map/MapOverlay'
 import { buildEvacRoute, nearestShelter } from '@/lib/geo'
 import type {
   BasemapType,
+  FloodMarkLevel,
+  FloodMarkProvince,
   FloodPeriod,
   FloodStats,
   GistdaLayerKey,
@@ -35,6 +37,13 @@ const DEFAULT_LAYERS: LayerState = {
     floodFreq: false,
     waterHyacinth: false,
   },
+  floodMarks: {
+    '1': false,
+    '2': false,
+    '3': false,
+    '4': false,
+    '5': false,
+  },
   s2flood: true,
   vulnerable: true,
   infra: true,
@@ -53,6 +62,8 @@ export function MapClient() {
   const [activePanel, setActivePanel] = useState<RailPanel>('roster')
   const [vulnerable, setVulnerable] = useState<VulnerablePerson[]>([])
   const [infra, setInfra] = useState<Infrastructure[]>([])
+  const [floodMarkProvinces, setFloodMarkProvinces] = useState<FloodMarkProvince[]>([])
+  const [floodMarkProvince, setFloodMarkProvince] = useState<string | null>(null)
   const [vulnStats, setVulnStats] = useState<VulnerableStats>({
     flood: 0,
     near: 0,
@@ -90,6 +101,15 @@ export function MapClient() {
       .catch(console.error)
   }, [])
 
+  useEffect(() => {
+    fetch('/api/flood-mark-provinces')
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data)) setFloodMarkProvinces(data as FloodMarkProvince[])
+      })
+      .catch(console.error)
+  }, [])
+
   // Keyboard shortcuts: L/R/E/I/T toggle panels; Esc closes
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -118,6 +138,26 @@ export function MapClient() {
   const onGistdaChange = useCallback((k: GistdaLayerKey, v: boolean) => {
     setLayers((p) => ({ ...p, gistda: { ...p.gistda, [k]: v } }))
   }, [])
+
+  const onFloodMarkChange = useCallback((k: FloodMarkLevel, v: boolean) => {
+    setLayers((p) => ({ ...p, floodMarks: { ...p.floodMarks, [k]: v } }))
+  }, [])
+
+  const onFloodMarkProvinceChange = useCallback(
+    (province: string | null) => {
+      setFloodMarkProvince(province)
+      if (!province) return
+
+      const selected = floodMarkProvinces.find((item) => item.name === province)
+      if (!selected) return
+
+      mapRef.current?.flyToBounds(selected.bounds, {
+        duration: 0.7,
+        padding: [36, 36],
+      })
+    },
+    [floodMarkProvinces],
+  )
 
   const flyTo = useCallback((person: VulnerablePerson) => {
     mapRef.current?.flyTo([person.lat, person.lng], 16, { duration: 0.6 })
@@ -200,8 +240,12 @@ export function MapClient() {
         {activePanel === 'layers' && (
           <LayersPanel
             layers={layers}
+            floodMarkProvince={floodMarkProvince}
+            floodMarkProvinces={floodMarkProvinces}
             onChange={onLayerChange}
             onGistdaChange={onGistdaChange}
+            onFloodMarkChange={onFloodMarkChange}
+            onFloodMarkProvinceChange={onFloodMarkProvinceChange}
             onClose={() => setActivePanel(null)}
           />
         )}
@@ -255,6 +299,7 @@ export function MapClient() {
             opacity={opacity}
             basemap={basemap}
             floodPeriod={floodPeriod}
+            floodMarkProvince={floodMarkProvince}
             onMapReady={(m) => (mapRef.current = m)}
             onRequestRoute={drawRoute}
           />

@@ -10,6 +10,7 @@ import {
   inet,
   integer,
   boolean,
+  jsonb,
 } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 
@@ -57,9 +58,18 @@ export const vulnerablePersons = pgTable('vulnerable_persons', {
   cond: text('cond'),
   equipment: text('equipment'),
   village: text('village'),
+  tambon: text('tambon'),
+  amphoe: text('amphoe'),
   lat: numeric('lat', { precision: 10, scale: 6 }).notNull(),
   lng: numeric('lng', { precision: 10, scale: 6 }).notNull(),
   caregiverPhone: text('caregiver_phone'),
+  careUnit: text('care_unit'), // รพ.สต./หน่วยบริการประจำ
+  assignedVhvId: uuid('assigned_vhv_id').references(() => users.id),
+  medicalPriority: text('medical_priority').notNull().default('C'), // A | B | C
+  followUpStatus: text('follow_up_status').notNull().default('pending'), // pending | contacted | needs_help | moved | referred | closed
+  lastContactedAt: timestamp('last_contacted_at', { withTimezone: true }),
+  lastVisitedAt: timestamp('last_visited_at', { withTimezone: true }),
+  lastKnownStatus: text('last_known_status'),
   consent: boolean('consent').default(false),
   createdBy: uuid('created_by').references(() => users.id),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
@@ -70,12 +80,99 @@ export const vulnerablePersons = pgTable('vulnerable_persons', {
 export const infrastructures = pgTable('infrastructures', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
   name: text('name').notNull(),
-  type: text('type').notNull(), // hospital | clinic | shelter | assembly
+  type: text('type').notNull(), // hospital | clinic | shelter | assembly | temporary_health_post
   capacity: integer('capacity'),
+  occupancy: integer('occupancy').notNull().default(0),
+  readinessStatus: text('readiness_status').notNull().default('open'), // open | near_capacity | full | closed | unsafe
+  healthCapacity: integer('health_capacity'),
+  bedriddenCapacity: integer('bedridden_capacity'),
+  wheelchairSupport: boolean('wheelchair_support').notNull().default(false),
+  oxygenSupport: boolean('oxygen_support').notNull().default(false),
+  electricitySupport: boolean('electricity_support').notNull().default(false),
+  waterSanitationStatus: text('water_sanitation_status'),
+  healthResources: jsonb('health_resources').$type<Record<string, unknown>>(),
   lat: numeric('lat', { precision: 10, scale: 6 }).notNull(),
   lng: numeric('lng', { precision: 10, scale: 6 }).notNull(),
   icon: text('icon'),
   contact: text('contact'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+})
+
+// อสม. / field health visits
+export const healthVisits = pgTable('health_visits', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  vulnerablePersonId: uuid('vulnerable_person_id').references(() => vulnerablePersons.id),
+  visitedBy: uuid('visited_by').references(() => users.id),
+  visitStatus: text('visit_status').notNull().default('pending'), // pending | completed | unreachable | needs_follow_up
+  personStatus: text('person_status'), // safe | needs_help | evacuated | referred | unknown
+  needsHelp: boolean('needs_help').notNull().default(false),
+  helpType: text('help_type'), // medicine | transport | evacuation | food_water | other
+  notes: text('notes'),
+  lat: numeric('lat', { precision: 10, scale: 6 }),
+  lng: numeric('lng', { precision: 10, scale: 6 }),
+  observedAt: timestamp('observed_at', { withTimezone: true }).notNull().defaultNow(),
+  syncedAt: timestamp('synced_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+})
+
+// Help requests from VHV/field staff/EOC
+export const helpRequests = pgTable('help_requests', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  vulnerablePersonId: uuid('vulnerable_person_id').references(() => vulnerablePersons.id),
+  requestedBy: uuid('requested_by').references(() => users.id),
+  sourceRole: text('source_role').notNull().default('vhv'), // vhv | eoc | ems | officer | public
+  requestType: text('request_type').notNull(), // medical | evacuation | supplies | rescue | shelter | other
+  priority: text('priority').notNull().default('normal'), // low | normal | high | critical
+  status: text('status').notNull().default('new'), // new | triaged | assigned | en_route | resolved | cancelled
+  description: text('description'),
+  lat: numeric('lat', { precision: 10, scale: 6 }),
+  lng: numeric('lng', { precision: 10, scale: 6 }),
+  preferredShelterId: uuid('preferred_shelter_id').references(() => infrastructures.id),
+  observedAt: timestamp('observed_at', { withTimezone: true }).notNull().defaultNow(),
+  syncedAt: timestamp('synced_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+})
+
+// Assignment and status timeline for EMS/rescue/field teams
+export const caseAssignments = pgTable('case_assignments', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  helpRequestId: uuid('help_request_id').notNull().references(() => helpRequests.id),
+  assignedTo: uuid('assigned_to').references(() => users.id),
+  assignedTeam: text('assigned_team'), // EMS, rescue foundation, district team, etc.
+  assignedBy: uuid('assigned_by').references(() => users.id),
+  status: text('status').notNull().default('assigned'), // assigned | accepted | en_route | arrived | transferred | closed
+  etaMinutes: integer('eta_minutes'),
+  notes: text('notes'),
+  assignedAt: timestamp('assigned_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+})
+
+// Real-time-ish shelter capacity snapshots
+export const shelterStatusSnapshots = pgTable('shelter_status_snapshots', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  shelterId: uuid('shelter_id').notNull().references(() => infrastructures.id),
+  occupancy: integer('occupancy').notNull(),
+  capacity: integer('capacity'),
+  readinessStatus: text('readiness_status').notNull(),
+  healthResources: jsonb('health_resources').$type<Record<string, unknown>>(),
+  reportedBy: uuid('reported_by').references(() => users.id),
+  observedAt: timestamp('observed_at', { withTimezone: true }).notNull().defaultNow(),
+  syncedAt: timestamp('synced_at', { withTimezone: true }),
+})
+
+// Admission of vulnerable persons into shelters
+export const shelterAdmissions = pgTable('shelter_admissions', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  shelterId: uuid('shelter_id').notNull().references(() => infrastructures.id),
+  vulnerablePersonId: uuid('vulnerable_person_id').references(() => vulnerablePersons.id),
+  helpRequestId: uuid('help_request_id').references(() => helpRequests.id),
+  admittedBy: uuid('admitted_by').references(() => users.id),
+  status: text('status').notNull().default('admitted'), // admitted | transferred | discharged | cancelled
+  needsFollowUp: boolean('needs_follow_up').notNull().default(false),
+  notes: text('notes'),
+  admittedAt: timestamp('admitted_at', { withTimezone: true }).defaultNow(),
+  dischargedAt: timestamp('discharged_at', { withTimezone: true }),
 })
 
 // Audit log (PDPA)

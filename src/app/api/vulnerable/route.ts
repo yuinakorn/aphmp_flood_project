@@ -39,6 +39,8 @@ export async function GET(req: NextRequest) {
     const base = { ...p, risk }
 
     // anonymous/viewer: mask sensitive fields
+    // [DEMO MODE]: Disabled PDPA masking temporarily
+    /*
     if (role === 'anonymous' || role === 'viewer') {
       return {
         id: base.id,
@@ -51,6 +53,7 @@ export async function GET(req: NextRequest) {
         vil: base.vil,
       }
     }
+    */
     return base
   })
 

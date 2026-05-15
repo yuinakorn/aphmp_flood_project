@@ -1,4 +1,4 @@
-# PRODUCT.md — FloodWatch น่าน
+# PRODUCT.md — FloodWatch
 
 ## Register
 
@@ -6,15 +6,27 @@
 
 ## Users & Purpose
 
-**Primary**: Disaster-response officers at the provincial command center (ปภ. จ.น่าน, อบต., เทศบาล) during active flood events.
+**Primary**: Public-health disaster operators: EOC/ปภ. command staff, district health workers (รพ.สต.), EMS, and อสม. coordinating vulnerable-person care during flood events.
 
 **Operating context**: Desktop monitors in a low-light command center, often at 2am after a heavy-rain advisory. Multiple operators around a shared screen, occasional executives glancing from 2–3m away. Cognitive load is already high before they open the app.
 
-**Job to be done**: At a glance, answer "where is the water now, who is in danger, who do we move first." Drill-down (rather than scroll-down) into a specific person, shelter, or sub-district. Then dispatch an action — open evac route, call caregiver, mark resolved.
+**Job to be done**: At a glance, answer "where is the water now, which vulnerable people are affected, what has the อสม./field team already done, and who should move to which shelter first." Drill-down (rather than scroll-down) into a specific person, visit, help request, shelter, or sub-district. Then dispatch an action — call caregiver, request EMS, assign shelter, mark visited, mark moved.
 
-Secondary: District health workers (รพ.สต.) maintaining the vulnerable-persons registry on a calmer day. Same shell, lighter density, no command-center theming bleeding into form work.
+Secondary: อสม. using a mobile-first field workflow to confirm vulnerable-person status, report community conditions, and submit help requests in low-connectivity areas.
 
-Tertiary, read-only: Public (anonymous) checking whether their tambon is in a confirmed flood polygon — masked data, no individual identification.
+Tertiary: District health workers (รพ.สต.) maintaining the vulnerable-persons registry and shelter readiness on calmer days. Same shell, lighter density, no command-center theming bleeding into form work.
+
+Quaternary, read-only: Public (anonymous) checking whether their tambon is in a confirmed flood polygon — masked data, no individual identification.
+
+## Current Product Focus
+
+The SRS describes a broader flood disaster management system, but the near-term product direction is **health-first**:
+
+1. **Vulnerable-person and patient registry.** Track location, risk level, medical priority, caregiver contact, equipment needs, visit status, and evacuation status.
+2. **อสม. field operations.** Let village health volunteers verify records, report conditions, submit help requests, and receive status updates from command/EMS.
+3. **Shelter health management.** Track shelter capacity, occupancy, health readiness, and suitability for vulnerable groups such as bedridden patients or people needing electricity/oxygen support.
+
+Flood maps, evacuation points, danger points, and routes remain supporting context. Food logistics, fire incidents, and full rescue dispatch are adjacent workflows, not the first product center of gravity.
 
 ## Brand Personality
 
@@ -32,11 +44,11 @@ Tertiary, read-only: Public (anonymous) checking whether their tambon is in a co
 
 ## Strategic Design Principles
 
-1. **One critical answer per screen.** The map page answers "where + who." The roster page answers "who am I responsible for." Don't mix.
+1. **One critical answer per screen.** The map page answers "where + who is at risk." The roster/field page answers "who am I responsible for today." The shelter page answers "where can this person safely go." Don't mix.
 2. **Status before chrome.** The first thing visible after the masthead is the *current situation* — counts, last SAR pass, areas at risk — not navigation or tooling.
 3. **Reveal on demand.** Vulnerable-person identity and evac equipment are masked by default. Identity reveals after sign-in + per-view audit log (PDPA).
 4. **Numbers are typography, not boxes.** Stats live on a horizontal status strip with vertical separators. They are not cards. No card grids anywhere.
-5. **Action over information.** Every detail view ends in a verb the operator can perform (open route, call caregiver, mark moved, dispatch).
+5. **Action over information.** Every detail view ends in a verb the operator can perform (call caregiver, mark visited, request EMS, assign shelter, mark moved).
 6. **Bilingual without bilingual-tax.** Thai is primary; Latin numerals and timestamps coexist without UI duplication. IBM Plex Sans Thai is the single sans family.
 7. **Dimmable, not "dark mode."** Theme follows physical scene (low-light command center at night) rather than user-toggle aesthetic. A single calibrated surface, not a theme switcher.
 
@@ -52,5 +64,8 @@ Tertiary, read-only: Public (anonymous) checking whether their tambon is in a co
 
 - No social/sharing features.
 - No public registration. Sign-in is provisioned by admin only.
+- No general-purpose public call-for-help intake until the อสม./authorized-field workflow is stable.
+- No full food/water logistics module; capture shelter needs only where it affects health readiness.
+- No full fire/rescue incident command workflow beyond danger points and EMS/rescue handoff needed for vulnerable-person care.
 - No theme switcher. Theme is calibrated once.
 - No marketing landing page; "/" redirects to /map.

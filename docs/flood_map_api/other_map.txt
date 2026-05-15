@@ -1,0 +1,33 @@
+const BASE =
+  "https://watercenter.cmu.ac.th/chiangmai/cmflood";
+
+const layers = {
+  flood1: `${BASE}/data/KML5Layer/L1.kml`,
+  flood2: `${BASE}/data/KML5Layer/L2.kml`,
+  flood3: `${BASE}/data/KML5Layer/L3new.kml`,
+  flood4: `${BASE}/data/KML5Layer/L4new.kml`,
+  flood5: `${BASE}/data/KML5Layer/L5.kml`,
+  river: `${BASE}/data/KML/river_main.kml`,
+  parking: `${BASE}/data/parking_flood.geojson`,
+  shelter: `${BASE}/data/Shelter.geojson`,
+  pole: `${BASE}/data/PoleCNX2025_v2.geojson`
+};
+
+console.table(layers);
+
+เส้น api | ความหมาย | ประเภท
+https://watercenter.cmu.ac.th/chiangmai/cmflood/data/KML5Layer/L1.kml | ขอบเขตน้ำท่วมลำดับที่ 1 (P.1 = 4.30 เมตร) | KML (Polygon GIS)
+https://watercenter.cmu.ac.th/chiangmai/cmflood/data/KML5Layer/L2.kml | ขอบเขตน้ำท่วมลำดับที่ 2 (P.1 = 4.50 เมตร) | KML (Polygon GIS)
+https://watercenter.cmu.ac.th/chiangmai/cmflood/data/KML5Layer/L3new.kml | ขอบเขตน้ำท่วมลำดับที่ 3 (P.1 = 4.70 เมตร) | KML (Polygon GIS)
+https://watercenter.cmu.ac.th/chiangmai/cmflood/data/KML5Layer/L4new.kml | ขอบเขตน้ำท่วมลำดับที่ 4 (P.1 = 5.00 เมตร) | KML (Polygon GIS)
+https://watercenter.cmu.ac.th/chiangmai/cmflood/data/KML5Layer/L5.kml | ขอบเขตน้ำท่วมลำดับที่ 5 (P.1 = 5.30 เมตร) | KML (Polygon GIS)
+https://watercenter.cmu.ac.th/chiangmai/cmflood/data/KML/river_main.kml | เส้นแม่น้ำ/ลำน้ำ (CNX Stream) | KML (LineString GIS)
+https://watercenter.cmu.ac.th/chiangmai/cmflood/data/PoleCNX2025_v2.geojson | หลักเตือนระดับน้ำท่วม (P.1 สะพานนวรัฐ) ~219 จุด | GeoJSON (Point GIS)
+https://watercenter.cmu.ac.th/chiangmai/cmflood/data/parking_flood.geojson | จุดจอดรถกรณีน้ำท่วม ~19 จุด | GeoJSON (Point GIS)
+https://watercenter.cmu.ac.th/chiangmai/cmflood/data/Shelter.geojson | ศูนย์พักพิงชั่วคราว ~39 จุด | GeoJSON (Point GIS)
+https://watercenter.cmu.ac.th/chiangmai/cmflood/warning/floodmap | หน้าแผนที่เสี่ยงภัยน้ำท่วม | Web Page
+https://watercenter.cmu.ac.th/chiangmai/cmflood/warning/pole2025 | หน้าหลักเตือนระดับน้ำท่วม | Web Page
+https://watercenter.cmu.ac.th/chiangmai/cmflood/warning/floodmark | หน้าเครื่องหมายระดับน้ำท่วมปี 2567 | Web Page
+https://watercenter.cmu.ac.th/chiangmai/cmflood/warning/flooddepth | หน้าแผนที่ประมาณความลึกน้ำท่วม | Web Page
+https://watercenter.cmu.ac.th/chiangmai/cmflood/warning/floodforecast | หน้าพยากรณ์ระดับน้ำ P.1 (คาดว่ามี API realtime/forecast ซ่อนอยู่) | Dynamic Web/API Candidate
+

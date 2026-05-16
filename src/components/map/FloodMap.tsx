@@ -389,7 +389,8 @@ export function FloodMap({
             if (!group) return
 
             try {
-              const res = await fetch(`/api/cmu-flood/${cfg.path}`)
+              const url = cfg.path.startsWith('/') ? cfg.path : `/api/cmu-flood/${cfg.path}`
+              const res = await fetch(url)
               if (!res.ok) {
                 console.warn('[cmu-flood] request failed', cfg.key, res.status)
                 return

@@ -8,6 +8,7 @@ import {
   type AlertLevel,
 } from '@/lib/water-level'
 import { WaterLevelChart } from './WaterLevelChart'
+import { WaterFlowSimulator } from './WaterFlowSimulator'
 
 export const metadata = { title: 'ระดับน้ำรายชั่วโมง — FloodWatch Admin' }
 export const dynamic = 'force-dynamic'
@@ -193,6 +194,21 @@ export default async function WaterLevelPage() {
           rise1h={p1Rise1}
           rise3h={p1Rise3}
           discharge={last?.p1_discharge ?? null}
+        />
+      </div>
+
+      <div className="mt-4">
+        <WaterFlowSimulator
+          p67={{
+            level: last?.p67 ?? null,
+            discharge: last?.p67_discharge ?? null,
+            rise3h: p67Rise3,
+          }}
+          p1={{
+            level: last?.p1 ?? null,
+            discharge: last?.p1_discharge ?? null,
+            rise3h: p1Rise3,
+          }}
         />
       </div>
 

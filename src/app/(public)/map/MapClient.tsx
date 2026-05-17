@@ -65,7 +65,11 @@ const FLOOD_STATS: FloodStats = {
   baselinePasses: 30,
 }
 
-export function MapClient() {
+interface Props {
+  session?: { role: string; name: string } | null
+}
+
+export function MapClient({ session }: Props) {
   const [layers, setLayers] = useState<LayerState>(DEFAULT_LAYERS)
   const [activePanel, setActivePanel] = useState<RailPanel>('roster')
   const [vulnerable, setVulnerable] = useState<VulnerablePerson[]>([])
@@ -239,7 +243,7 @@ export function MapClient() {
       <a href="#map-region" className="skip-to-map">
         ข้ามไปที่แผนที่
       </a>
-      <Masthead />
+      <Masthead session={session} />
       <StatusStrip flood={FLOOD_STATS} vulnerable={vulnStats} fresh />
 
       <div className="flex flex-1 overflow-hidden">

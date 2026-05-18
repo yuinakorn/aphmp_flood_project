@@ -1,7 +1,23 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(npx drizzle-kit *)",
+      "Bash(echo \"EXIT: $?\")",
+      "WebSearch",
+      "WebFetch(domain:www.hydro-1.net)",
+      "WebFetch(domain:www.crflood.com)",
+      "WebFetch(domain:chiangrai.thaiwater.net)",
+      "WebFetch(domain:mekhala.dwr.go.th)",
+      "WebFetch(domain:hyd-app-db.rid.go.th)",
+      "WebFetch(domain:www.thaiwater.net)",
+      "WebFetch(domain:tele-kokkhong.dwr.go.th)",
+      "WebFetch(domain:www.chiangraifocus.com)",
+      "WebFetch(domain:water.rid.go.th)",
+      "WebFetch(domain:hydro-1.rid.go.th)",
+      "WebFetch(domain:tiwrmdev.hii.or.th)",
+      "WebFetch(domain:www.chiangraicity.go.th)",
+      "WebFetch(domain:chiangrai.prd.go.th)"
     ]
   }
 }

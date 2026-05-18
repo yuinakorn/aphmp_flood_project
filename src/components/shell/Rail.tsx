@@ -1,6 +1,6 @@
 'use client'
 
-import { Layers, Users, Route, Building2, SlidersHorizontal } from 'lucide-react'
+import { Layers, Users, Route, Building2, SlidersHorizontal, Droplets } from 'lucide-react'
 import {
   Tooltip,
   TooltipContent,
@@ -8,7 +8,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 
-export type RailPanel = 'layers' | 'roster' | 'routes' | 'infra' | 'tune' | null
+export type RailPanel = 'layers' | 'roster' | 'routes' | 'infra' | 'tune' | 'water' | null
 
 const items: Array<{
   key: NonNullable<RailPanel>
@@ -21,6 +21,7 @@ const items: Array<{
   { key: 'routes', label: 'เส้นทางอพยพ', icon: Route, shortcut: 'E' },
   { key: 'infra', label: 'สถานพยาบาล', icon: Building2, shortcut: 'I' },
   { key: 'tune', label: 'ปรับการแสดงผล', icon: SlidersHorizontal, shortcut: 'T' },
+  { key: 'water', label: 'ระดับน้ำสถานี', icon: Droplets, shortcut: 'W' },
 ]
 
 interface Props {

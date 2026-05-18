@@ -11,8 +11,44 @@ import {
   integer,
   boolean,
   jsonb,
+  varchar,
 } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
+
+// Water stations — master threshold table
+export const waterStations = pgTable('water_station', {
+  stationCode: varchar('station_code', { length: 20 }).primaryKey(),
+  stationNameTh: text('station_name_th').notNull(),
+  stationNameEn: text('station_name_en'),
+  riverBasin: text('river_basin'),
+  province: text('province'),
+  district: text('district'),
+  latitude: numeric('latitude', { precision: 10, scale: 7 }),
+  longitude: numeric('longitude', { precision: 10, scale: 7 }),
+  warningLevel: numeric('warning_level', { precision: 6, scale: 2 }),
+  prepareLevel: numeric('prepare_level', { precision: 6, scale: 2 }),
+  criticalLevel: numeric('critical_level', { precision: 6, scale: 2 }),
+  dangerLevel: numeric('danger_level', { precision: 6, scale: 2 }),
+  rapidRiseThreshold: numeric('rapid_rise_threshold', { precision: 6, scale: 2 }),
+  warningDischarge: numeric('warning_discharge', { precision: 12, scale: 2 }),
+  isActive: boolean('is_active').default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+})
+
+// Station pairs — upstream → downstream relation per river basin
+export const waterStationPairs = pgTable('water_station_pair', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  upstreamStation: varchar('upstream_station', { length: 20 })
+    .notNull()
+    .references(() => waterStations.stationCode, { onDelete: 'cascade' }),
+  downstreamStation: varchar('downstream_station', { length: 20 })
+    .notNull()
+    .references(() => waterStations.stationCode, { onDelete: 'cascade' }),
+  riverBasin: text('river_basin'),
+  active: boolean('active').default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+})
 
 // Flood detections — Sentinel-1 SAR
 export const floodPoints = pgTable('flood_points', {

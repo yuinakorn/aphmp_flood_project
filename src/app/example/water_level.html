@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบจำลองระดับน้ำ P.67 & P.1 (Canvas Mode)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Sarabun:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', 'Sarabun', sans-serif;
+            background-color: #0f172a;
+            color: #f1f5f9;
+        }
+        .glass-card {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .status-pulse {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(0.95); opacity: 0.5; }
+            50% { transform: scale(1.05); opacity: 1; }
+            100% { transform: scale(0.95); opacity: 0.5; }
+        }
+        /* Custom slider styling */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 6px;
+            background: #334155;
+            border-radius: 3px;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 18px;
+            width: 18px;
+            border-radius: 50%;
+            background: #38bdf8;
+            margin-top: -6px;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(56, 189, 248, 0.5);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center p-4 md:p-8">
+
+    <header class="text-center mb-10 w-full max-w-4xl">
+        <h1 class="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-400 mb-2">
+            Water Level Monitoring System
+        </h1>
+        <p class="text-slate-400">การติดตามระดับน้ำสถานีต้นน้ำ (P.67) และจุดต่ำสุด (P.1) แบบเรียลไทม์</p>
+    </header>
+
+    <main class="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-5xl">
+        <!-- Station P.67 -->
+        <div class="glass-card rounded-3xl p-6 flex flex-col items-center">
+            <div class="w-full flex justify-between items-center mb-4">
+                <span class="px-3 py-1 bg-blue-500/20 text-blue-400 text-xs font-bold rounded-full uppercase tracking-wider">Upstream</span>
+                <div class="flex items-center space-x-2">
+                    <div id="status-dot-p67" class="w-2.5 h-2.5 rounded-full bg-green-500 shadow-[0_0_8px_#22c55e]"></div>
+                    <span id="status-text-p67" class="text-xs text-slate-300">ปกติ</span>
+                </div>
+            </div>
+            
+            <h2 class="text-2xl font-bold mb-1">สถานี P.67</h2>
+            <p class="text-slate-400 text-sm mb-6 text-center">อ.เมือง จ.นครสวรรค์ (แม่น้ำปิง)</p>
+
+            <div class="relative w-48 h-64 mb-6">
+                <!-- Canvas Container -->
+                <canvas id="canvas-p67" class="w-full h-full rounded-2xl border-2 border-slate-700/50 shadow-inner bg-slate-900/50"></canvas>
+                <!-- Percentage Overlay -->
+                <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div class="text-center">
+                        <span id="percent-p67" class="text-4xl font-black text-white drop-shadow-md">0</span>
+                        <span class="text-xl font-bold text-white drop-shadow-md">%</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="w-full space-y-4">
+                <div class="flex justify-between text-xs text-slate-400 font-semibold px-1 uppercase">
+                    <span>จำลองระดับน้ำ</span>
+                    <span id="slider-val-p67">50%</span>
+                </div>
+                <input type="range" id="input-p67" min="0" max="100" value="50" class="w-full">
+            </div>
+        </div>
+
+        <!-- Station P.1 -->
+        <div class="glass-card rounded-3xl p-6 flex flex-col items-center">
+            <div class="w-full flex justify-between items-center mb-4">
+                <span class="px-3 py-1 bg-cyan-500/20 text-cyan-400 text-xs font-bold rounded-full uppercase tracking-wider">Lower Basin</span>
+                <div class="flex items-center space-x-2">
+                    <div id="status-dot-p1" class="w-2.5 h-2.5 rounded-full bg-green-500 shadow-[0_0_8px_#22c55e]"></div>
+                    <span id="status-text-p1" class="text-xs text-slate-300">ปกติ</span>
+                </div>
+            </div>
+            
+            <h2 class="text-2xl font-bold mb-1">สถานี P.1</h2>
+            <p class="text-slate-400 text-sm mb-6 text-center">สะพานเดชาติวงศ์ (จุดต่ำสุด)</p>
+
+            <div class="relative w-48 h-64 mb-6">
+                <canvas id="canvas-p1" class="w-full h-full rounded-2xl border-2 border-slate-700/50 shadow-inner bg-slate-900/50"></canvas>
+                <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div class="text-center">
+                        <span id="percent-p1" class="text-4xl font-black text-white drop-shadow-md">0</span>
+                        <span class="text-xl font-bold text-white drop-shadow-md">%</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="w-full space-y-4">
+                <div class="flex justify-between text-xs text-slate-400 font-semibold px-1 uppercase">
+                    <span>จำลองระดับน้ำ</span>
+                    <span id="slider-val-p1">35%</span>
+                </div>
+                <input type="range" id="input-p1" min="0" max="100" value="35" class="w-full">
+            </div>
+        </div>
+    </main>
+
+    <script>
+        class WaterTank {
+            constructor(canvasId, inputId, textId, statusDotId, statusTextId, colors) {
+                this.canvas = document.getElementById(canvasId);
+                this.ctx = this.canvas.getContext('2d');
+                this.input = document.getElementById(inputId);
+                this.text = document.getElementById(textId);
+                this.statusDot = document.getElementById(statusDotId);
+                this.statusText = document.getElementById(statusTextId);
+                this.colors = colors;
+                
+                this.width = 0;
+                this.height = 0;
+                this.targetLevel = parseInt(this.input.value);
+                this.currentLevel = 0; // Start from 0 for animation
+                this.offset = 0;
+                
+                this.init();
+            }
+
+            init() {
+                this.resize();
+                window.addEventListener('resize', () => this.resize());
+                this.input.addEventListener('input', (e) => {
+                    this.targetLevel = parseInt(e.target.value);
+                    document.getElementById('slider-val-' + this.input.id.split('-')[1]).innerText = this.targetLevel + '%';
+                });
+            }
+
+            resize() {
+                // Adjust for high DPI screens
+                const dpr = window.devicePixelRatio || 1;
+                const rect = this.canvas.getBoundingClientRect();
+                this.canvas.width = rect.width * dpr;
+                this.canvas.height = rect.height * dpr;
+                this.ctx.scale(dpr, dpr);
+                this.width = rect.width;
+                this.height = rect.height;
+            }
+
+            update() {
+                // Smoothly interpolate level
+                this.currentLevel += (this.targetLevel - this.currentLevel) * 0.05;
+                this.offset += 0.03;
+                this.text.innerText = Math.round(this.currentLevel);
+
+                // Update Status UI
+                if (this.currentLevel > 85) {
+                    this.statusDot.className = "w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_12px_#ef4444] status-pulse";
+                    this.statusText.innerText = "วิกฤต";
+                    this.statusText.classList.replace('text-slate-300', 'text-red-400');
+                } else if (this.currentLevel > 70) {
+                    this.statusDot.className = "w-2.5 h-2.5 rounded-full bg-yellow-500 shadow-[0_0_8px_#eab308]";
+                    this.statusText.innerText = "เฝ้าระวัง";
+                    this.statusText.classList.replace('text-slate-300', 'text-yellow-400');
+                    this.statusText.classList.remove('text-red-400');
+                } else {
+                    this.statusDot.className = "w-2.5 h-2.5 rounded-full bg-green-500 shadow-[0_0_8px_#22c55e]";
+                    this.statusText.innerText = "ปกติ";
+                    this.statusText.className = "text-xs text-slate-300";
+                }
+            }
+
+            draw() {
+                this.ctx.clearRect(0, 0, this.width, this.height);
+                
+                const waterTop = this.height * (1 - this.currentLevel / 100);
+                
+                // Draw multiple wave layers
+                this.drawWave(waterTop, 8, 0.02, this.offset, this.colors.back);
+                this.drawWave(waterTop, 5, 0.03, this.offset * 1.5, this.colors.middle);
+                this.drawWave(waterTop, 10, 0.015, this.offset * 0.8, this.colors.front);
+            }
+
+            drawWave(yPos, amplitude, frequency, offset, color) {
+                this.ctx.fillStyle = color;
+                this.ctx.beginPath();
+                this.ctx.moveTo(0, this.height);
+                this.ctx.lineTo(0, yPos);
+
+                for (let x = 0; x <= this.width; x++) {
+                    const y = yPos + Math.sin(x * frequency + offset) * amplitude;
+                    this.ctx.lineTo(x, y);
+                }
+
+                this.ctx.lineTo(this.width, this.height);
+                this.ctx.closePath();
+                this.ctx.fill();
+            }
+        }
+
+        const p67 = new WaterTank(
+            'canvas-p67', 'input-p67', 'percent-p67', 'status-dot-p67', 'status-text-p67',
+            {
+                back: 'rgba(30, 64, 175, 0.4)',
+                middle: 'rgba(37, 99, 235, 0.6)',
+                front: 'rgba(59, 130, 246, 0.8)'
+            }
+        );
+
+        const p1 = new WaterTank(
+            'canvas-p1', 'input-p1', 'percent-p1', 'status-dot-p1', 'status-text-p1',
+            {
+                back: 'rgba(8, 145, 178, 0.4)',
+                middle: 'rgba(6, 182, 212, 0.6)',
+                front: 'rgba(34, 211, 238, 0.8)'
+            }
+        );
+
+        function animate() {
+            p67.update();
+            p67.draw();
+            p1.update();
+            p1.draw();
+            requestAnimationFrame(animate);
+        }
+
+        window.onload = animate;
+    </script>
+</body>
+</html>

@@ -16,44 +16,6 @@ export type StationThreshold = {
   rapidRise: number
 }
 
-export const STATION_THRESHOLDS: Record<string, StationThreshold> = {
-  'P.67': {
-    code: 'P.67',
-    name: 'บ้านแม่แต (ต้นน้ำ)',
-    warning: 2.0,
-    prepare: 2.5,
-    critical: 2.8,
-    danger: 3.0,
-    rapidRise: 0.2,
-  },
-  'P.1': {
-    code: 'P.1',
-    name: 'สะพานนวรัฐ (ตัวเมือง)',
-    warning: 2.5,
-    prepare: 3.0,
-    critical: 3.4,
-    danger: 3.7,
-    rapidRise: 0.2,
-  },
-  'N.64': {
-    code: 'N.64',
-    name: 'บ้านไชยสถาน (ต้นน้ำ)',
-    warning: 3.0,
-    prepare: 4.0,
-    critical: 5.0,
-    danger: 6.0,
-    rapidRise: 0.3,
-  },
-  'N.1': {
-    code: 'N.1',
-    name: 'สะพานพระเจ้าแสนแซ่ (ตัวเมือง)',
-    warning: 4.0,
-    prepare: 5.5,
-    critical: 7.0,
-    danger: 8.5,
-    rapidRise: 0.3,
-  },
-}
 
 export const PROVINCE_CONFIGS = {
   chiangmai: {
@@ -71,6 +33,14 @@ export const PROVINCE_CONFIGS = {
     s2: 'N.1',
     travelLabel: 'N.64 → N.1 ประมาณ 6–8 ชม.',
     distanceLabel: 'ระยะ ~35 กม.',
+  },
+  chiangrai: {
+    label: 'เชียงราย',
+    river: 'ลุ่มน้ำกก',
+    s1: 'G.10',
+    s2: 'G.8A',
+    travelLabel: 'G.10 → G.8A ประมาณ 3–5 ชม.',
+    distanceLabel: 'ระยะ ~25 กม.',
   },
 } as const
 

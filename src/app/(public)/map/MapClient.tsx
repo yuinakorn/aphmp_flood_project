@@ -12,6 +12,7 @@ import { RoutesPanel } from '@/components/panels/RoutesPanel'
 import { InfraPanel } from '@/components/panels/InfraPanel'
 import { TunePanel } from '@/components/panels/TunePanel'
 import { MapOverlay } from '@/components/map/MapOverlay'
+import { WaterLevelSidebar } from '@/components/map/WaterLevelSidebar'
 import { buildEvacRoute, nearestShelter } from '@/lib/geo'
 import type {
   BasemapType,
@@ -130,6 +131,7 @@ export function MapClient({ session }: Props) {
         e: 'routes',
         i: 'infra',
         t: 'tune',
+        w: 'water',
       }
       if (map[key]) {
         setActivePanel((prev) => (prev === map[key] ? null : map[key]))
@@ -292,6 +294,9 @@ export function MapClient({ session }: Props) {
             onBasemap={setBasemap}
             onClose={() => setActivePanel(null)}
           />
+        )}
+        {activePanel === 'water' && (
+          <WaterLevelSidebar onClose={() => setActivePanel(null)} />
         )}
 
         <div id="map-region" role="region" aria-label="แผนที่น้ำท่วม" className="relative flex-1">

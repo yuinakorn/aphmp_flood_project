@@ -35,7 +35,47 @@ export const STATION_THRESHOLDS: Record<string, StationThreshold> = {
     danger: 3.7,
     rapidRise: 0.2,
   },
+  'N.64': {
+    code: 'N.64',
+    name: 'บ้านไชยสถาน (ต้นน้ำ)',
+    warning: 3.0,
+    prepare: 4.0,
+    critical: 5.0,
+    danger: 6.0,
+    rapidRise: 0.3,
+  },
+  'N.1': {
+    code: 'N.1',
+    name: 'สะพานพระเจ้าแสนแซ่ (ตัวเมือง)',
+    warning: 4.0,
+    prepare: 5.5,
+    critical: 7.0,
+    danger: 8.5,
+    rapidRise: 0.3,
+  },
 }
+
+export const PROVINCE_CONFIGS = {
+  chiangmai: {
+    label: 'เชียงใหม่',
+    river: 'ลุ่มน้ำปิง',
+    s1: 'P.67',
+    s2: 'P.1',
+    travelLabel: 'P.67 → P.1 ประมาณ 4–6 ชม.',
+    distanceLabel: 'ระยะ ~20 กม.',
+  },
+  nan: {
+    label: 'น่าน',
+    river: 'ลุ่มน้ำน่าน',
+    s1: 'N.64',
+    s2: 'N.1',
+    travelLabel: 'N.64 → N.1 ประมาณ 6–8 ชม.',
+    distanceLabel: 'ระยะ ~35 กม.',
+  },
+} as const
+
+export type ProvinceId = keyof typeof PROVINCE_CONFIGS
+export type ProvinceConfig = (typeof PROVINCE_CONFIGS)[ProvinceId]
 
 export function classifyAlert(
   level: number | null,

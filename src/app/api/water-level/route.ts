@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
 import { sql } from 'drizzle-orm'
+import { PROVINCE_CONFIGS, type ProvinceId } from '@/lib/water-level'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -9,15 +10,18 @@ export type WaterLevelPoint = {
   observedAt: string
   date: string
   time: string
-  p67: number | null
-  p67Discharge: number | null
-  p1: number | null
-  p1Discharge: number | null
+  s1: number | null
+  s1Discharge: number | null
+  s2: number | null
+  s2Discharge: number | null
 }
 
 export async function GET(req: NextRequest) {
   const hoursParam = req.nextUrl.searchParams.get('hours')
   const hours = Math.max(6, Math.min(7 * 24, Number(hoursParam) || 72))
+
+  const provinceParam = (req.nextUrl.searchParams.get('province') ?? 'chiangmai') as ProvinceId
+  const config = PROVINCE_CONFIGS[provinceParam] ?? PROVINCE_CONFIGS.chiangmai
 
   const db = getDb()
   const rows = await db.execute(sql`
@@ -25,12 +29,12 @@ export async function GET(req: NextRequest) {
       observed_at,
       to_char(observed_date, 'YYYY-MM-DD')    AS date,
       to_char(observed_time, 'HH24:MI')       AS time,
-      level_station1::float                   AS p67,
-      discharge_station1::float               AS p67_discharge,
-      level_station2::float                   AS p1,
-      discharge_station2::float               AS p1_discharge
+      level_station1::float                   AS s1,
+      discharge_station1::float               AS s1_discharge,
+      level_station2::float                   AS s2,
+      discharge_station2::float               AS s2_discharge
     FROM water_level_observation
-    WHERE station_id1 = 'P.67' AND station_id2 = 'P.1'
+    WHERE station_id1 = ${config.s1} AND station_id2 = ${config.s2}
     ORDER BY observed_at DESC
     LIMIT ${hours}
   `)
@@ -42,12 +46,12 @@ export async function GET(req: NextRequest) {
         : String(r.observed_at)),
       date: r.date as string,
       time: r.time as string,
-      p67: r.p67 == null ? null : Number(r.p67),
-      p67Discharge: r.p67_discharge == null ? null : Number(r.p67_discharge),
-      p1: r.p1 == null ? null : Number(r.p1),
-      p1Discharge: r.p1_discharge == null ? null : Number(r.p1_discharge),
+      s1: r.s1 == null ? null : Number(r.s1),
+      s1Discharge: r.s1_discharge == null ? null : Number(r.s1_discharge),
+      s2: r.s2 == null ? null : Number(r.s2),
+      s2Discharge: r.s2_discharge == null ? null : Number(r.s2_discharge),
     }))
     .reverse()
 
-  return NextResponse.json({ hours, count: data.length, data })
+  return NextResponse.json({ hours, province: provinceParam, count: data.length, data })
 }

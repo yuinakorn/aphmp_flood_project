@@ -4,11 +4,14 @@ import { Droplets, TrendingUp, TrendingDown, Minus } from 'lucide-react'
 import {
   ALERT_STYLES,
   STATION_THRESHOLDS,
+  PROVINCE_CONFIGS,
   classifyAlert,
   type AlertLevel,
+  type ProvinceId,
 } from '@/lib/water-level'
 import { WaterLevelChart } from './WaterLevelChart'
 import { WaterFlowSimulator } from './WaterFlowSimulator'
+import { ProvinceSelector } from './ProvinceSelector'
 
 export const metadata = { title: 'ระดับน้ำรายชั่วโมง — FloodWatch Admin' }
 export const dynamic = 'force-dynamic'
@@ -17,25 +20,25 @@ type Row = {
   observed_at: Date
   date: string
   time: string
-  p67: number | null
-  p67_discharge: number | null
-  p1: number | null
-  p1_discharge: number | null
+  s1: number | null
+  s1_discharge: number | null
+  s2: number | null
+  s2_discharge: number | null
 }
 
-async function loadHourly(hours = 72) {
+async function loadHourly(station1: string, station2: string, hours = 72) {
   const db = getDb()
   const rows = await db.execute(sql`
     SELECT
       observed_at,
       to_char(observed_date, 'YYYY-MM-DD') AS date,
       to_char(observed_time, 'HH24:MI')    AS time,
-      level_station1::float                AS p67,
-      discharge_station1::float            AS p67_discharge,
-      level_station2::float                AS p1,
-      discharge_station2::float            AS p1_discharge
+      level_station1::float                AS s1,
+      discharge_station1::float            AS s1_discharge,
+      level_station2::float                AS s2,
+      discharge_station2::float            AS s2_discharge
     FROM water_level_observation
-    WHERE station_id1 = 'P.67' AND station_id2 = 'P.1'
+    WHERE station_id1 = ${station1} AND station_id2 = ${station2}
     ORDER BY observed_at DESC
     LIMIT ${hours}
   `)
@@ -56,7 +59,7 @@ function StationCard({
   rise1h,
   discharge,
 }: {
-  code: 'P.67' | 'P.1'
+  code: string
   level: number | null
   rise3h: number | null
   rise1h: number | null
@@ -136,28 +139,40 @@ function StationCard({
   )
 }
 
-export default async function WaterLevelPage() {
-  const rows = await loadHourly(72)
+export default async function WaterLevelPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ province?: string }>
+}) {
+  const params = await searchParams
+  const provinceId = (
+    params.province && params.province in PROVINCE_CONFIGS
+      ? params.province
+      : 'chiangmai'
+  ) as ProvinceId
+  const config = PROVINCE_CONFIGS[provinceId]
 
-  const p67Series = rows.map((r) => r.p67)
-  const p1Series = rows.map((r) => r.p1)
+  const rows = await loadHourly(config.s1, config.s2, 72)
+
+  const s1Series = rows.map((r) => r.s1)
+  const s2Series = rows.map((r) => r.s2)
 
   const lastIdx = rows.length - 1
   const last = rows[lastIdx]
 
-  const p67Rise1 = rise(p67Series, lastIdx, 1)
-  const p67Rise3 = rise(p67Series, lastIdx, 3)
-  const p1Rise1 = rise(p1Series, lastIdx, 1)
-  const p1Rise3 = rise(p1Series, lastIdx, 3)
+  const s1Rise1 = rise(s1Series, lastIdx, 1)
+  const s1Rise3 = rise(s1Series, lastIdx, 3)
+  const s2Rise1 = rise(s2Series, lastIdx, 1)
+  const s2Rise3 = rise(s2Series, lastIdx, 3)
 
   const chartData = rows.map((r) => ({
     observedAt: r.observed_at.toString(),
     date: r.date,
     time: r.time,
-    p67: r.p67,
-    p67Discharge: r.p67_discharge,
-    p1: r.p1,
-    p1Discharge: r.p1_discharge,
+    s1: r.s1,
+    s1Discharge: r.s1_discharge,
+    s2: r.s2,
+    s2Discharge: r.s2_discharge,
   }))
 
   return (
@@ -165,7 +180,7 @@ export default async function WaterLevelPage() {
       <div className="flex items-end justify-between gap-6">
         <div>
           <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--fg-subtle)]">
-            ลุ่มน้ำปิง · P.67 → P.1
+            {config.river} · {config.s1} → {config.s2}
           </p>
           <h1 className="mt-2 flex items-center gap-2 text-[22px] font-semibold tracking-tight">
             <Droplets size={20} strokeWidth={1.75} className="text-sky-400" />
@@ -178,37 +193,39 @@ export default async function WaterLevelPage() {
             </span>
           </p>
         </div>
+        <ProvinceSelector current={provinceId} />
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-2">
         <StationCard
-          code="P.67"
-          level={last?.p67 ?? null}
-          rise1h={p67Rise1}
-          rise3h={p67Rise3}
-          discharge={last?.p67_discharge ?? null}
+          code={config.s1}
+          level={last?.s1 ?? null}
+          rise1h={s1Rise1}
+          rise3h={s1Rise3}
+          discharge={last?.s1_discharge ?? null}
         />
         <StationCard
-          code="P.1"
-          level={last?.p1 ?? null}
-          rise1h={p1Rise1}
-          rise3h={p1Rise3}
-          discharge={last?.p1_discharge ?? null}
+          code={config.s2}
+          level={last?.s2 ?? null}
+          rise1h={s2Rise1}
+          rise3h={s2Rise3}
+          discharge={last?.s2_discharge ?? null}
         />
       </div>
 
       <div className="mt-4">
         <WaterFlowSimulator
-          p67={{
-            level: last?.p67 ?? null,
-            discharge: last?.p67_discharge ?? null,
-            rise3h: p67Rise3,
+          s1={{
+            level: last?.s1 ?? null,
+            discharge: last?.s1_discharge ?? null,
+            rise3h: s1Rise3,
           }}
-          p1={{
-            level: last?.p1 ?? null,
-            discharge: last?.p1_discharge ?? null,
-            rise3h: p1Rise3,
+          s2={{
+            level: last?.s2 ?? null,
+            discharge: last?.s2_discharge ?? null,
+            rise3h: s2Rise3,
           }}
+          config={config}
         />
       </div>
 
@@ -216,9 +233,11 @@ export default async function WaterLevelPage() {
         <WaterLevelChart
           data={chartData}
           thresholds={{
-            p67: STATION_THRESHOLDS['P.67'].critical,
-            p1: STATION_THRESHOLDS['P.1'].critical,
+            s1: STATION_THRESHOLDS[config.s1].critical,
+            s2: STATION_THRESHOLDS[config.s2].critical,
           }}
+          station1={config.s1}
+          station2={config.s2}
         />
       </div>
 
@@ -228,16 +247,16 @@ export default async function WaterLevelPage() {
             <tr className="text-left">
               <th className="px-3 py-2 font-medium">วัน-เวลา</th>
               <th className="px-3 py-2 text-right font-mono font-medium">
-                P.67 (m)
+                {config.s1} (m)
               </th>
               <th className="px-3 py-2 text-right font-mono font-medium">
-                P.67 Q
+                {config.s1} Q
               </th>
               <th className="px-3 py-2 text-right font-mono font-medium">
-                P.1 (m)
+                {config.s2} (m)
               </th>
               <th className="px-3 py-2 text-right font-mono font-medium">
-                P.1 Q
+                {config.s2} Q
               </th>
               <th className="px-3 py-2 text-right font-mono font-medium">
                 ส่วนต่าง
@@ -247,23 +266,23 @@ export default async function WaterLevelPage() {
           <tbody className="divide-y divide-[var(--border)]">
             {[...rows].reverse().slice(0, 24).map((r, i) => {
               const diff =
-                r.p67 != null && r.p1 != null ? r.p67 - r.p1 : null
+                r.s1 != null && r.s2 != null ? r.s1 - r.s2 : null
               return (
                 <tr key={i} className="hover:bg-[var(--bg-elevated)]">
                   <td className="px-3 py-1.5 font-mono text-[11.5px] text-[var(--fg-muted)]">
                     {r.date} {r.time}
                   </td>
                   <td className="px-3 py-1.5 text-right font-mono">
-                    {r.p67?.toFixed(2) ?? '—'}
+                    {r.s1?.toFixed(2) ?? '—'}
                   </td>
                   <td className="px-3 py-1.5 text-right font-mono text-[var(--fg-muted)]">
-                    {r.p67_discharge?.toFixed(1) ?? '—'}
+                    {r.s1_discharge?.toFixed(1) ?? '—'}
                   </td>
                   <td className="px-3 py-1.5 text-right font-mono">
-                    {r.p1?.toFixed(2) ?? '—'}
+                    {r.s2?.toFixed(2) ?? '—'}
                   </td>
                   <td className="px-3 py-1.5 text-right font-mono text-[var(--fg-muted)]">
-                    {r.p1_discharge?.toFixed(1) ?? '—'}
+                    {r.s2_discharge?.toFixed(1) ?? '—'}
                   </td>
                   <td className="px-3 py-1.5 text-right font-mono text-[var(--fg-muted)]">
                     {diff == null

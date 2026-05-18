@@ -5,32 +5,28 @@ import type { WaterLevelPoint } from '@/app/api/water-level/route'
 
 type Props = {
   data: WaterLevelPoint[]
-  thresholds: { p67: number; p1: number }
+  thresholds: { s1: number; s2: number }
+  station1: string
+  station2: string
 }
 
 const W = 880
 const H = 280
 const PAD = { top: 16, right: 16, bottom: 32, left: 44 }
 
-export function WaterLevelChart({ data, thresholds }: Props) {
+export function WaterLevelChart({ data, thresholds, station1, station2 }: Props) {
   const [hover, setHover] = useState<number | null>(null)
 
-  const { px, pyP67, pyP1, yTicks, xTicks, p67Path, p1Path, yMin, yMax } =
+  const { px, pyS1, pyS2, yTicks, xTicks, s1Path, s2Path } =
     useMemo(() => {
       const innerW = W - PAD.left - PAD.right
       const innerH = H - PAD.top - PAD.bottom
 
       const allLevels = data
-        .flatMap((d) => [d.p67, d.p1])
+        .flatMap((d) => [d.s1, d.s2])
         .filter((v): v is number => v != null)
 
-      // Always include critical thresholds in the visible range so the dashed
-      // lines stay on-screen even in dry season when actual levels are far below.
-      const reach = [
-        ...allLevels,
-        thresholds.p67,
-        thresholds.p1,
-      ]
+      const reach = [...allLevels, thresholds.s1, thresholds.s2]
       const lo = Math.min(...reach)
       const hi = Math.max(...reach)
       const padY = Math.max(0.3, (hi - lo) * 0.12)
@@ -42,23 +38,17 @@ export function WaterLevelChart({ data, thresholds }: Props) {
       const py = (v: number) =>
         PAD.top + innerH - ((v - yMin) / (yMax - yMin)) * innerH
 
-      const buildPath = (key: 'p67' | 'p1') => {
+      const buildPath = (key: 's1' | 's2') => {
         let d = ''
         let pen = false
         data.forEach((pt, i) => {
           const v = pt[key]
-          if (v == null) {
-            pen = false
-            return
-          }
+          if (v == null) { pen = false; return }
           d += `${pen ? 'L' : 'M'}${px(i).toFixed(2)},${py(v).toFixed(2)} `
           pen = true
         })
         return d.trim()
       }
-
-      const pyP67 = (v: number) => py(v)
-      const pyP1 = (v: number) => py(v)
 
       const tickCount = 5
       const yTicks = Array.from({ length: tickCount + 1 }, (_, i) => {
@@ -74,12 +64,12 @@ export function WaterLevelChart({ data, thresholds }: Props) {
 
       return {
         px,
-        pyP67,
-        pyP1,
+        pyS1: py,
+        pyS2: py,
         yTicks,
         xTicks,
-        p67Path: buildPath('p67'),
-        p1Path: buildPath('p1'),
+        s1Path: buildPath('s1'),
+        s2Path: buildPath('s2'),
         yMin,
         yMax,
       }
@@ -96,10 +86,10 @@ export function WaterLevelChart({ data, thresholds }: Props) {
         </h3>
         <div className="flex items-center gap-4 text-[11px]">
           <span className="inline-flex items-center gap-1.5 text-[var(--fg-muted)]">
-            <span className="inline-block h-0.5 w-4 bg-sky-400" /> P.67
+            <span className="inline-block h-0.5 w-4 bg-sky-400" /> {station1}
           </span>
           <span className="inline-flex items-center gap-1.5 text-[var(--fg-muted)]">
-            <span className="inline-block h-0.5 w-4 bg-amber-400" /> P.1
+            <span className="inline-block h-0.5 w-4 bg-amber-400" /> {station2}
           </span>
         </div>
       </div>
@@ -111,10 +101,7 @@ export function WaterLevelChart({ data, thresholds }: Props) {
         onMouseMove={(e) => {
           const rect = (e.currentTarget as SVGSVGElement).getBoundingClientRect()
           const x = ((e.clientX - rect.left) / rect.width) * W
-          if (x < PAD.left || x > W - PAD.right) {
-            setHover(null)
-            return
-          }
+          if (x < PAD.left || x > W - PAD.right) { setHover(null); return }
           const innerW = W - PAD.left - PAD.right
           const idx = Math.round(((x - PAD.left) / innerW) * (data.length - 1))
           setHover(Math.max(0, Math.min(data.length - 1, idx)))
@@ -122,89 +109,48 @@ export function WaterLevelChart({ data, thresholds }: Props) {
       >
         {yTicks.map((t, i) => (
           <g key={i}>
-            <line
-              x1={PAD.left}
-              x2={W - PAD.right}
-              y1={t.y}
-              y2={t.y}
-              stroke="currentColor"
-              strokeOpacity={0.08}
-            />
-            <text
-              x={PAD.left - 6}
-              y={t.y + 3}
-              textAnchor="end"
-              fontSize="9"
-              fill="currentColor"
-              fillOpacity={0.55}
-            >
+            <line x1={PAD.left} x2={W - PAD.right} y1={t.y} y2={t.y}
+              stroke="currentColor" strokeOpacity={0.08} />
+            <text x={PAD.left - 6} y={t.y + 3} textAnchor="end" fontSize="9"
+              fill="currentColor" fillOpacity={0.55}>
               {t.v.toFixed(1)}
             </text>
           </g>
         ))}
 
-        {/* threshold lines per station */}
         {[
-          { v: thresholds.p67, color: '#38bdf8', label: `P.67 วิกฤต ${thresholds.p67.toFixed(1)}m`, py: pyP67 },
-          { v: thresholds.p1, color: '#fbbf24', label: `P.1 วิกฤต ${thresholds.p1.toFixed(1)}m`, py: pyP1 },
+          { v: thresholds.s1, color: '#38bdf8', label: `${station1} วิกฤต ${thresholds.s1.toFixed(1)}m`, py: pyS1 },
+          { v: thresholds.s2, color: '#fbbf24', label: `${station2} วิกฤต ${thresholds.s2.toFixed(1)}m`, py: pyS2 },
         ].map((t, i) => (
           <g key={i}>
-            <line
-              x1={PAD.left}
-              x2={W - PAD.right}
-              y1={t.py(t.v)}
-              y2={t.py(t.v)}
-              stroke={t.color}
-              strokeDasharray="5 4"
-              strokeOpacity={0.55}
-              strokeWidth={1}
-            />
-            <text
-              x={W - PAD.right - 4}
-              y={t.py(t.v) - 4}
-              textAnchor="end"
-              fontSize="9"
-              fontFamily="ui-monospace, monospace"
-              fill={t.color}
-              fillOpacity={0.85}
-            >
+            <line x1={PAD.left} x2={W - PAD.right} y1={t.py(t.v)} y2={t.py(t.v)}
+              stroke={t.color} strokeDasharray="5 4" strokeOpacity={0.55} strokeWidth={1} />
+            <text x={W - PAD.right - 4} y={t.py(t.v) - 4} textAnchor="end" fontSize="9"
+              fontFamily="ui-monospace, monospace" fill={t.color} fillOpacity={0.85}>
               {t.label}
             </text>
           </g>
         ))}
 
         {xTicks.map((t, i) => (
-          <text
-            key={i}
-            x={t.x}
-            y={H - PAD.bottom + 14}
-            textAnchor="middle"
-            fontSize="9"
-            fill="currentColor"
-            fillOpacity={0.55}
-          >
+          <text key={i} x={t.x} y={H - PAD.bottom + 14} textAnchor="middle" fontSize="9"
+            fill="currentColor" fillOpacity={0.55}>
             {t.label}
           </text>
         ))}
 
-        <path d={p67Path} stroke="#38bdf8" strokeWidth={1.5} fill="none" />
-        <path d={p1Path} stroke="#fbbf24" strokeWidth={1.5} fill="none" />
+        <path d={s1Path} stroke="#38bdf8" strokeWidth={1.5} fill="none" />
+        <path d={s2Path} stroke="#fbbf24" strokeWidth={1.5} fill="none" />
 
         {hover != null && hoverPt && (
           <g>
-            <line
-              x1={hoverX}
-              x2={hoverX}
-              y1={PAD.top}
-              y2={H - PAD.bottom}
-              stroke="currentColor"
-              strokeOpacity={0.3}
-            />
-            {hoverPt.p67 != null && (
-              <circle cx={hoverX} cy={pyP67(hoverPt.p67)} r={3} fill="#38bdf8" />
+            <line x1={hoverX} x2={hoverX} y1={PAD.top} y2={H - PAD.bottom}
+              stroke="currentColor" strokeOpacity={0.3} />
+            {hoverPt.s1 != null && (
+              <circle cx={hoverX} cy={pyS1(hoverPt.s1)} r={3} fill="#38bdf8" />
             )}
-            {hoverPt.p1 != null && (
-              <circle cx={hoverX} cy={pyP1(hoverPt.p1)} r={3} fill="#fbbf24" />
+            {hoverPt.s2 != null && (
+              <circle cx={hoverX} cy={pyS2(hoverPt.s2)} r={3} fill="#fbbf24" />
             )}
           </g>
         )}
@@ -213,13 +159,13 @@ export function WaterLevelChart({ data, thresholds }: Props) {
       <div className="mt-2 h-6 font-mono text-[11px] text-[var(--fg-muted)]">
         {hoverPt ? (
           <span>
-            {hoverPt.date} {hoverPt.time} · P.67{' '}
+            {hoverPt.date} {hoverPt.time} · {station1}{' '}
             <span className="text-sky-400">
-              {hoverPt.p67?.toFixed(2) ?? '—'}
+              {hoverPt.s1?.toFixed(2) ?? '—'}
             </span>{' '}
-            m · P.1{' '}
+            m · {station2}{' '}
             <span className="text-amber-400">
-              {hoverPt.p1?.toFixed(2) ?? '—'}
+              {hoverPt.s2?.toFixed(2) ?? '—'}
             </span>{' '}
             m
           </span>

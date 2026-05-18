@@ -6,6 +6,7 @@ import {
   STATION_THRESHOLDS,
   classifyAlert,
   type StationThreshold,
+  type ProvinceConfig,
 } from '@/lib/water-level'
 import { WaterFlowAnimation } from './WaterFlowAnimation'
 
@@ -16,67 +17,54 @@ type StationInit = {
 }
 
 type Props = {
-  p67: StationInit
-  p1: StationInit
+  s1: StationInit
+  s2: StationInit
+  config: ProvinceConfig
 }
-
-const LEVEL_MAX_P67 = 3.5
-const LEVEL_MAX_P1 = 4.2
-const DISCHARGE_MAX = 500
 
 type Preset = {
   id: string
   label: string
-  values?: { p67Level: number; p1Level: number; p67Q: number; p1Q: number }
+  values?: { s1Level: number; s2Level: number; s1Q: number; s2Q: number }
 }
 
-const PRESETS: Preset[] = [
-  { id: 'live', label: 'Live' },
-  {
-    id: 'dry',
-    label: 'แล้ง',
-    values: { p67Level: 0.1, p1Level: 0.4, p67Q: 40, p1Q: 55 },
-  },
-  {
-    id: 'warning',
-    label: 'เฝ้าระวัง',
-    values: { p67Level: 2.1, p1Level: 2.6, p67Q: 120, p1Q: 140 },
-  },
-  {
-    id: 'prepare',
-    label: 'เตรียมพร้อม',
-    values: { p67Level: 2.6, p1Level: 3.1, p67Q: 200, p1Q: 230 },
-  },
-  {
-    id: 'critical',
-    label: 'วิกฤต',
-    values: { p67Level: 2.9, p1Level: 3.5, p67Q: 280, p1Q: 320 },
-  },
-  {
-    id: 'danger',
-    label: 'อันตราย',
-    values: { p67Level: 3.15, p1Level: 3.85, p67Q: 360, p1Q: 410 },
-  },
-]
+function buildPresets(t1: StationThreshold, t2: StationThreshold): Preset[] {
+  return [
+    { id: 'live', label: 'Live' },
+    { id: 'dry', label: 'แล้ง', values: { s1Level: t1.warning * 0.05, s2Level: t2.warning * 0.1, s1Q: 40, s2Q: 55 } },
+    { id: 'warning', label: 'เฝ้าระวัง', values: { s1Level: t1.warning + 0.1, s2Level: t2.warning + 0.1, s1Q: 120, s2Q: 140 } },
+    { id: 'prepare', label: 'เตรียมพร้อม', values: { s1Level: t1.prepare + 0.1, s2Level: t2.prepare + 0.1, s1Q: 200, s2Q: 230 } },
+    { id: 'critical', label: 'วิกฤต', values: { s1Level: t1.critical + 0.1, s2Level: t2.critical + 0.1, s1Q: 280, s2Q: 320 } },
+    { id: 'danger', label: 'อันตราย', values: { s1Level: t1.danger + 0.15, s2Level: t2.danger + 0.15, s1Q: 360, s2Q: 410 } },
+  ]
+}
 
-export function WaterFlowSimulator({ p67, p1 }: Props) {
-  const [p67Level, setP67Level] = useState(p67.level ?? 0)
-  const [p67Q, setP67Q] = useState(p67.discharge ?? 0)
-  const [p1Level, setP1Level] = useState(p1.level ?? 0)
-  const [p1Q, setP1Q] = useState(p1.discharge ?? 0)
+export function WaterFlowSimulator({ s1, s2, config }: Props) {
+  const t1 = STATION_THRESHOLDS[config.s1]
+  const t2 = STATION_THRESHOLDS[config.s2]
+
+  const PRESETS = buildPresets(t1, t2)
+  const LEVEL_MAX_S1 = t1.danger + 0.5
+  const LEVEL_MAX_S2 = t2.danger + 0.5
+  const DISCHARGE_MAX = 500
+
+  const [s1Level, setS1Level] = useState(s1.level ?? 0)
+  const [s1Q, setS1Q] = useState(s1.discharge ?? 0)
+  const [s2Level, setS2Level] = useState(s2.level ?? 0)
+  const [s2Q, setS2Q] = useState(s2.discharge ?? 0)
   const [activePreset, setActivePreset] = useState<string>('live')
 
   const applyPreset = (preset: Preset) => {
     if (preset.id === 'live') {
-      setP67Level(p67.level ?? 0)
-      setP67Q(p67.discharge ?? 0)
-      setP1Level(p1.level ?? 0)
-      setP1Q(p1.discharge ?? 0)
+      setS1Level(s1.level ?? 0)
+      setS1Q(s1.discharge ?? 0)
+      setS2Level(s2.level ?? 0)
+      setS2Q(s2.discharge ?? 0)
     } else if (preset.values) {
-      setP67Level(preset.values.p67Level)
-      setP67Q(preset.values.p67Q)
-      setP1Level(preset.values.p1Level)
-      setP1Q(preset.values.p1Q)
+      setS1Level(preset.values.s1Level)
+      setS1Q(preset.values.s1Q)
+      setS2Level(preset.values.s2Level)
+      setS2Q(preset.values.s2Q)
     }
     setActivePreset(preset.id)
   }
@@ -86,21 +74,21 @@ export function WaterFlowSimulator({ p67, p1 }: Props) {
     setActivePreset('custom')
   }
 
-  const { p67Alert, p1Alert } = useMemo(() => {
-    // In simulator mode use absolute level only (no rise3h heuristic).
-    return {
-      p67Alert: classifyAlert(p67Level, 0, STATION_THRESHOLDS['P.67']),
-      p1Alert: classifyAlert(p1Level, 0, STATION_THRESHOLDS['P.1']),
-    }
-  }, [p67Level, p1Level])
+  const { s1Alert, s2Alert } = useMemo(() => ({
+    s1Alert: classifyAlert(s1Level, 0, t1),
+    s2Alert: classifyAlert(s2Level, 0, t2),
+  }), [s1Level, s2Level, t1, t2])
 
   const isLive = activePreset === 'live'
 
   return (
     <div className="space-y-3">
       <WaterFlowAnimation
-        p67={{ level: p67Level, discharge: p67Q, alert: p67Alert }}
-        p1={{ level: p1Level, discharge: p1Q, alert: p1Alert }}
+        s1={{ level: s1Level, discharge: s1Q, alert: s1Alert }}
+        s2={{ level: s2Level, discharge: s2Q, alert: s2Alert }}
+        t1={t1}
+        t2={t2}
+        config={config}
       />
 
       <div className="rounded-md border border-[var(--border)] bg-[var(--bg-elevated)] p-4">
@@ -132,24 +120,26 @@ export function WaterFlowSimulator({ p67, p1 }: Props) {
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <StationControls
-            code="P.67"
-            label="ต้นน้ำ · บ้านแม่แต"
-            level={p67Level}
-            setLevel={(v) => userChange(setP67Level, v)}
-            levelMax={LEVEL_MAX_P67}
-            discharge={p67Q}
-            setDischarge={(v) => userChange(setP67Q, v)}
-            t={STATION_THRESHOLDS['P.67']}
+            code={config.s1}
+            label={`ต้นน้ำ · ${t1.name.replace(' (ต้นน้ำ)', '')}`}
+            level={s1Level}
+            setLevel={(v) => userChange(setS1Level, v)}
+            levelMax={LEVEL_MAX_S1}
+            discharge={s1Q}
+            setDischarge={(v) => userChange(setS1Q, v)}
+            dischargeMax={DISCHARGE_MAX}
+            t={t1}
           />
           <StationControls
-            code="P.1"
-            label="ปลายน้ำ · สะพานนวรัฐ"
-            level={p1Level}
-            setLevel={(v) => userChange(setP1Level, v)}
-            levelMax={LEVEL_MAX_P1}
-            discharge={p1Q}
-            setDischarge={(v) => userChange(setP1Q, v)}
-            t={STATION_THRESHOLDS['P.1']}
+            code={config.s2}
+            label={`ปลายน้ำ · ${t2.name.replace(' (ตัวเมือง)', '')}`}
+            level={s2Level}
+            setLevel={(v) => userChange(setS2Level, v)}
+            levelMax={LEVEL_MAX_S2}
+            discharge={s2Q}
+            setDischarge={(v) => userChange(setS2Q, v)}
+            dischargeMax={DISCHARGE_MAX}
+            t={t2}
           />
         </div>
       </div>
@@ -165,6 +155,7 @@ function StationControls({
   levelMax,
   discharge,
   setDischarge,
+  dischargeMax,
   t,
 }: {
   code: string
@@ -174,6 +165,7 @@ function StationControls({
   levelMax: number
   discharge: number
   setDischarge: (v: number) => void
+  dischargeMax: number
   t: StationThreshold
 }) {
   const ticks = [
@@ -190,7 +182,6 @@ function StationControls({
         <span className="text-[10.5px] text-[var(--fg-muted)]">{label}</span>
       </div>
 
-      {/* Level */}
       <div className="mb-3">
         <div className="mb-1 flex items-baseline justify-between">
           <label className="text-[11px] text-[var(--fg-muted)]">ระดับน้ำ</label>
@@ -214,10 +205,7 @@ function StationControls({
             <span
               key={m.label}
               className="absolute top-0 -translate-x-1/2 font-mono text-[9px] font-bold"
-              style={{
-                left: `${(m.v / levelMax) * 100}%`,
-                color: m.color,
-              }}
+              style={{ left: `${(m.v / levelMax) * 100}%`, color: m.color }}
               title={`${m.label} · ${m.v.toFixed(1)} m`}
             >
               {m.label}
@@ -226,7 +214,6 @@ function StationControls({
         </div>
       </div>
 
-      {/* Discharge */}
       <div>
         <div className="mb-1 flex items-baseline justify-between">
           <label className="text-[11px] text-[var(--fg-muted)]">
@@ -240,7 +227,7 @@ function StationControls({
         <input
           type="range"
           min={0}
-          max={DISCHARGE_MAX}
+          max={dischargeMax}
           step={1}
           value={discharge}
           onChange={(e) => setDischarge(Number(e.target.value))}

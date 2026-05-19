@@ -58,10 +58,12 @@ export interface VulnerablePerson {
   vil: string
   tambon?: string
   amphoe?: string
+  fullAddress?: string
   lat: number
   lng: number
   eq?: string
   risk?: RiskLevel
+  floodLevel?: 1 | 2 | 3 | 4 | 5 | null
   medicalPriority?: MedicalPriority
   followUpStatus?: FollowUpStatus
   careUnit?: string

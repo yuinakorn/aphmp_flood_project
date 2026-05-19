@@ -13,13 +13,16 @@ import { InfraPanel } from '@/components/panels/InfraPanel'
 import { TunePanel } from '@/components/panels/TunePanel'
 import { MapOverlay } from '@/components/map/MapOverlay'
 import { WaterLevelSidebar } from '@/components/map/WaterLevelSidebar'
+import { FloodAlertBanner } from '@/components/map/FloodAlertBanner'
 import { buildEvacRoute, nearestShelter } from '@/lib/geo'
+import type { AlertLevel, ProvinceId } from '@/lib/water-level'
+import { PROVINCE_CONFIGS } from '@/lib/water-level'
+import type { FloodAlertResponse } from '@/app/api/cmu-flood-alert/route'
 import type {
   BasemapType,
   CmuFloodLayerKey,
   FloodMarkLevel,
   FloodMarkProvince,
-  FloodStats,
   GistdaLayerKey,
   Infrastructure,
   LayerState,
@@ -59,12 +62,7 @@ const DEFAULT_LAYERS: LayerState = {
   routes: true,
 }
 
-const FLOOD_STATS: FloodStats = {
-  total: 813,
-  areaSqKm: 50.7,
-  sarPasses: 14,
-  baselinePasses: 30,
-}
+const ALERT_POLL_MS = 5 * 60 * 1000
 
 interface Props {
   session?: { role: string; name: string } | null
@@ -83,13 +81,21 @@ export function MapClient({ session }: Props) {
     safe: 0,
     total: 0,
   })
+  const [waterLevel, setWaterLevel] = useState<number | null>(null)
+  const [activeZone, setActiveZone] = useState<1 | 2 | 3 | 4 | 5 | null>(null)
+  const [alertLevel, setAlertLevel] = useState<AlertLevel>('normal')
+  const [alertUpdatedAt, setAlertUpdatedAt] = useState<string | null>(null)
+  const [province, setProvince] = useState<ProvinceId>('chiangmai')
+  const [rosterFilter, setRosterFilter] = useState<'all' | 'flooded' | 'at_risk'>('all')
 
   const [basemap, setBasemap] = useState<BasemapType>('google_sat')
+
+  const [focusPersonId, setFocusPersonId] = useState<number | null>(null)
 
   const mapRef = useRef<LeafletMap | null>(null)
   const routeGroupRef = useRef<LayerGroup | null>(null)
 
-  // Load data
+  // Load map markers
   useEffect(() => {
     Promise.all([
       fetch('/api/vulnerable').then((r) => r.json()),
@@ -98,16 +104,41 @@ export function MapClient({ session }: Props) {
       .then(([v, i]) => {
         setVulnerable(v as VulnerablePerson[])
         setInfra(i as Infrastructure[])
-        const flood = (v as VulnerablePerson[]).filter((p) => p.risk === 'flood').length
-        const near = (v as VulnerablePerson[]).filter((p) => p.risk === 'near').length
-        setVulnStats({
-          flood,
-          near,
-          safe: v.length - flood - near,
-          total: v.length,
-        })
       })
       .catch(console.error)
+  }, [])
+
+  // Load CMU flood alert stats (PIP-based counts + water level)
+  useEffect(() => {
+    const load = () =>
+      fetch('/api/cmu-flood-alert')
+        .then((r) => r.json())
+        .then((data: FloodAlertResponse) => {
+          setWaterLevel(data.waterLevel)
+          setActiveZone(data.activeZone)
+          setAlertLevel(data.alertLevel)
+          setAlertUpdatedAt(data.updatedAt)
+
+          const { counts, affectedTotal, activeZone: az } = data
+          const nearTotal =
+            ([1, 2, 3, 4, 5] as const)
+              .filter((l) => az == null || l > az)
+              .reduce((sum, l) => sum + (counts[`level${l}` as keyof typeof counts] as number), 0)
+          const total =
+            counts.level1 + counts.level2 + counts.level3 +
+            counts.level4 + counts.level5 + counts.outside
+          setVulnStats({
+            flood: affectedTotal,
+            near: nearTotal,
+            safe: counts.outside,
+            total,
+          })
+        })
+        .catch(console.error)
+
+    load()
+    const id = setInterval(load, ALERT_POLL_MS)
+    return () => clearInterval(id)
   }, [])
 
   useEffect(() => {
@@ -175,6 +206,7 @@ export function MapClient({ session }: Props) {
 
   const flyTo = useCallback((person: VulnerablePerson) => {
     mapRef.current?.flyTo([person.lat, person.lng], 16, { duration: 0.6 })
+    setFocusPersonId(person.id)
   }, [])
 
   const flyToInfra = useCallback((item: Infrastructure) => {
@@ -190,6 +222,21 @@ export function MapClient({ session }: Props) {
 
   const zoomCity = useCallback(() => {
     mapRef.current?.flyTo([18.78, 100.78], 14, { duration: 0.5 })
+  }, [])
+
+  const onProvinceChange = useCallback((p: ProvinceId) => {
+    setProvince(p)
+    mapRef.current?.flyToBounds(PROVINCE_CONFIGS[p].bounds, { duration: 0.7, padding: [40, 40] })
+  }, [])
+
+  const onFloodClick = useCallback(() => {
+    setRosterFilter('flooded')
+    setActivePanel('roster')
+  }, [])
+
+  const onNearClick = useCallback(() => {
+    setRosterFilter('at_risk')
+    setActivePanel('roster')
   }, [])
 
   const drawRoute = useCallback(
@@ -246,7 +293,17 @@ export function MapClient({ session }: Props) {
         ข้ามไปที่แผนที่
       </a>
       <Masthead session={session} />
-      <StatusStrip flood={FLOOD_STATS} vulnerable={vulnStats} fresh />
+      <StatusStrip
+        waterLevel={waterLevel}
+        activeZone={activeZone}
+        alertLevel={alertLevel}
+        vulnerable={vulnStats}
+        updatedAt={alertUpdatedAt}
+        province={province}
+        onProvinceChange={onProvinceChange}
+        onFloodClick={onFloodClick}
+        onNearClick={onNearClick}
+      />
 
       <div className="flex flex-1 overflow-hidden">
         <Rail active={activePanel} onSelect={setActivePanel} />
@@ -267,8 +324,10 @@ export function MapClient({ session }: Props) {
         {activePanel === 'roster' && (
           <RosterPanel
             persons={vulnerable}
+            activeZone={activeZone}
+            initialFilter={rosterFilter}
             onSelect={flyTo}
-            onClose={() => setActivePanel(null)}
+            onClose={() => { setActivePanel(null); setRosterFilter('all') }}
           />
         )}
         {activePanel === 'routes' && (
@@ -300,12 +359,14 @@ export function MapClient({ session }: Props) {
         )}
 
         <div id="map-region" role="region" aria-label="แผนที่น้ำท่วม" className="relative flex-1">
+          <FloodAlertBanner />
           <MapWrapper
             layers={layers}
             vulnerable={vulnerable}
             infra={infra}
             basemap={basemap}
             floodMarkProvince={floodMarkProvince}
+            focusPersonId={focusPersonId}
             onMapReady={(m) => (mapRef.current = m)}
             onRequestRoute={drawRoute}
           />

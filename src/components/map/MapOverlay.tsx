@@ -16,7 +16,7 @@ export function MapOverlay({ onFitProvince, onZoomCity, onRouteAll }: Props) {
     <div className="pointer-events-none absolute inset-0 z-[400]">
       {/* Bottom-left: data attribution */}
       {showDataSources && (
-        <div className="pointer-events-auto absolute bottom-4 left-4 max-w-[380px] rounded-md border border-[var(--border)] bg-[oklch(0.18_0.012_245/0.88)] px-4 py-2.5 backdrop-blur">
+        <div className="pointer-events-auto absolute bottom-4 left-4 max-w-[380px] rounded-md border border-[var(--border)] bg-[var(--bg-elevated)]/90 px-4 py-2.5 backdrop-blur">
           <div className="flex items-center justify-between">
             <div className="text-[9.5px] font-medium uppercase tracking-[0.14em] text-[var(--fg-subtle)]">
               Data sources

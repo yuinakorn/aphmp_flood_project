@@ -17,7 +17,15 @@
       "WebFetch(domain:hydro-1.rid.go.th)",
       "WebFetch(domain:tiwrmdev.hii.or.th)",
       "WebFetch(domain:www.chiangraicity.go.th)",
-      "WebFetch(domain:chiangrai.prd.go.th)"
+      "WebFetch(domain:chiangrai.prd.go.th)",
+      "Bash(node -e \"const L = require\\('lucide-react'\\); console.log\\(Object.keys\\(L\\).filter\\(k => k.toLowerCase\\(\\).includes\\('wheel'\\) || k.toLowerCase\\(\\).includes\\('access'\\) || k.toLowerCase\\(\\).includes\\('disab'\\)\\)\\)\")",
+      "Bash(node -e ' *)",
+      "Bash(grep -B2 'iconNode$qH\\\\b' /Users/yuinakhon/_workspace/JS/NextJS/aphmp_flood_project/node_modules/lucide-react/dist/cjs/lucide-react.js)",
+      "Bash(grep -A5 '__iconNode$qH = \\\\[' /Users/yuinakhon/_workspace/JS/NextJS/aphmp_flood_project/node_modules/lucide-react/dist/cjs/lucide-react.js)",
+      "Bash(python3 -c ' *)",
+      "Skill(impeccable)",
+      "Skill(impeccable:*)",
+      "Bash(node /Users/yuinakhon/_workspace/JS/NextJS/aphmp_flood_project/.claude/skills/impeccable/scripts/load-context.mjs)"
     ]
   }
 }

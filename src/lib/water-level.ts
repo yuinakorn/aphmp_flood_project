@@ -25,6 +25,7 @@ export const PROVINCE_CONFIGS = {
     s2: 'P.1',
     travelLabel: 'P.67 → P.1 ประมาณ 4–6 ชม.',
     distanceLabel: 'ระยะ ~20 กม.',
+    bounds: [[18.60, 98.85], [19.00, 99.15]] as [[number, number], [number, number]],
   },
   nan: {
     label: 'น่าน',
@@ -33,6 +34,7 @@ export const PROVINCE_CONFIGS = {
     s2: 'N.1',
     travelLabel: 'N.64 → N.1 ประมาณ 6–8 ชม.',
     distanceLabel: 'ระยะ ~35 กม.',
+    bounds: [[18.55, 100.65], [19.00, 101.00]] as [[number, number], [number, number]],
   },
   chiangrai: {
     label: 'เชียงราย',
@@ -41,6 +43,7 @@ export const PROVINCE_CONFIGS = {
     s2: 'G.8A',
     travelLabel: 'G.10 → G.8A ประมาณ 3–5 ชม.',
     distanceLabel: 'ระยะ ~25 กม.',
+    bounds: [[19.75, 99.70], [20.10, 100.10]] as [[number, number], [number, number]],
   },
 } as const
 

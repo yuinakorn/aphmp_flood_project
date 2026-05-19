@@ -65,7 +65,7 @@ const INFRA_SVG: Record<string, string> = {
 const VULN_SVG: Record<string, string> = {
   bedridden: `<path d="M2 4v16"/><path d="M2 8h18a2 2 0 0 1 2 2v10"/><path d="M2 17h20"/><path d="M6 8v9"/>`,
   elderly: `<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>`,
-  disabled: `<circle cx="16" cy="4" r="1"/><path d="m18 19 1-7-6 1"/><path d="m5 8 3-3 5.5 3-2.36 3.5"/><path d="M4.24 14.5a5 5 0 0 0 6.88 6"/><path d="M13.76 17.5a5 5 0 0 0-6.88-6"/>`,
+  disabled: `<circle cx="13" cy="3" r="2"/><path d="M13 6v5l3 3"/><path d="M10 21a5 5 0 0 1 10 0"/><path d="M10 12l-1 4h7l1 3"/>`,
   pregnant: `<path d="M9 12h.01"/><path d="M15 12h.01"/><path d="M10 16c.5.3 1.2.5 2 .5s1.5-.2 2-.5"/><path d="M19 6.3a9 9 0 0 1 1.8 3.9 2 2 0 0 1 0 3.6 9 9 0 0 1-17.6 0 2 2 0 0 1 0-3.6A9 9 0 0 1 12 3c2 0 3.5 1.1 3.5 2.5s-.9 2.5-2 2.5c-.8 0-1.5-.4-1.5-1"/>`,
 }
 
@@ -136,6 +136,7 @@ interface Props {
   infra: Infrastructure[]
   basemap: BasemapType
   floodMarkProvince: string | null
+  focusPersonId?: number | null
   onMapReady?: (map: LeafletMap) => void
   onRequestRoute?: (personId: number) => void
 }
@@ -146,6 +147,7 @@ export function FloodMap({
   infra,
   basemap,
   floodMarkProvince,
+  focusPersonId,
   onMapReady,
   onRequestRoute,
 }: Props) {
@@ -155,6 +157,7 @@ export function FloodMap({
   const vulnGroupRef = useRef<LayerGroup | null>(null)
   const infraGroupRef = useRef<LayerGroup | null>(null)
   const routeGroupRef = useRef<LayerGroup | null>(null)
+  const markerMapRef = useRef<Map<number, import('leaflet').Marker>>(new Map())
   const gistdaRefs = useRef<Partial<Record<GistdaLayerKey, TileLayer>>>({})
   const floodMarkGroupRefs = useRef<Partial<Record<FloodMarkLevel, LayerGroup>>>({})
   const floodMarkCacheRef = useRef<Partial<Record<FloodMarkLevel, FloodMark[]>>>({})
@@ -246,6 +249,7 @@ export function FloodMap({
         const L = (await import('leaflet')).default
         const vg = vulnGroupRef.current!
         vg.clearLayers()
+        markerMapRef.current.clear()
 
         vulnerable.forEach((p) => {
           const risk: RiskLevel = (p.risk ?? 'safe') as RiskLevel
@@ -259,6 +263,7 @@ export function FloodMap({
           })
 
           const marker = L.marker([p.lat, p.lng], { icon })
+          markerMapRef.current.set(p.id, marker)
 
           const riskLabel: Record<RiskLevel, string> = {
             flood: 'ในเขตน้ำท่วม',
@@ -273,7 +278,7 @@ export function FloodMap({
             <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12px;margin-bottom:10px">
               ${p.age !== undefined ? `<span style="color:var(--fg-subtle)">อายุ</span><span style="font-family:var(--font-mono)">${p.age} ปี</span>` : ''}
               ${p.cond !== undefined ? `<span style="color:var(--fg-subtle)">ภาวะ</span><span>${p.cond}</span>` : ''}
-              <span style="color:var(--fg-subtle)">หมู่บ้าน</span><span>${p.vil}</span>
+              <span style="color:var(--fg-subtle)">ที่อยู่</span><span>${p.fullAddress || p.vil}</span>
               ${p.eq ? `<span style="color:var(--fg-subtle)">อุปกรณ์</span><span>${p.eq}</span>` : ''}
             </div>
             <div style="display:flex;gap:6px;align-items:center;padding:5px 8px;border-radius:6px;background:color-mix(in oklch, ${ringColor} 14%, transparent);color:${ringColor};font-size:11px;font-weight:500;margin-bottom:8px">
@@ -301,6 +306,16 @@ export function FloodMap({
         })
       })()
   }, [mapReady, vulnerable, onRequestRoute])
+
+  // Open popup for a specific person when focusPersonId changes
+  useEffect(() => {
+    if (focusPersonId == null || !mapReady) return
+    const map = mapRef.current
+    const marker = markerMapRef.current.get(focusPersonId)
+    if (!map || !marker) return
+    map.closePopup()
+    map.once('moveend', () => marker.openPopup())
+  }, [focusPersonId, mapReady])
 
   // Infra markers (vector squares using divIcon, no emoji)
   useEffect(() => {

@@ -1,12 +1,16 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { Search } from 'lucide-react'
 import type { RiskLevel, VulnerablePerson } from '@/types'
 import { PanelShell } from './PanelShell'
 
+type FilterKey = 'all' | 'flooded' | 'at_risk'
+
 interface Props {
   persons: VulnerablePerson[]
+  activeZone?: 1 | 2 | 3 | 4 | 5 | null
+  initialFilter?: FilterKey
   onSelect: (p: VulnerablePerson) => void
   onClose: () => void
 }
@@ -32,12 +36,35 @@ const riskTone: Record<RiskLevel, string> = {
 
 const order: Record<RiskLevel, number> = { flood: 0, near: 1, safe: 2 }
 
-export function RosterPanel({ persons, onSelect, onClose }: Props) {
+export function RosterPanel({ persons, activeZone, initialFilter = 'all', onSelect, onClose }: Props) {
   const [query, setQuery] = useState('')
+  const [filter, setFilter] = useState<FilterKey>(initialFilter)
 
-  const sorted = useMemo(() => {
+  // Sync when parent changes initialFilter (e.g. clicking flood count again)
+  useEffect(() => {
+    setFilter(initialFilter)
+  }, [initialFilter])
+
+  const counts = useMemo(() => {
+    const flooded = persons.filter(
+      (p) => p.floodLevel != null && (activeZone == null || p.floodLevel <= activeZone),
+    ).length
+    const atRisk = persons.filter(
+      (p) => p.floodLevel != null && activeZone != null && p.floodLevel > activeZone,
+    ).length
+    return { flooded, atRisk, total: persons.length }
+  }, [persons, activeZone])
+
+  const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    return [...persons]
+    return persons
+      .filter((p) => {
+        if (filter === 'flooded')
+          return p.floodLevel != null && (activeZone == null || p.floodLevel <= activeZone)
+        if (filter === 'at_risk')
+          return p.floodLevel != null && activeZone != null && p.floodLevel > activeZone
+        return true
+      })
       .filter(
         (p) =>
           !q ||
@@ -46,21 +73,55 @@ export function RosterPanel({ persons, onSelect, onClose }: Props) {
           p.label.toLowerCase().includes(q),
       )
       .sort((a, b) => order[a.risk ?? 'safe'] - order[b.risk ?? 'safe'])
-  }, [persons, query])
+  }, [persons, filter, activeZone, query])
 
-  const stats = useMemo(() => {
-    const f = persons.filter((p) => p.risk === 'flood').length
-    const n = persons.filter((p) => p.risk === 'near').length
-    return { f, n, total: persons.length }
-  }, [persons])
+  const TABS: { key: FilterKey; label: string; count: number; color?: string }[] = [
+    { key: 'all',      label: 'ทั้งหมด',        count: counts.total },
+    { key: 'flooded',  label: 'ในพื้นที่ท่วม',  count: counts.flooded,  color: 'var(--risk-flood)' },
+    { key: 'at_risk',  label: 'เสี่ยง',          count: counts.atRisk,   color: 'var(--risk-near)' },
+  ]
 
   return (
     <PanelShell
       title="รายชื่อกลุ่มเปราะบาง"
-      hint={`${stats.total} ราย · เสี่ยง ${stats.f + stats.n}`}
+      hint={`${counts.total} ราย · เสี่ยง ${counts.flooded + counts.atRisk}`}
       onClose={onClose}
     >
-      <div className="border-b border-[var(--border)] px-6 py-5">
+      {/* Filter tabs */}
+      <div className="flex gap-1 border-b border-[var(--border)] px-4 pt-3">
+        {TABS.map(({ key, label, count, color }) => {
+          const active = filter === key
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setFilter(key)}
+              className="relative flex items-center gap-1.5 rounded-t px-3 pb-2.5 pt-1.5 text-[11.5px] font-medium transition-colors"
+              style={{
+                color: active ? (color ?? 'var(--fg)') : 'var(--fg-subtle)',
+                background: active ? 'var(--bg-elevated)' : 'transparent',
+              }}
+            >
+              {label}
+              <span
+                className="font-mono text-[10px] tabular-nums"
+                style={{ color: active ? (color ?? 'var(--fg-muted)') : 'var(--fg-subtle)' }}
+              >
+                {count}
+              </span>
+              {active && (
+                <span
+                  className="absolute inset-x-0 bottom-0 h-[2px] rounded-t"
+                  style={{ background: color ?? 'var(--accent)' }}
+                />
+              )}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Search */}
+      <div className="border-b border-[var(--border)] px-6 py-4">
         <div className="relative">
           <Search
             size={14}
@@ -77,19 +138,18 @@ export function RosterPanel({ persons, onSelect, onClose }: Props) {
         </div>
       </div>
 
+      {/* List */}
       <ul role="list" className="flex flex-col">
-        {sorted.length === 0 && (
+        {filtered.length === 0 && (
           <li className="px-6 py-16 text-center text-[12.5px] text-[var(--fg-subtle)]">
             ไม่พบรายการ
           </li>
         )}
-        {sorted.map((p) => {
+        {filtered.map((p) => {
           const risk = p.risk ?? 'safe'
+          const inZone = p.floodLevel != null
           return (
-            <li
-              key={p.id}
-              className="border-b border-[var(--border)] last:border-b-0"
-            >
+            <li key={p.id} className="border-b border-[var(--border)] last:border-b-0">
               <button
                 type="button"
                 onClick={() => onSelect(p)}
@@ -112,21 +172,30 @@ export function RosterPanel({ persons, onSelect, onClose }: Props) {
                       </span>
                     </div>
                     <div className="mt-2 truncate text-[12px] leading-tight text-[var(--fg-muted)]">
-                      {p.label} <span className="px-1.5 text-[var(--fg-subtle)]">·</span> {p.vil}
+                      {p.label}
+                      <span className="px-1.5 text-[var(--fg-subtle)]">·</span>
+                      {p.vil}
                     </div>
                   </div>
 
-                  <span
-                    className="flex shrink-0 items-center gap-1.5 pt-1 font-mono text-[10px] uppercase leading-none tracking-[0.08em]"
-                    style={{ color: riskTone[risk] }}
-                  >
+                  <div className="flex shrink-0 flex-col items-end gap-1 pt-1">
                     <span
-                      aria-hidden
-                      className="size-1.5 rounded-full"
-                      style={{ background: riskTone[risk] }}
-                    />
-                    {riskLabel[risk]}
-                  </span>
+                      className="flex items-center gap-1.5 font-mono text-[10px] uppercase leading-none tracking-[0.08em]"
+                      style={{ color: riskTone[risk] }}
+                    >
+                      <span
+                        aria-hidden
+                        className="size-1.5 rounded-full"
+                        style={{ background: riskTone[risk] }}
+                      />
+                      {riskLabel[risk]}
+                    </span>
+                    {inZone && p.floodLevel != null && (
+                      <span className="font-mono text-[9.5px] text-[var(--fg-subtle)]">
+                        L{p.floodLevel}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </button>
             </li>

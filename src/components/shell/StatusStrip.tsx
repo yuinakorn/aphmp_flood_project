@@ -25,6 +25,8 @@ const ALERT_TONE: Record<AlertLevel, string> = {
 
 interface Props {
   waterLevel: number | null
+  s1Level: number | null
+  s1Alert: AlertLevel
   activeZone: 1 | 2 | 3 | 4 | 5 | null
   alertLevel: AlertLevel
   vulnerable: VulnerableStats
@@ -94,8 +96,10 @@ const ZONE_THRESHOLD: Record<1 | 2 | 3 | 4 | 5, string> = {
   5: '≥ 5.30 ม.',
 }
 
-export function StatusStrip({ waterLevel, activeZone, alertLevel, vulnerable, updatedAt, province, onProvinceChange, onFloodClick, onNearClick }: Props) {
-  const wlDisplay = waterLevel != null ? waterLevel.toFixed(2) : '—'
+export function StatusStrip({ waterLevel, s1Level, s1Alert, activeZone, alertLevel, vulnerable, updatedAt, province, onProvinceChange, onFloodClick, onNearClick }: Props) {
+  const cfg = PROVINCE_CONFIGS[province]
+  const s1Display = s1Level != null ? s1Level.toFixed(2) : '—'
+  const s2Display = waterLevel != null ? waterLevel.toFixed(2) : '—'
   const zoneDisplay = activeZone != null ? `L${activeZone}` : '< L1'
   const zoneDelta = activeZone != null ? ZONE_THRESHOLD[activeZone] : 'ต่ำกว่า 4.30 ม.'
 
@@ -129,12 +133,38 @@ export function StatusStrip({ waterLevel, activeZone, alertLevel, vulnerable, up
         </div>
       </div>
       <Divider />
-      <Field
-        label="ระดับน้ำ P.1"
-        value={wlDisplay}
-        delta={ALERT_LABEL[alertLevel]}
-        color={ALERT_TONE[alertLevel]}
-      />
+      {/* Dual-station water level */}
+      <div className="flex items-stretch gap-5">
+        <div className="flex flex-col justify-center gap-1">
+          <span className="text-[10px] font-medium uppercase leading-none tracking-[0.1em] text-[var(--fg-subtle)]">
+            ต้นน้ำ <span className="font-mono">{cfg.s1}</span>
+          </span>
+          <div className="flex items-baseline gap-1.5 leading-none">
+            <span className="font-mono text-[22px] font-semibold tabular-nums" style={{ color: ALERT_TONE[s1Alert] }}>
+              {s1Display}
+            </span>
+            <span className="text-[11px] text-[var(--fg-muted)]">ม.</span>
+            <span className="font-mono text-[11px] tabular-nums text-[var(--fg-muted)]">
+              {ALERT_LABEL[s1Alert]}
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center self-center text-[14px] text-[var(--fg-subtle)]">→</div>
+        <div className="flex flex-col justify-center gap-1">
+          <span className="text-[10px] font-medium uppercase leading-none tracking-[0.1em] text-[var(--fg-subtle)]">
+            ปลายน้ำ <span className="font-mono">{cfg.s2}</span>
+          </span>
+          <div className="flex items-baseline gap-1.5 leading-none">
+            <span className="font-mono text-[22px] font-semibold tabular-nums" style={{ color: ALERT_TONE[alertLevel] }}>
+              {s2Display}
+            </span>
+            <span className="text-[11px] text-[var(--fg-muted)]">ม.</span>
+            <span className="font-mono text-[11px] tabular-nums text-[var(--fg-muted)]">
+              {ALERT_LABEL[alertLevel]}
+            </span>
+          </div>
+        </div>
+      </div>
       <Divider />
       <Field
         label="CMU โซนปัจจุบัน"

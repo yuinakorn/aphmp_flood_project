@@ -154,9 +154,21 @@ export function WaterFlowAnimation({ s1, s2, t1, t2, config }: Props) {
             <stop offset="100%" stopColor={palette.water} stopOpacity="0.95" />
           </linearGradient>
           <linearGradient id="wfv-ground-grad" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor="var(--bg-sunken)" stopOpacity="1" />
-            <stop offset="100%" stopColor="var(--bg)" stopOpacity="0.3" />
+            <stop offset="0%"   stopColor="#7c5230" stopOpacity="1" />
+            <stop offset="40%"  stopColor="#6b4423" stopOpacity="1" />
+            <stop offset="100%" stopColor="#3d2210" stopOpacity="0.85" />
           </linearGradient>
+          <pattern id="wfv-soil-dots" x="0" y="0" width="18" height="10" patternUnits="userSpaceOnUse">
+            <circle cx="3"  cy="3"  r="0.9" fill="#a0714f" fillOpacity="0.45" />
+            <circle cx="11" cy="7"  r="0.7" fill="#5c3318" fillOpacity="0.4"  />
+            <circle cx="15" cy="2"  r="1.1" fill="#c49a72" fillOpacity="0.3"  />
+            <circle cx="6"  cy="8"  r="0.6" fill="#9b6b42" fillOpacity="0.35" />
+            <line x1="0" y1="5"   x2="4"  y2="5"  stroke="#5c3318" strokeOpacity="0.18" strokeWidth="0.6" />
+            <line x1="9" y1="3.5" x2="16" y2="3.5" stroke="#5c3318" strokeOpacity="0.15" strokeWidth="0.6" />
+          </pattern>
+          <clipPath id="wfv-ground-clip">
+            <path d={groundPath} />
+          </clipPath>
           <clipPath id="wfv-water-clip">
             <path d={waterPath} />
           </clipPath>
@@ -248,12 +260,13 @@ export function WaterFlowAnimation({ s1, s2, t1, t2, config }: Props) {
           )}
         </g>
 
-        {/* ─── Ground (soft gradient below the bed) ─── */}
+        {/* ─── Ground (soil gradient + texture) ─── */}
         <path d={groundPath} fill="url(#wfv-ground-grad)" />
+        <path d={groundPath} fill="url(#wfv-soil-dots)" />
 
         {/* ─── Bed line (subtle, downstream slope) ─── */}
         <line x1={channelLeft} y1={bedLeftY} x2={channelRight} y2={bedRightY}
-          stroke="var(--border-strong)" strokeWidth="1.4" />
+          stroke="#4a2c10" strokeWidth="1.6" strokeOpacity="0.8" />
 
         {/* ─── Bed-post ticks at even intervals ─── */}
         {Array.from({ length: 9 }).map((_, i) => {
@@ -262,7 +275,7 @@ export function WaterFlowAnimation({ s1, s2, t1, t2, config }: Props) {
           const yBed = bedLeftY + (bedRightY - bedLeftY) * t
           return (
             <line key={i} x1={x} x2={x} y1={yBed + 1} y2={yBed + 5}
-              stroke="var(--border-strong)" strokeOpacity="0.55" />
+              stroke="#3d2210" strokeOpacity="0.6" />
           )
         })}
 

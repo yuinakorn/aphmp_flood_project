@@ -17,6 +17,9 @@ import { FloodAlertBanner } from '@/components/map/FloodAlertBanner'
 import { buildEvacRoute, nearestShelter } from '@/lib/geo'
 import type { AlertLevel, ProvinceId } from '@/lib/water-level'
 import { PROVINCE_CONFIGS } from '@/lib/water-level'
+
+type StationSnap = { level: number | null; alert: AlertLevel }
+type ProvinceSummarySnap = { s1: StationSnap; s2: StationSnap }
 import type { FloodAlertResponse } from '@/app/api/cmu-flood-alert/route'
 import type {
   BasemapType,
@@ -85,6 +88,7 @@ export function MapClient({ session }: Props) {
   const [activeZone, setActiveZone] = useState<1 | 2 | 3 | 4 | 5 | null>(null)
   const [alertLevel, setAlertLevel] = useState<AlertLevel>('normal')
   const [alertUpdatedAt, setAlertUpdatedAt] = useState<string | null>(null)
+  const [summarySnap, setSummarySnap] = useState<Record<string, ProvinceSummarySnap>>({})
   const [province, setProvince] = useState<ProvinceId>('chiangmai')
   const [rosterFilter, setRosterFilter] = useState<'all' | 'flooded' | 'at_risk'>('all')
 
@@ -138,6 +142,20 @@ export function MapClient({ session }: Props) {
 
     load()
     const id = setInterval(load, ALERT_POLL_MS)
+    return () => clearInterval(id)
+  }, [])
+
+  // Fetch water-level summary for all provinces (s1 + s2 levels)
+  useEffect(() => {
+    const load = () =>
+      fetch('/api/water-level/summary')
+        .then((r) => r.json())
+        .then((data: Record<string, { s1: StationSnap; s2: StationSnap }>) => {
+          setSummarySnap(data)
+        })
+        .catch(console.error)
+    load()
+    const id = setInterval(load, 5 * 60 * 1000)
     return () => clearInterval(id)
   }, [])
 
@@ -294,9 +312,11 @@ export function MapClient({ session }: Props) {
       </a>
       <Masthead session={session} />
       <StatusStrip
-        waterLevel={waterLevel}
+        waterLevel={summarySnap[province]?.s2?.level ?? waterLevel}
+        s1Level={summarySnap[province]?.s1?.level ?? null}
+        s1Alert={summarySnap[province]?.s1?.alert ?? 'normal'}
         activeZone={activeZone}
-        alertLevel={alertLevel}
+        alertLevel={summarySnap[province]?.s2?.alert ?? alertLevel}
         vulnerable={vulnStats}
         updatedAt={alertUpdatedAt}
         province={province}

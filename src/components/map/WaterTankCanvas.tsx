@@ -62,7 +62,7 @@ export function WaterTankCanvas({ pct, alert, width = 52, height = 80 }: Props) 
       const colors = PALETTE[s.alert]
       ctx!.clearRect(0, 0, width, height)
 
-      const waterTop = height * (1 - s.currentPct / 100)
+      const waterTop = height * (1 - Math.min(100, s.currentPct) / 100)
       drawWave(waterTop, 4,   0.025, s.offset,        colors.back)
       drawWave(waterTop, 3,   0.035, s.offset * 1.4,  colors.middle)
       drawWave(waterTop, 5,   0.018, s.offset * 0.75, colors.front)

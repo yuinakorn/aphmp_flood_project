@@ -67,6 +67,7 @@ export async function GET(req: NextRequest) {
       LEFT JOIN personchronic c 
         ON p.pid = c.pid AND p.pcucodeperson = c.pcucodeperson
       WHERE (h.xgis IS NOT NULL AND h.xgis != '')
+        AND (h.ygis IS NOT NULL AND h.ygis != '')
         AND p.dischargetype = '9'
         AND p.typelive IN ('1', '3')
         AND (

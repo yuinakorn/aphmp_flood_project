@@ -47,10 +47,10 @@ export function RosterPanel({ persons, activeZone, initialFilter = 'all', onSele
 
   const counts = useMemo(() => {
     const flooded = persons.filter(
-      (p) => p.floodLevel != null && (activeZone == null || p.floodLevel <= activeZone),
+      (p) => p.floodLevel != null && activeZone != null && p.floodLevel <= activeZone,
     ).length
     const atRisk = persons.filter(
-      (p) => p.floodLevel != null && activeZone != null && p.floodLevel > activeZone,
+      (p) => p.floodLevel != null && (activeZone == null || p.floodLevel > activeZone),
     ).length
     return { flooded, atRisk, total: persons.length }
   }, [persons, activeZone])
@@ -60,9 +60,9 @@ export function RosterPanel({ persons, activeZone, initialFilter = 'all', onSele
     return persons
       .filter((p) => {
         if (filter === 'flooded')
-          return p.floodLevel != null && (activeZone == null || p.floodLevel <= activeZone)
+          return p.floodLevel != null && activeZone != null && p.floodLevel <= activeZone
         if (filter === 'at_risk')
-          return p.floodLevel != null && activeZone != null && p.floodLevel > activeZone
+          return p.floodLevel != null && (activeZone == null || p.floodLevel > activeZone)
         return true
       })
       .filter(

@@ -35,7 +35,10 @@ function StationRow({ station, role }: { station: StationSummary; role: string }
       <div className="relative">
         <WaterTankCanvas pct={station.pct} alert={station.alert} width={44} height={64} />
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <span className="font-mono text-[10px] font-bold text-white drop-shadow">
+          <span
+            className="font-mono font-bold text-white drop-shadow"
+            style={{ fontSize: pctDisplay >= 100 ? 8 : 10 }}
+          >
             {pctDisplay}%
           </span>
         </div>

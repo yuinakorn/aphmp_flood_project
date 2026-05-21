@@ -25,7 +25,20 @@
       "Bash(python3 -c ' *)",
       "Skill(impeccable)",
       "Skill(impeccable:*)",
-      "Bash(node /Users/yuinakhon/_workspace/JS/NextJS/aphmp_flood_project/.claude/skills/impeccable/scripts/load-context.mjs)"
+      "Bash(node /Users/yuinakhon/_workspace/JS/NextJS/aphmp_flood_project/.claude/skills/impeccable/scripts/load-context.mjs)",
+      "Bash(mysql -h 192.168.100.134 -P 6034 -u cmpho -p\"SsjCm\\)00037+*\" jhcisdb -e \"SHOW TABLES;\")",
+      "Bash(mysql -h 192.168.100.134 -P 6034 -u cmpho -p\"SsjCm\\)00037+*\" jhcisdb -e \"DESCRIBE personfamilyfolder;\")",
+      "Bash(mysql -h 192.168.100.134 -P 6034 -u cmpho -p\"SsjCm\\)00037+*\" jhcisdb -e \"DESCRIBE cfamilyrelation; SELECT * FROM cfamilyrelation LIMIT 20;\")",
+      "Bash(mysql -h 192.168.100.134 -P 6034 -u cmpho -p\"SsjCm\\)00037+*\" --default-character-set=utf8 jhcisdb -e \"SELECT * FROM cfamilyrelation LIMIT 20;\")",
+      "Bash(mysql -h 192.168.100.134 -P 6034 -u cmpho -p\"SsjCm\\)00037+*\" --default-character-set=utf8 jhcisdb -e \"SELECT * FROM cfamilyposition LIMIT 20;\")",
+      "Bash(mysql -h 192.168.100.134 -P 6034 -u cmpho -p\"SsjCm\\)00037+*\" --default-character-set=utf8 jhcisdb -e \"DESCRIBE person;\")",
+      "Bash(mysql -h 192.168.100.134 -P 6034 -u cmpho -p\"SsjCm\\)00037+*\" --default-character-set=utf8 jhcisdb -e \"DESCRIBE persontype; SELECT * FROM cpersontype LIMIT 20;\")",
+      "Bash(mysql -h 192.168.100.134 -P 6034 -u cmpho '-pSsjCm\\)00037+*' --default-character-set=utf8 jhcisdb -e ' *)",
+      "Bash(mysql -h 192.168.100.134 -P 6034 -u cmpho -p\"SsjCm\\)00037+*\" --default-character-set=utf8 jhcisdb)",
+      "Bash(curl -s \"http://localhost:3003/api/family-folder/summary\" -H \"Cookie: $\\(cat .cookies \\)\")",
+      "Bash(lsof -ti:3003)",
+      "Bash(npm run *)",
+      "Bash(curl -s \"http://localhost:3001/api/family-folder/summary\")"
     ]
   }
 }

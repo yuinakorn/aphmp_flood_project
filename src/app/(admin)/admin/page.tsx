@@ -1,16 +1,23 @@
 import { auth } from '@/lib/auth'
 import Link from 'next/link'
-import { Users, Building2, Map, BarChart3, Droplets, ArrowUpRight } from 'lucide-react'
+import { Users, Building2, Map, BarChart3, Droplets, ArrowUpRight, FolderHeart } from 'lucide-react'
 
 export const metadata = { title: 'Dashboard — FloodWatch Admin' }
 
 const cards = [
   {
+    href: '/admin/family-folder',
+    icon: FolderHeart,
+    title: 'Family Folder กลุ่มเปราะบาง',
+    desc: 'บ้านที่มีสมาชิกกลุ่มเปราะบาง · สมาชิก + ความสัมพันธ์ในครอบครัว จาก JHCIS',
+    meta: 'jhcis',
+  },
+  {
     href: '/admin/vulnerable',
     icon: Users,
-    title: 'กลุ่มเปราะบาง',
-    desc: 'จัดการทะเบียนผู้ป่วยติดเตียง สูงอายุ พิการ ตั้งครรภ์',
-    meta: '15 ราย',
+    title: 'กลุ่มเปราะบาง (แผนที่)',
+    desc: 'ทะเบียนผู้ป่วยติดเตียง สูงอายุ พิการ พร้อมพิกัดบนแผนที่',
+    meta: 'jhcis',
   },
   {
     href: '/admin/infra',

@@ -185,6 +185,7 @@ export type CmuFloodLayerKey =
   | 'parking'
   | 'shelter'
   | 'pole'
+  | 's1a'
 
 export type GistdaLayerKey =
   | 'flood1d'
@@ -410,6 +411,15 @@ export const CMU_FLOOD_LAYERS: CmuFloodLayerConfig[] = [
     kind: 'pole',
     color: 'oklch(0.62 0.18 305)',
   },
+  {
+    key: 's1a',
+    label: 'พื้นที่น้ำท่วมดาวเทียม S2C',
+    meta: 'S2C_20250724_1036 · KML',
+    path: '/data/kml/S2C_20250724_1036.kml',
+    format: 'kml',
+    kind: 'flood',
+    color: 'oklch(0.55 0.25 260)',
+  },
 ]
 
 export type BasemapType = 'sat' | 'street' | 'topo' | 'hybrid' | 'google' | 'google_sat'
@@ -420,6 +430,8 @@ export interface EvacRoute {
   shelterName: string
   distanceKm: number
   coords: [number, number][]
+  durationMin?: number
+  isStraightLine?: boolean
 }
 
 export interface ApiResponse<T> {

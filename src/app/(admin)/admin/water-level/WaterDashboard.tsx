@@ -5,6 +5,7 @@ import { Droplets, TrendingUp, TrendingDown, Minus, Sliders } from 'lucide-react
 import {
   ALERT_STYLES,
   classifyAlert,
+  classifyAlertMaesai,
   type AlertLevel,
   type StationThreshold,
   type ProvinceConfig,
@@ -45,10 +46,12 @@ function buildPresets(t1: StationThreshold, t2: StationThreshold): Preset[] {
   ]
 }
 
+type ClassifyFn = (level: number | null, rise1h: number | null, rise3h: number | null, t: StationThreshold) => AlertLevel
+
 // ── StationCard ──────────────────────────────────────────────────────────────
 
 function StationCard({
-  code, level, rise1h, rise3h, discharge, t, simulating,
+  code, level, rise1h, rise3h, discharge, t, simulating, classify,
 }: {
   code: string
   level: number | null
@@ -57,8 +60,9 @@ function StationCard({
   discharge: number | null
   t: StationThreshold
   simulating: boolean
+  classify: ClassifyFn
 }) {
-  const alert: AlertLevel = classifyAlert(level, rise3h, t)
+  const alert: AlertLevel = classify(level, rise1h, rise3h, t)
   const style = ALERT_STYLES[alert]
   const TrendIcon =
     rise1h == null || rise1h === 0 ? Minus : rise1h > 0 ? TrendingUp : TrendingDown
@@ -208,6 +212,11 @@ export function WaterDashboard({ liveS1, liveS2, config, t1, t2 }: Props) {
 
   const isLive = activePreset === 'live'
 
+  // Pick classifier: rise-speed-first for flash-flood rivers (Mae Sai)
+  const classify: ClassifyFn = config.alertMode === 'rise_speed'
+    ? classifyAlertMaesai
+    : (level, _rise1h, rise3h, t) => classifyAlert(level, rise3h, t)
+
   // Cards show live data in live mode, simulator values otherwise
   const cardS1 = isLive
     ? liveS1
@@ -217,9 +226,10 @@ export function WaterDashboard({ liveS1, liveS2, config, t1, t2 }: Props) {
     : { level: s2Level, discharge: s2Q, rise1h: null, rise3h: null }
 
   const { s1Alert, s2Alert } = useMemo(() => ({
-    s1Alert: classifyAlert(s1Level, 0, t1),
-    s2Alert: classifyAlert(s2Level, 0, t2),
-  }), [s1Level, s2Level, t1, t2])
+    s1Alert: classify(s1Level, null, 0, t1),
+    s2Alert: classify(s2Level, null, 0, t2),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [s1Level, s2Level, t1, t2, config.alertMode])
 
   function applyPreset(preset: Preset) {
     if (preset.id === 'live') {
@@ -246,6 +256,19 @@ export function WaterDashboard({ liveS1, liveS2, config, t1, t2 }: Props) {
 
   return (
     <div className="space-y-4">
+      {/* ── Rise-speed methodology note (Mae Sai only) ── */}
+      {config.alertMode === 'rise_speed' && (
+        <div className="flex items-start gap-2 rounded-md border border-fuchsia-500/25 bg-fuchsia-500/8 px-3 py-2.5 text-[11.5px] text-fuchsia-300">
+          <span className="mt-px shrink-0 font-bold">⚡</span>
+          <span>
+            <span className="font-semibold">ระบบใช้อัตราการขึ้นของน้ำ (rise speed) เป็นตัวชี้วัดหลัก</span>
+            {' '}— แม่น้ำสายเป็นแม่น้ำสายสั้นจากภูเขา เสี่ยงน้ำป่าไหลหลากฉับพลัน
+            สัญญาณเตือนจะเปิดใช้เมื่ออัตราขึ้น ≥ 0.10 m/h (เฝ้าระวัง) / 0.25 m/h (เตรียมพร้อม) /
+            0.50 m/h (วิกฤต) / 1.00 m/h (อันตราย) แม้ระดับน้ำยังไม่ถึง threshold สัมบูรณ์
+          </span>
+        </div>
+      )}
+
       {/* ── KPI cards ── */}
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <StationCard
@@ -256,6 +279,7 @@ export function WaterDashboard({ liveS1, liveS2, config, t1, t2 }: Props) {
           discharge={cardS1.discharge}
           t={t1}
           simulating={!isLive}
+          classify={classify}
         />
         <StationCard
           code={config.s2}
@@ -265,6 +289,7 @@ export function WaterDashboard({ liveS1, liveS2, config, t1, t2 }: Props) {
           discharge={cardS2.discharge}
           t={t2}
           simulating={!isLive}
+          classify={classify}
         />
       </div>
 

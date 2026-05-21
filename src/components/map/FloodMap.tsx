@@ -706,7 +706,11 @@ export function useShowRoute() {
     ) => {
       const L = (await import('leaflet')).default
       const shelters = infra.filter(
-        (i) => i.type === 'shelter' || i.type === 'assembly',
+        (i) =>
+          i.type === 'shelter' ||
+          i.type === 'assembly' ||
+          i.type === 'hospital' ||
+          i.type === 'clinic',
       )
       const shelter = nearestShelter(person, shelters)
       if (!shelter) return

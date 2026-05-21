@@ -22,7 +22,13 @@ export function RoutesPanel({
   onShowRoute,
   onClose,
 }: Props) {
-  const shelters = infra.filter((i) => i.type === 'shelter' || i.type === 'assembly')
+  const shelters = infra.filter(
+    (i) =>
+      i.type === 'shelter' ||
+      i.type === 'assembly' ||
+      i.type === 'hospital' ||
+      i.type === 'clinic',
+  )
   const atRisk = persons.filter((p) => p.risk === 'flood' || p.risk === 'near')
 
   return (

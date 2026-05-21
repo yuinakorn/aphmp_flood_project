@@ -14,7 +14,7 @@ import { TunePanel } from '@/components/panels/TunePanel'
 import { MapOverlay } from '@/components/map/MapOverlay'
 import { WaterLevelSidebar } from '@/components/map/WaterLevelSidebar'
 import { FloodAlertBanner } from '@/components/map/FloodAlertBanner'
-import { buildEvacRoute, nearestShelter } from '@/lib/geo'
+import { buildEvacRouteOSRM, nearestShelter } from '@/lib/geo'
 import type { AlertLevel, ProvinceId } from '@/lib/water-level'
 import { PROVINCE_CONFIGS } from '@/lib/water-level'
 
@@ -59,6 +59,7 @@ const DEFAULT_LAYERS: LayerState = {
     parking: false,
     shelter: false,
     pole: false,
+    s1a: false,
   },
   vulnerable: true,
   infra: true,
@@ -262,29 +263,38 @@ export function MapClient({ session }: Props) {
       const person = vulnerable.find((p) => p.id === personId)
       if (!person) return
       const shelters = infra.filter(
-        (x) => x.type === 'shelter' || x.type === 'assembly',
+        (x) =>
+          x.type === 'shelter' ||
+          x.type === 'assembly' ||
+          x.type === 'hospital' ||
+          x.type === 'clinic',
       )
       const shelter = nearestShelter(person, shelters)
       if (!shelter) return
-      const route = buildEvacRoute(person, shelter)
       const map = mapRef.current
       if (!map) return
       const L = (await import('leaflet')).default
       if (!routeGroupRef.current) {
         routeGroupRef.current = L.layerGroup().addTo(map)
       }
+      const route = await buildEvacRouteOSRM(person, shelter)
+      const durationText = route.durationMin != null ? ` · ${route.durationMin} นาที` : ''
+      const fallbackNote = route.isStraightLine
+        ? '<div style="font-size:10px;color:var(--warn);margin-top:4px">⚠ เส้นตรง (routing ขัดข้อง)</div>'
+        : ''
       L.polyline(route.coords as [number, number][], {
         color: 'oklch(0.66 0.20 30)',
-        weight: 2.5,
+        weight: 3.5,
         opacity: 0.95,
-        dashArray: '6, 6',
+        dashArray: route.isStraightLine ? '6, 6' : undefined,
       })
         .bindPopup(
           `<div>
             <div style="font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--fg-subtle);margin-bottom:4px">เส้นทางอพยพ</div>
             <div style="font-size:13px;font-weight:600;margin-bottom:2px">${person.name}</div>
             <div style="font-size:12px;color:var(--fg-muted);margin-bottom:6px">→ ${shelter.name}</div>
-            <div style="font-family:var(--font-mono);font-size:12px;color:var(--accent)">${route.distanceKm} กม.</div>
+            <div style="font-family:var(--font-mono);font-size:12px;color:var(--accent)">${route.distanceKm} กม.${durationText}</div>
+            ${fallbackNote}
           </div>`,
         )
         .addTo(routeGroupRef.current)

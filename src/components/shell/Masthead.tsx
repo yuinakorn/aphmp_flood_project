@@ -1,9 +1,24 @@
 'use client'
 
-import { Waves } from 'lucide-react'
+import {
+  Waves,
+  ChevronDown,
+  LayoutDashboard,
+  FolderHeart,
+  Users,
+  Building2,
+  Droplets,
+} from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { ThemeToggle } from '@/components/ThemeToggle'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu'
 
 interface Props {
   session?: { role: string; name: string } | null
@@ -59,17 +74,66 @@ export function Masthead({ session }: Props) {
       <nav className="flex items-center gap-1 text-[12.5px]">
         <NavLink href="/map" active={isActive('/map')}>แผนที่</NavLink>
         {session && (
-          <>
-            <NavLink href="/admin/vulnerable" active={isActive('/admin/vulnerable')}>
-              เปราะบาง
-            </NavLink>
-            <NavLink href="/admin/infra" active={isActive('/admin/infra')}>
-              สถานที่
-            </NavLink>
-            <NavLink href="/admin/water-level" active={isActive('/admin/water-level')}>
-              ระดับน้ำ
-            </NavLink>
-          </>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <button
+                  type="button"
+                  className={
+                    isActive('/admin')
+                      ? 'flex items-center gap-1.5 rounded-md bg-[var(--bg-elevated)] px-3 py-1.5 font-medium text-[var(--fg)] shadow-[inset_0_-1px_0_var(--accent)] cursor-pointer outline-none'
+                      : 'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[var(--fg-muted)] transition-colors hover:bg-[var(--bg-elevated)] hover:text-[var(--fg)] cursor-pointer outline-none'
+                  }
+                />
+              }
+            >
+              <span>ผู้ดูแลระบบ</span>
+              <ChevronDown className="size-3 opacity-60" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-52 border border-[var(--border)] bg-[var(--bg-elevated)] p-1 text-[var(--fg)] shadow-md">
+              <DropdownMenuItem
+                render={<Link href="/admin" />}
+                className="gap-2 px-2.5 py-2 text-[12.5px] cursor-pointer"
+              >
+                <LayoutDashboard className="size-4 shrink-0 opacity-70" />
+                <span>แดชบอร์ดผู้ดูแลระบบ</span>
+              </DropdownMenuItem>
+              
+              <DropdownMenuSeparator className="my-1 border-t border-[var(--border)]" />
+              
+              <DropdownMenuItem
+                render={<Link href="/admin/family-folder" />}
+                className="gap-2 px-2.5 py-2 text-[12.5px] cursor-pointer"
+              >
+                <FolderHeart className="size-4 shrink-0 opacity-70" />
+                <span>Family Folder กลุ่มเปราะบาง</span>
+              </DropdownMenuItem>
+
+              <DropdownMenuItem
+                render={<Link href="/admin/vulnerable" />}
+                className="gap-2 px-2.5 py-2 text-[12.5px] cursor-pointer"
+              >
+                <Users className="size-4 shrink-0 opacity-70" />
+                <span>กลุ่มเปราะบาง (แผนที่)</span>
+              </DropdownMenuItem>
+
+              <DropdownMenuItem
+                render={<Link href="/admin/infra" />}
+                className="gap-2 px-2.5 py-2 text-[12.5px] cursor-pointer"
+              >
+                <Building2 className="size-4 shrink-0 opacity-70" />
+                <span>สถานที่สำคัญ</span>
+              </DropdownMenuItem>
+
+              <DropdownMenuItem
+                render={<Link href="/admin/water-level" />}
+                className="gap-2 px-2.5 py-2 text-[12.5px] cursor-pointer"
+              >
+                <Droplets className="size-4 shrink-0 opacity-70" />
+                <span>ระดับน้ำรายชั่วโมง</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
       </nav>
 

@@ -38,7 +38,17 @@
       "Bash(curl -s \"http://localhost:3003/api/family-folder/summary\" -H \"Cookie: $\\(cat .cookies \\)\")",
       "Bash(lsof -ti:3003)",
       "Bash(npm run *)",
-      "Bash(curl -s \"http://localhost:3001/api/family-folder/summary\")"
+      "Bash(curl -s \"http://localhost:3001/api/family-folder/summary\")",
+      "Read(//private/tmp/**)",
+      "Bash(unzip -o /Users/yuinakhon/_workspace/JS/NextJS/aphmp_flood_project/public/data/kmz/S2C_20250724_1036.kmz -d s2c_extract)",
+      "Bash(node -e \"console.log\\(require.resolve\\('@tmcw/togeojson'\\)\\)\")",
+      "Bash(cp /tmp/s2c_extract/doc.kml /Users/yuinakhon/_workspace/JS/NextJS/aphmp_flood_project/public/data/kml/S2C_20250724_1036.kml && ls -la /Users/yuinakhon/_workspace/JS/NextJS/aphmp_flood_project/public/data/kml/S2C_20250724_1036.kml)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); from collections import Counter; print\\(Counter\\(x['type'] for x in d\\)\\)\")",
+      "Bash(curl -s http://localhost:3000/api/vulnerable)",
+      "Bash(python3)"
+    ],
+    "additionalDirectories": [
+      "/private/tmp/s2c_extract"
     ]
   }
 }

@@ -9,7 +9,7 @@ export default async function VulnerablePage() {
   const canEdit = ['admin', 'officer'].includes(session?.user?.role ?? '')
 
   const res = await fetch(
-    `${process.env.NEXTAUTH_URL ?? 'http://localhost:3001'}/api/vulnerable`,
+    `${process.env.NEXTAUTH_URL ?? 'http://localhost:3003'}/api/vulnerable`,
     { cache: 'no-store' },
   )
   const persons = await res.json().catch(() => [])

@@ -78,6 +78,37 @@ export function classifyFloodLevel(
   return null
 }
 
+const OSRM_BASE = 'https://router.project-osrm.org/route/v1/driving'
+
+export async function buildEvacRouteOSRM(
+  person: VulnerablePerson,
+  shelter: Infrastructure,
+  signal?: AbortSignal,
+): Promise<EvacRoute> {
+  const url = `${OSRM_BASE}/${person.lng},${person.lat};${shelter.lng},${shelter.lat}?overview=full&geometries=geojson`
+  try {
+    const res = await fetch(url, { signal })
+    if (!res.ok) throw new Error(`OSRM ${res.status}`)
+    const data = await res.json()
+    const route = data?.routes?.[0]
+    if (!route?.geometry?.coordinates?.length) throw new Error('no route')
+    const coords: [number, number][] = route.geometry.coordinates.map(
+      ([lng, lat]: [number, number]) => [lat, lng],
+    )
+    return {
+      personId: person.id,
+      personName: person.name,
+      shelterName: shelter.name,
+      distanceKm: +(route.distance / 1000).toFixed(2),
+      durationMin: +(route.duration / 60).toFixed(1),
+      coords,
+    }
+  } catch {
+    const fallback = buildEvacRoute(person, shelter)
+    return { ...fallback, isStraightLine: true }
+  }
+}
+
 export function buildEvacRoute(person: VulnerablePerson, shelter: Infrastructure): EvacRoute {
   const midLat = (person.lat + shelter.lat) / 2 + (Math.random() - 0.5) * 0.003
   const midLng = (person.lng + shelter.lng) / 2 + (Math.random() - 0.5) * 0.003

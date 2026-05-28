@@ -12,6 +12,7 @@ import {
   boolean,
   jsonb,
   varchar,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 
@@ -84,6 +85,18 @@ export const users = pgTable('users', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 })
 
+// API keys สำหรับหน่วยบริการ (รพ.สต./อปท.) ที่ส่งข้อมูลเข้าระบบ
+export const unitApiKeys = pgTable('unit_api_keys', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  keyHash: text('key_hash').notNull().unique(), // SHA-256 ของ raw key
+  unitCode: text('unit_code').notNull(),        // pcucode หรือรหัสหน่วยบริการ
+  unitName: text('unit_name').notNull(),
+  province: text('province'),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+})
+
 // Vulnerable persons
 export const vulnerablePersons = pgTable('vulnerable_persons', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
@@ -96,6 +109,7 @@ export const vulnerablePersons = pgTable('vulnerable_persons', {
   village: text('village'),
   tambon: text('tambon'),
   amphoe: text('amphoe'),
+  province: text('province'),
   lat: numeric('lat', { precision: 10, scale: 6 }).notNull(),
   lng: numeric('lng', { precision: 10, scale: 6 }).notNull(),
   caregiverPhone: text('caregiver_phone'),
@@ -107,10 +121,19 @@ export const vulnerablePersons = pgTable('vulnerable_persons', {
   lastVisitedAt: timestamp('last_visited_at', { withTimezone: true }),
   lastKnownStatus: text('last_known_status'),
   consent: boolean('consent').default(false),
+  // แหล่งข้อมูล — null หมายถึงกรอกเอง (manual)
+  sourceSystem: text('source_system'),     // 'jhcis' | 'hosxp' | 'manual' | 'import'
+  sourceUnit: text('source_unit'),         // pcucode ของต้นทาง
+  sourceId: text('source_id'),            // PID หรือ ID ในระบบต้นทาง
+  sourceSyncedAt: timestamp('source_synced_at', { withTimezone: true }),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }), // soft delete
   createdBy: uuid('created_by').references(() => users.id),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
-})
+}, (t) => [
+  // ป้องกัน duplicate จากแหล่งเดิม — NULL ถือว่าไม่ conflict (Postgres standard)
+  uniqueIndex('vp_source_unique_idx').on(t.sourceSystem, t.sourceUnit, t.sourceId),
+])
 
 // Infrastructure
 export const infrastructures = pgTable('infrastructures', {

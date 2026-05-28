@@ -45,7 +45,8 @@
       "Bash(cp /tmp/s2c_extract/doc.kml /Users/yuinakhon/_workspace/JS/NextJS/aphmp_flood_project/public/data/kml/S2C_20250724_1036.kml && ls -la /Users/yuinakhon/_workspace/JS/NextJS/aphmp_flood_project/public/data/kml/S2C_20250724_1036.kml)",
       "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); from collections import Counter; print\\(Counter\\(x['type'] for x in d\\)\\)\")",
       "Bash(curl -s http://localhost:3000/api/vulnerable)",
-      "Bash(python3)"
+      "Bash(python3)",
+      "Bash(node -e \"const p = require\\('/Users/yuinakhon/_workspace/JS/NextJS/aphmp_flood_project/node_modules/drizzle-orm/package.json'\\); console.log\\(p.version\\)\")"
     ],
     "additionalDirectories": [
       "/private/tmp/s2c_extract"

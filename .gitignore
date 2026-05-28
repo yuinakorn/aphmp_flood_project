@@ -44,3 +44,14 @@ yarn-error.log*
 node_modules
 docker-compose.yml
 .serena
+.agents
+.claude
+.cursor
+.gemini
+.codex
+.trae
+.trae-cn
+.pi
+.opencode
+.kiro
+.rovodev

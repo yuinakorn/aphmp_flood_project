@@ -4,6 +4,7 @@ import pool from '@/lib/jhcis-db'
 import { getFloodZones } from '@/lib/kml-parser'
 import { classifyFloodLevel } from '@/lib/geo'
 import { classifyAlert } from '@/lib/water-level'
+import { loadStationThresholds } from '@/lib/station-db'
 import type { AlertLevel } from '@/lib/water-level'
 import { sql } from 'drizzle-orm'
 
@@ -33,14 +34,6 @@ export interface FloodAlertResponse {
   affectedTotal: number
   updatedAt: string
 }
-
-const CMU_THRESHOLDS = {
-  warning: 2.80,
-  prepare: 3.50,
-  critical: 4.00,
-  danger: 5.00,
-  rapidRise: 0.30,
-} as const
 
 /** Zone thresholds — P.1 level at which each zone activates */
 const ZONE_THRESHOLDS: Record<1 | 2 | 3 | 4 | 5, number> = {
@@ -77,11 +70,11 @@ export async function GET() {
     const first = (rows as unknown as Array<Record<string, unknown>>)[0]
     if (first?.level != null) {
       waterLevel = Number(first.level)
-      alertLevel = classifyAlert(waterLevel, null, {
-        code: 'P.1',
-        name: 'P.1 นวรัฐ',
-        ...CMU_THRESHOLDS,
-      })
+      const thresholds = await loadStationThresholds(['P.1'])
+      const t = thresholds['P.1']
+      if (t) {
+        alertLevel = classifyAlert(waterLevel, null, t)
+      }
     }
   } catch {
     // water level DB unavailable — continue without it
@@ -126,7 +119,12 @@ export async function GET() {
     return NextResponse.json({ error: 'Database unavailable' }, { status: 503 })
   }
 
-  const activeZone = deriveActiveZone(waterLevel)
+  // Once the river station alert reaches วิกฤต/อันตรายสูง, treat every
+  // patient inside any CMU flood zone as already flooded — the station
+  // alert is the authoritative signal for the city, and the L1–L5 zone
+  // thresholds (4.30 m+) only describe physical inundation reach.
+  const floodedByAlert = alertLevel === 'critical' || alertLevel === 'danger'
+  const activeZone = floodedByAlert ? 5 : deriveActiveZone(waterLevel)
 
   // count patients currently inside the active zone (zones 1..activeZone)
   let affectedTotal = 0

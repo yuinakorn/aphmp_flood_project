@@ -1,9 +1,33 @@
+/**
+ * GET /api/vulnerable
+ * คืนรายการกลุ่มเปราะบางจาก vulnerable_persons table (Postgres)
+ *
+ * PDPA mask:
+ *  - anonymous / viewer → เห็นแค่ type, risk, tambon, amphoe, province — ไม่เห็นชื่อ/พิกัดแน่ชัด/เบอร์โทร
+ *  - officer / admin / eoc / vhv / ems / ddpm → เห็นข้อมูลเต็ม (บันทึก audit log)
+ *
+ * POST /api/vulnerable
+ * สร้าง record เดี่ยวแบบ manual (สำหรับ officer/admin กรอกเอง ไม่ผ่าน ingest)
+ * — ส่ง batch ผ่าน /api/ingest/vulnerable แทน
+ */
+
 import { NextRequest, NextResponse } from 'next/server'
+import { and, eq, isNull } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
-import { classifyRisk, classifyFloodLevel } from '@/lib/geo'
-import type { VulnerablePerson, VulnerableType } from '@/types'
-import pool from '@/lib/jhcis-db'
-import { getFloodZones } from '@/lib/kml-parser'
+import { getDb } from '@/lib/db'
+import { classifyRisk } from '@/lib/geo'
+import {
+  badRequest,
+  canWriteFieldData,
+  forbidden,
+  isUuid,
+  numberFromDb,
+  parseBbox,
+  sessionUserId,
+  unauthorized,
+} from '@/lib/field-api'
+import { accessLog, vulnerablePersons } from '@/db/schema'
+import type { UserRole } from '@/types'
 import floodPointsData from '../../../../public/data/flood-points.json'
 
 const floodCoords: [number, number][] = floodPointsData.features.map((f) => [
@@ -11,119 +35,211 @@ const floodCoords: [number, number][] = floodPointsData.features.map((f) => [
   f.geometry.coordinates[0],
 ])
 
+// Roles ที่เห็นข้อมูลส่วนตัวได้
+const FULL_ACCESS_ROLES = new Set<UserRole>(['admin', 'officer', 'eoc', 'vhv', 'ems', 'ddpm'])
+
+function canViewFull(role?: UserRole): role is UserRole {
+  return !!role && FULL_ACCESS_ROLES.has(role)
+}
+
+// -----------------------------------------------------------------------
+// GET
+// -----------------------------------------------------------------------
+
 export async function GET(req: NextRequest) {
   const session = await auth()
-  const role = session?.user?.role ?? 'anonymous'
+  const role = (session?.user?.role ?? 'anonymous') as UserRole
+  const fullAccess = canViewFull(role)
 
   const { searchParams } = new URL(req.url)
-  const bbox = searchParams.get('bbox')
+  const bbox = parseBbox(searchParams.get('bbox'))
+  const status = searchParams.get('status')
+  const priority = searchParams.get('priority')
+  const province = searchParams.get('province')
+  const limit = Math.min(Number(searchParams.get('limit')) || 200, 1000)
 
-  let persons: VulnerablePerson[] = []
+  const db = getDb()
 
-  try {
-    const [rows] = await pool.query(`
-      SELECT
-        p.pid as id,
-        CONCAT(p.fname, ' ', p.lname) AS name,
-        TIMESTAMPDIFF(YEAR, p.birth, CURDATE()) as age,
-        IFNULL(h.hno, '-') AS house_number,
-        IF(v.villno != 0 AND v.villno IS NOT NULL, v.villno, '') AS moo,
-        sd.subdistname AS tambon,
-        d.distname AS amphoe,
-        CONCAT(
-          IFNULL(h.hno, '-'),
-          IF(v.villno != 0 AND v.villno IS NOT NULL, CONCAT(' ม.', v.villno), ''),
-          IFNULL(CONCAT(' ต.', sd.subdistname), ''),
-          IFNULL(CONCAT(' อ.', d.distname), '')
-        ) AS full_address,
-        h.xgis AS lat,
-        h.ygis AS lng,
-        CASE
-          WHEN MAX(u.pid) IS NOT NULL THEN 'disabled'
-          WHEN MAX(c.pid) IS NOT NULL THEN 'bedridden'
-          WHEN TIMESTAMPDIFF(YEAR, p.birth, CURDATE()) >= 60 THEN 'elderly'
-          ELSE 'elderly'
-        END as type,
-        CASE
-          WHEN MAX(u.pid) IS NOT NULL THEN 'ผู้พิการ/ทุพพลภาพ'
-          WHEN MAX(c.pid) IS NOT NULL THEN 'ผู้ป่วยโรคเรื้อรัง'
-          WHEN TIMESTAMPDIFF(YEAR, p.birth, CURDATE()) >= 60 THEN 'ผู้สูงอายุ'
-          ELSE 'กลุ่มเปราะบางอื่นๆ'
-        END as label
-      FROM person p
-      INNER JOIN house h 
-        ON p.hcode = h.hcode AND p.pcucodeperson = h.pcucode
-      LEFT JOIN village v
-        ON h.pcucode = v.pcucode AND h.villcode = v.villcode
-      LEFT JOIN csubdistrict sd 
-        ON SUBSTRING(h.villcode, 1, 2) = sd.provcode 
-        AND SUBSTRING(h.villcode, 3, 2) = sd.distcode 
-        AND SUBSTRING(h.villcode, 5, 2) = sd.subdistcode
-      LEFT JOIN cdistrict d 
-        ON SUBSTRING(h.villcode, 1, 2) = d.provcode 
-        AND SUBSTRING(h.villcode, 3, 2) = d.distcode
-      LEFT JOIN personunable u 
-        ON p.pid = u.pid AND p.pcucodeperson = u.pcucodeperson
-      LEFT JOIN personchronic c 
-        ON p.pid = c.pid AND p.pcucodeperson = c.pcucodeperson
-      WHERE (h.xgis IS NOT NULL AND h.xgis != '')
-        AND (h.ygis IS NOT NULL AND h.ygis != '')
-        AND p.dischargetype = '9'
-        AND p.typelive IN ('1', '3')
-        AND (
-          TIMESTAMPDIFF(YEAR, p.birth, CURDATE()) >= 60
-          OR u.pid IS NOT NULL
-          OR c.pid IS NOT NULL
-        )
-      GROUP BY p.pid
-    `)
+  const conditions = [isNull(vulnerablePersons.deletedAt)]
+  if (status) conditions.push(eq(vulnerablePersons.followUpStatus, status))
+  if (priority) conditions.push(eq(vulnerablePersons.medicalPriority, priority))
+  if (province) conditions.push(eq(vulnerablePersons.province, province))
 
-    persons = (rows as any[]).map(row => ({
-      id: row.id,
-      name: row.name,
-      type: row.type as VulnerableType,
-      label: row.label,
-      age: row.age,
-      cond: row.label, // Using label as condition for display
-      vil: row.moo ? `${row.house_number} ม.${row.moo}` : row.house_number,
-      tambon: row.tambon || '-',
-      amphoe: row.amphoe || '-',
-      fullAddress: row.full_address,
-      lat: parseFloat(row.lat),
-      lng: parseFloat(row.lng),
-    }))
-  } catch (error) {
-    console.error("Error fetching vulnerable groups from JHCIS:", error)
-    return NextResponse.json({ error: "Failed to fetch from DB" }, { status: 500 })
+  const rows = await db
+    .select()
+    .from(vulnerablePersons)
+    .where(and(...conditions))
+    .limit(limit)
+
+  const data = rows
+    .map((p) => {
+      const lat = numberFromDb(p.lat)
+      const lng = numberFromDb(p.lng)
+
+      // กรอง bbox ใน-memory (ถ้ามี)
+      if (bbox && lat !== null && lng !== null) {
+        if (lng < bbox.minLng || lng > bbox.maxLng || lat < bbox.minLat || lat > bbox.maxLat) {
+          return null
+        }
+      }
+
+      const risk = lat !== null && lng !== null ? classifyRisk(lat, lng, floodCoords) : 'safe'
+
+      if (!fullAccess) {
+        // PDPA mask — anonymous/viewer เห็นแค่ aggregate context
+        return {
+          id: p.id,
+          type: p.type,
+          label: p.label,
+          tambon: p.tambon,
+          amphoe: p.amphoe,
+          province: p.province,
+          risk,
+          followUpStatus: p.followUpStatus,
+          medicalPriority: p.medicalPriority,
+          // พิกัดปัดเศษให้ห่างจากบ้านจริง ~500m (3 ทศนิยม ≈ 111m/digit)
+          lat: lat !== null ? Math.round(lat * 100) / 100 : null,
+          lng: lng !== null ? Math.round(lng * 100) / 100 : null,
+        }
+      }
+
+      // Full access
+      return {
+        id: p.id,
+        name: p.name,
+        type: p.type,
+        label: p.label,
+        age: p.age,
+        cond: p.cond,
+        equipment: p.equipment,
+        village: p.village,
+        tambon: p.tambon,
+        amphoe: p.amphoe,
+        province: p.province,
+        lat,
+        lng,
+        caregiverPhone: p.caregiverPhone,
+        careUnit: p.careUnit,
+        assignedVhvId: p.assignedVhvId,
+        medicalPriority: p.medicalPriority,
+        followUpStatus: p.followUpStatus,
+        lastContactedAt: p.lastContactedAt?.toISOString() ?? null,
+        lastVisitedAt: p.lastVisitedAt?.toISOString() ?? null,
+        lastKnownStatus: p.lastKnownStatus,
+        consent: p.consent,
+        sourceSystem: p.sourceSystem,
+        sourceUnit: p.sourceUnit,
+        sourceSyncedAt: p.sourceSyncedAt?.toISOString() ?? null,
+        risk,
+      }
+    })
+    .filter(Boolean)
+
+  // Audit log สำหรับ full-access (fire-and-forget)
+  if (fullAccess && session?.user?.id) {
+    void db
+      .insert(accessLog)
+      .values({
+        userId: session.user.id,
+        action: 'list_vulnerable',
+        ip: null,
+      })
+      .catch(() => {})
   }
 
-  if (bbox) {
-    const parts = bbox.split(',').map(Number)
-    if (parts.length === 4 && !parts.some(isNaN)) {
-      const [minLng, minLat, maxLng, maxLat] = parts
-      persons = persons.filter(
-        (p) => p.lng >= minLng && p.lng <= maxLng && p.lat >= minLat && p.lat <= maxLat,
-      )
-    }
-  }
-
-  const zones = getFloodZones()
-  const enriched = persons.map((p) => {
-    const risk = classifyRisk(p.lat, p.lng, floodCoords)
-    const floodLevel = classifyFloodLevel(p.lat, p.lng, zones)
-    return { ...p, risk, floodLevel }
+  return NextResponse.json({
+    data,
+    meta: {
+      total: data.length,
+      masked: !fullAccess,
+      generatedAt: new Date().toISOString(),
+    },
   })
-
-  return NextResponse.json(enriched)
 }
+
+// -----------------------------------------------------------------------
+// POST — manual entry (officer/admin เดี่ยว)
+// สำหรับ batch ส่งผ่าน /api/ingest/vulnerable แทน
+// -----------------------------------------------------------------------
+
+const VALID_TYPES = new Set(['bedridden', 'elderly', 'disabled', 'pregnant', 'other'])
+const VALID_PRIORITIES = new Set(['A', 'B', 'C'])
 
 export async function POST(req: NextRequest) {
   const session = await auth()
-  if (!session || !['admin', 'officer'].includes(session.user?.role)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!session?.user) return unauthorized()
+  if (!canWriteFieldData(session.user.role as UserRole)) return forbidden()
+
+  const body = (await req.json().catch(() => null)) as Record<string, unknown> | null
+  if (!body) return badRequest('Invalid JSON body')
+
+  const name = typeof body.name === 'string' ? body.name.trim() : ''
+  if (!name) return badRequest('name is required')
+
+  const type = typeof body.type === 'string' ? body.type : ''
+  if (!VALID_TYPES.has(type)) return badRequest(`type must be one of: ${[...VALID_TYPES].join(', ')}`)
+
+  const lat = body.lat !== undefined ? Number(body.lat) : NaN
+  const lng = body.lng !== undefined ? Number(body.lng) : NaN
+  if (!Number.isFinite(lat) || lat < -90 || lat > 90) return badRequest('lat is invalid')
+  if (!Number.isFinite(lng) || lng < -180 || lng > 180) return badRequest('lng is invalid')
+
+  const medicalPriority = typeof body.medicalPriority === 'string' ? body.medicalPriority : 'C'
+  if (!VALID_PRIORITIES.has(medicalPriority)) return badRequest('medicalPriority must be A, B, or C')
+
+  const assignedVhvId = body.assignedVhvId
+  if (assignedVhvId !== undefined && !isUuid(assignedVhvId)) {
+    return badRequest('assignedVhvId must be a UUID')
   }
 
-  const body = await req.json()
-  // TODO: validate + insert into DB
-  return NextResponse.json({ success: true, data: body }, { status: 201 })
+  const db = getDb()
+  const [created] = await db
+    .insert(vulnerablePersons)
+    .values({
+      name,
+      type,
+      label: typeof body.label === 'string' ? body.label : defaultLabel(type),
+      age: body.age != null ? Number(body.age) || null : null,
+      cond: typeof body.cond === 'string' ? body.cond : null,
+      equipment: typeof body.equipment === 'string' ? body.equipment : null,
+      village: typeof body.village === 'string' ? body.village : null,
+      tambon: typeof body.tambon === 'string' ? body.tambon : null,
+      amphoe: typeof body.amphoe === 'string' ? body.amphoe : null,
+      province: typeof body.province === 'string' ? body.province : null,
+      lat: String(lat),
+      lng: String(lng),
+      caregiverPhone: typeof body.caregiverPhone === 'string' ? body.caregiverPhone : null,
+      careUnit: typeof body.careUnit === 'string' ? body.careUnit : null,
+      assignedVhvId: isUuid(assignedVhvId) ? assignedVhvId : null,
+      medicalPriority,
+      consent: body.consent === true,
+      followUpStatus: 'pending',
+      sourceSystem: 'manual',
+      createdBy: sessionUserId(session),
+    })
+    .returning()
+
+  // Audit log
+  void db
+    .insert(accessLog)
+    .values({
+      userId: sessionUserId(session),
+      action: 'create_vulnerable',
+      targetId: created.id,
+      ip: null,
+    })
+    .catch(() => {})
+
+  return NextResponse.json({ data: created }, { status: 201 })
+}
+
+function defaultLabel(type: string): string {
+  const labels: Record<string, string> = {
+    bedridden: 'ผู้ป่วยติดเตียง',
+    elderly: 'ผู้สูงอายุ',
+    disabled: 'ผู้พิการ/ทุพพลภาพ',
+    pregnant: 'หญิงตั้งครรภ์',
+    other: 'กลุ่มเปราะบางอื่นๆ',
+  }
+  return labels[type] ?? 'กลุ่มเปราะบาง'
 }

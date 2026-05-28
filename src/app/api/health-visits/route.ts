@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { eq } from 'drizzle-orm'
+import { desc, eq } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 import { getDb } from '@/lib/db'
 import {
@@ -12,7 +12,7 @@ import {
   unauthorized,
 } from '@/lib/field-api'
 import { healthVisits, vulnerablePersons } from '@/db/schema'
-import type { FollowUpStatus } from '@/types'
+import type { FollowUpStatus, UserRole } from '@/types'
 
 const VISIT_STATUSES = new Set(['pending', 'completed', 'unreachable', 'needs_follow_up'])
 const PERSON_STATUSES = new Set(['safe', 'needs_help', 'evacuated', 'referred', 'unknown'])
@@ -24,6 +24,54 @@ function followUpStatusFromVisit(body: Record<string, unknown>): FollowUpStatus 
   if (body.visitStatus === 'completed') return 'contacted'
   return 'pending'
 }
+
+// -----------------------------------------------------------------------
+// GET /api/health-visits?personId=<uuid>&limit=<n>
+// officer+ เห็นประวัติการเยี่ยม — ไม่มี full access = forbidden
+// -----------------------------------------------------------------------
+
+export async function GET(req: NextRequest) {
+  const session = await auth()
+  if (!session?.user) return unauthorized()
+  if (!canWriteFieldData(session.user.role as UserRole)) return forbidden()
+
+  const { searchParams } = new URL(req.url)
+  const personId = searchParams.get('personId')
+  const limit = Math.min(Number(searchParams.get('limit')) || 50, 200)
+
+  if (personId && !isUuid(personId)) return badRequest('personId must be a UUID')
+
+  const db = getDb()
+  const rows = await db
+    .select()
+    .from(healthVisits)
+    .where(personId ? eq(healthVisits.vulnerablePersonId, personId) : undefined)
+    .orderBy(desc(healthVisits.observedAt))
+    .limit(limit)
+
+  return NextResponse.json({
+    data: rows.map((v) => ({
+      id: v.id,
+      vulnerablePersonId: v.vulnerablePersonId,
+      visitedBy: v.visitedBy,
+      visitStatus: v.visitStatus,
+      personStatus: v.personStatus,
+      needsHelp: v.needsHelp,
+      helpType: v.helpType,
+      notes: v.notes,
+      lat: v.lat ? Number(v.lat) : null,
+      lng: v.lng ? Number(v.lng) : null,
+      observedAt: v.observedAt?.toISOString() ?? null,
+      syncedAt: v.syncedAt?.toISOString() ?? null,
+      createdAt: v.createdAt?.toISOString() ?? null,
+    })),
+    meta: { total: rows.length },
+  })
+}
+
+// -----------------------------------------------------------------------
+// POST /api/health-visits
+// -----------------------------------------------------------------------
 
 export async function POST(req: NextRequest) {
   const session = await auth()

@@ -118,7 +118,9 @@ function StationCard({
         </div>
         <div>
           <dt className="text-[var(--fg-subtle)]">วิกฤต</dt>
-          <dd className="mt-0.5 font-mono text-[var(--fg)]">{t.critical.toFixed(1)} m</dd>
+          <dd className="mt-0.5 font-mono text-[var(--fg)]">
+            {t.critical > 0 ? `${t.critical.toFixed(1)} m` : 'ยังไม่กำหนด'}
+          </dd>
         </div>
       </dl>
     </div>

@@ -55,7 +55,22 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3003/map)",
       "Bash(kill 47479)",
       "Bash(curl -s -o /dev/null -w \"http %{http_code}\\\\n\" http://localhost:3003/api/user-flood-marks)",
-      "Bash(perl -0pi -e 's/flex size-9 items-center justify-center rounded-md border/flex size-10 md:size-9 items-center justify-center rounded-md border/g' src/components/map/MapOverlay.tsx)"
+      "Bash(perl -0pi -e 's/flex size-9 items-center justify-center rounded-md border/flex size-10 md:size-9 items-center justify-center rounded-md border/g' src/components/map/MapOverlay.tsx)",
+      "Bash(cd /tmp)",
+      "Bash(echo '=== __TRACKED_VAR__ ===')",
+      "Bash(curl -s -m 30 -o __TRACKED_VAR__.json https://raw.githubusercontent.com/kongvut/thai-province-data/master/__TRACKED_VAR__.json)",
+      "Bash(wc -c __TRACKED_VAR__.json)",
+      "Bash(head -c 400 __TRACKED_VAR__.json)",
+      "Bash(curl -s -m 30 \"https://api.github.com/repos/kongvut/thai-province-data/contents/\")",
+      "Bash(curl -s -m 30 \"https://api.github.com/repos/kongvut/thai-province-data/contents/api\")",
+      "Bash(curl -s -m 30 \"https://api.github.com/repos/kongvut/thai-province-data/contents/data\")",
+      "Bash(curl -s -m 30 \"https://api.github.com/repos/kongvut/thai-province-data/contents/api/latest\")",
+      "Bash(curl -s -m 60 -o __TRACKED_VAR__.json https://raw.githubusercontent.com/kongvut/thai-province-data/master/api/latest/__TRACKED_VAR__.json)",
+      "Bash(curl -s -m 20 http://localhost:3003/api/geo/provinces)",
+      "Bash(curl -s -m 20 \"http://localhost:3003/api/geo/districts?provinceId=57\")",
+      "Bash(curl -s -m 20 http://localhost:3003/api/water-level/summary)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); m=d.get\\('chiangrai_maesai',{}\\); print\\('s1:', m.get\\('s1',{}\\).get\\('level'\\), m.get\\('s1',{}\\).get\\('alert'\\)\\); print\\('s2:', m.get\\('s2',{}\\).get\\('level'\\), m.get\\('s2',{}\\).get\\('alert'\\)\\)\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); m=d['chiangrai_maesai']; print\\('s1 Kh.72:', m['s1']['level'],'alert',m['s1']['alert'],'thr',m['s1']['thresholds']\\); print\\('s2 Kh.89:', m['s2']['level'],'alert',m['s2']['alert'],'thr',m['s2']['thresholds']\\)\")"
     ],
     "additionalDirectories": [
       "/private/tmp/s2c_extract",

@@ -135,6 +135,32 @@ export const vulnerablePersons = pgTable('vulnerable_persons', {
   uniqueIndex('vp_source_unique_idx').on(t.sourceSystem, t.sourceUnit, t.sourceId),
 ])
 
+// ───────── ที่อยู่มาตรฐาน (กรมการปกครอง DOPA) — จังหวัด → อำเภอ → ตำบล ─────────
+export const geoProvinces = pgTable('geo_provinces', {
+  id: integer('id').primaryKey(),
+  nameTh: text('name_th').notNull(),
+  nameEn: text('name_en'),
+})
+
+export const geoDistricts = pgTable('geo_districts', {
+  id: integer('id').primaryKey(),
+  nameTh: text('name_th').notNull(),
+  nameEn: text('name_en'),
+  provinceId: integer('province_id')
+    .notNull()
+    .references(() => geoProvinces.id),
+})
+
+export const geoSubdistricts = pgTable('geo_subdistricts', {
+  id: integer('id').primaryKey(),
+  nameTh: text('name_th').notNull(),
+  nameEn: text('name_en'),
+  zipCode: integer('zip_code'),
+  districtId: integer('district_id')
+    .notNull()
+    .references(() => geoDistricts.id),
+})
+
 // Flood marks ที่ผู้ใช้ปักเอง — เผื่อจังหวัดที่ CMU Water Center ไม่มีข้อมูล
 export const userFloodMarks = pgTable('user_flood_marks', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),

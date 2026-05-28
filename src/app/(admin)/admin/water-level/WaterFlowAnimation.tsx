@@ -58,6 +58,8 @@ const THRESHOLD_WIDTH = 130  // length of each threshold dashed line (inward)
 function depthFraction(level: number | null, danger: number) {
   if (level == null) return 0
   if (level <= 0) return 0
+  // ยังไม่กำหนดเกณฑ์ (danger <= 0) — แสดงเป็นระดับต่ำ ไม่ใช่เต็มจอ (level/0 = Infinity)
+  if (danger <= 0) return 0.12
   return Math.max(0, Math.min(1, level / danger))
 }
 
@@ -212,50 +214,68 @@ export function WaterFlowAnimation({ s1, s2, t1, t2, config }: Props) {
         {/* ─── Threshold markers (critical / danger per station) ─── */}
         <g>
           {/* ─ S1 (upstream) — markers float above the surface on the left side ─ */}
-          <rect x={channelLeft} y={s1DangerY} width={THRESHOLD_WIDTH}
-            height={Math.max(0, s1CriticalY - s1DangerY)} fill="#ef4444" fillOpacity="0.1" />
-          <line x1={channelLeft} x2={channelLeft} y1={SURFACE_Y - 8} y2={s1DangerY}
-            stroke="#f87171" strokeOpacity="0.35" strokeDasharray="2 3" strokeWidth="1" />
-          <line x1={channelLeft} x2={channelLeft + THRESHOLD_WIDTH} y1={s1CriticalY} y2={s1CriticalY}
-            stroke="#f87171" strokeWidth="1.2" strokeDasharray="5 3" strokeOpacity="0.85" />
-          <text x={channelLeft - 6} y={s1CriticalY + 11} textAnchor="end" fontSize="9.5"
-            fontFamily="ui-monospace, monospace" fill="#f87171">
-            {t1.critical.toFixed(1)} วิกฤต
-          </text>
-          <line x1={channelLeft} x2={channelLeft + THRESHOLD_WIDTH} y1={s1DangerY} y2={s1DangerY}
-            stroke="#ef4444" strokeWidth="1.4" strokeDasharray="5 3" strokeOpacity="0.95" />
-          <text x={channelLeft - 6} y={s1DangerY - 4} textAnchor="end" fontSize="9.5"
-            fontFamily="ui-monospace, monospace" fontWeight="700" fill="#ef4444">
-            {t1.danger.toFixed(1)} อันตราย
-          </text>
-          {headroom1 != null && (
-            <text x={channelLeft + THRESHOLD_WIDTH + 6} y={(s1DangerY + s1CriticalY) / 2 + 3}
-              textAnchor="start" fontSize="9" fontFamily="ui-monospace, monospace" fill="var(--fg-subtle)">
-              เหลือ {headroom1.toFixed(2)} m
+          {t1.danger > 0 ? (
+            <>
+              <rect x={channelLeft} y={s1DangerY} width={THRESHOLD_WIDTH}
+                height={Math.max(0, s1CriticalY - s1DangerY)} fill="#ef4444" fillOpacity="0.1" />
+              <line x1={channelLeft} x2={channelLeft} y1={SURFACE_Y - 8} y2={s1DangerY}
+                stroke="#f87171" strokeOpacity="0.35" strokeDasharray="2 3" strokeWidth="1" />
+              <line x1={channelLeft} x2={channelLeft + THRESHOLD_WIDTH} y1={s1CriticalY} y2={s1CriticalY}
+                stroke="#f87171" strokeWidth="1.2" strokeDasharray="5 3" strokeOpacity="0.85" />
+              <text x={channelLeft - 6} y={s1CriticalY + 11} textAnchor="end" fontSize="9.5"
+                fontFamily="ui-monospace, monospace" fill="#f87171">
+                {t1.critical.toFixed(1)} วิกฤต
+              </text>
+              <line x1={channelLeft} x2={channelLeft + THRESHOLD_WIDTH} y1={s1DangerY} y2={s1DangerY}
+                stroke="#ef4444" strokeWidth="1.4" strokeDasharray="5 3" strokeOpacity="0.95" />
+              <text x={channelLeft - 6} y={s1DangerY - 4} textAnchor="end" fontSize="9.5"
+                fontFamily="ui-monospace, monospace" fontWeight="700" fill="#ef4444">
+                {t1.danger.toFixed(1)} อันตราย
+              </text>
+              {headroom1 != null && (
+                <text x={channelLeft + THRESHOLD_WIDTH + 6} y={(s1DangerY + s1CriticalY) / 2 + 3}
+                  textAnchor="start" fontSize="9" fontFamily="ui-monospace, monospace" fill="var(--fg-subtle)">
+                  เหลือ {headroom1.toFixed(2)} m
+                </text>
+              )}
+            </>
+          ) : (
+            <text x={channelLeft - 6} y={SURFACE_Y - 6} textAnchor="end" fontSize="9"
+              fontFamily="ui-monospace, monospace" fill="var(--fg-subtle)">
+              ยังไม่กำหนดเกณฑ์
             </text>
           )}
 
           {/* ─ S2 (downstream) — markers mirrored on the right side ─ */}
-          <rect x={channelRight - THRESHOLD_WIDTH} y={s2DangerY} width={THRESHOLD_WIDTH}
-            height={Math.max(0, s2CriticalY - s2DangerY)} fill="#ef4444" fillOpacity="0.1" />
-          <line x1={channelRight} x2={channelRight} y1={SURFACE_Y - 8} y2={s2DangerY}
-            stroke="#f87171" strokeOpacity="0.35" strokeDasharray="2 3" strokeWidth="1" />
-          <line x1={channelRight - THRESHOLD_WIDTH} x2={channelRight} y1={s2CriticalY} y2={s2CriticalY}
-            stroke="#f87171" strokeWidth="1.2" strokeDasharray="5 3" strokeOpacity="0.85" />
-          <text x={channelRight + 6} y={s2CriticalY + 11} textAnchor="start" fontSize="9.5"
-            fontFamily="ui-monospace, monospace" fill="#f87171">
-            {t2.critical.toFixed(1)} วิกฤต
-          </text>
-          <line x1={channelRight - THRESHOLD_WIDTH} x2={channelRight} y1={s2DangerY} y2={s2DangerY}
-            stroke="#ef4444" strokeWidth="1.4" strokeDasharray="5 3" strokeOpacity="0.95" />
-          <text x={channelRight + 6} y={s2DangerY - 4} textAnchor="start" fontSize="9.5"
-            fontFamily="ui-monospace, monospace" fontWeight="700" fill="#ef4444">
-            {t2.danger.toFixed(1)} อันตราย
-          </text>
-          {headroom2 != null && (
-            <text x={channelRight - THRESHOLD_WIDTH - 6} y={(s2DangerY + s2CriticalY) / 2 + 3}
-              textAnchor="end" fontSize="9" fontFamily="ui-monospace, monospace" fill="var(--fg-subtle)">
-              เหลือ {headroom2.toFixed(2)} m
+          {t2.danger > 0 ? (
+            <>
+              <rect x={channelRight - THRESHOLD_WIDTH} y={s2DangerY} width={THRESHOLD_WIDTH}
+                height={Math.max(0, s2CriticalY - s2DangerY)} fill="#ef4444" fillOpacity="0.1" />
+              <line x1={channelRight} x2={channelRight} y1={SURFACE_Y - 8} y2={s2DangerY}
+                stroke="#f87171" strokeOpacity="0.35" strokeDasharray="2 3" strokeWidth="1" />
+              <line x1={channelRight - THRESHOLD_WIDTH} x2={channelRight} y1={s2CriticalY} y2={s2CriticalY}
+                stroke="#f87171" strokeWidth="1.2" strokeDasharray="5 3" strokeOpacity="0.85" />
+              <text x={channelRight + 6} y={s2CriticalY + 11} textAnchor="start" fontSize="9.5"
+                fontFamily="ui-monospace, monospace" fill="#f87171">
+                {t2.critical.toFixed(1)} วิกฤต
+              </text>
+              <line x1={channelRight - THRESHOLD_WIDTH} x2={channelRight} y1={s2DangerY} y2={s2DangerY}
+                stroke="#ef4444" strokeWidth="1.4" strokeDasharray="5 3" strokeOpacity="0.95" />
+              <text x={channelRight + 6} y={s2DangerY - 4} textAnchor="start" fontSize="9.5"
+                fontFamily="ui-monospace, monospace" fontWeight="700" fill="#ef4444">
+                {t2.danger.toFixed(1)} อันตราย
+              </text>
+              {headroom2 != null && (
+                <text x={channelRight - THRESHOLD_WIDTH - 6} y={(s2DangerY + s2CriticalY) / 2 + 3}
+                  textAnchor="end" fontSize="9" fontFamily="ui-monospace, monospace" fill="var(--fg-subtle)">
+                  เหลือ {headroom2.toFixed(2)} m
+                </text>
+              )}
+            </>
+          ) : (
+            <text x={channelRight + 6} y={SURFACE_Y - 6} textAnchor="start" fontSize="9"
+              fontFamily="ui-monospace, monospace" fill="var(--fg-subtle)">
+              ยังไม่กำหนดเกณฑ์
             </text>
           )}
         </g>

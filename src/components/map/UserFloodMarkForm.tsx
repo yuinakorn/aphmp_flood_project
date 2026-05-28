@@ -12,6 +12,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { deriveFloodMarkLevel } from '@/lib/flood-marks'
+import { AddressSelect } from '@/components/map/AddressSelect'
 import type { UserFloodMark } from '@/types'
 
 interface Props {
@@ -147,17 +148,14 @@ export function UserFloodMarkForm({ draft, onCancel, onCreated }: Props) {
             />
           </Field>
 
-          <div className="grid grid-cols-3 gap-2">
-            <Field label="จังหวัด">
-              <Input value={province} onChange={(e) => setProvince(e.target.value)} />
-            </Field>
-            <Field label="อำเภอ">
-              <Input value={amphoe} onChange={(e) => setAmphoe(e.target.value)} />
-            </Field>
-            <Field label="ตำบล">
-              <Input value={tambon} onChange={(e) => setTambon(e.target.value)} />
-            </Field>
-          </div>
+          <AddressSelect
+            key={draft ? `${draft.lat},${draft.lng}` : 'none'}
+            onChange={(v) => {
+              setProvince(v.province)
+              setAmphoe(v.amphoe)
+              setTambon(v.tambon)
+            }}
+          />
 
           <Field label="เบอร์ติดต่อผู้แจ้ง">
             <Input

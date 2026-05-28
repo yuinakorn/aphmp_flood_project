@@ -63,17 +63,19 @@ export const PROVINCE_CONFIGS = {
 export type ProvinceId = keyof typeof PROVINCE_CONFIGS
 export type ProvinceConfig = (typeof PROVINCE_CONFIGS)[ProvinceId]
 
+// threshold ที่เป็น 0 หรือ null ถือว่า "ยังไม่กำหนด" — ไม่ใช้ trigger สถานะ
+// (มิฉะนั้น level ใด ๆ ที่ > 0 จะถูกตีเป็น danger ทันที)
 export function classifyAlert(
   level: number | null,
   rise3h: number | null,
   t: StationThreshold,
 ): AlertLevel {
   if (level == null) return 'normal'
-  if (level >= t.danger) return 'danger'
-  if (level >= t.critical) return 'critical'
-  if (rise3h != null && rise3h >= t.rapidRise) return 'rapid_rise'
-  if (level >= t.prepare) return 'prepare'
-  if (level >= t.warning) return 'warning'
+  if (t.danger > 0 && level >= t.danger) return 'danger'
+  if (t.critical > 0 && level >= t.critical) return 'critical'
+  if (rise3h != null && t.rapidRise > 0 && rise3h >= t.rapidRise) return 'rapid_rise'
+  if (t.prepare > 0 && level >= t.prepare) return 'prepare'
+  if (t.warning > 0 && level >= t.warning) return 'warning'
   return 'normal'
 }
 
@@ -93,8 +95,9 @@ export function classifyAlertMaesai(
   if (level == null) return 'normal'
 
   // Absolute level overrides first (infrastructure integrity)
-  if (level >= t.danger) return 'danger'
-  if (level >= t.critical) return 'critical'
+  // threshold ที่เป็น 0 ถือว่ายังไม่กำหนด — ข้ามไป (ไม่งั้น level ใด ๆ จะเป็น danger ทันที)
+  if (t.danger > 0 && level >= t.danger) return 'danger'
+  if (t.critical > 0 && level >= t.critical) return 'critical'
 
   // Rise rate per hour — prefer 1-h reading, fall back to 3-h average
   const rph = rise1h ?? (rise3h != null ? rise3h / 3 : null)
@@ -106,8 +109,8 @@ export function classifyAlertMaesai(
   }
 
   // Absolute level fallback when water is rising slowly or stable
-  if (level >= t.prepare) return 'prepare'
-  if (level >= t.warning) return 'warning'
+  if (t.prepare > 0 && level >= t.prepare) return 'prepare'
+  if (t.warning > 0 && level >= t.warning) return 'warning'
   return 'normal'
 }
 

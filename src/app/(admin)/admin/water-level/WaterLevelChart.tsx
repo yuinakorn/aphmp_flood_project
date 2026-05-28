@@ -121,7 +121,7 @@ export function WaterLevelChart({ data, thresholds, station1, station2 }: Props)
         {[
           { v: thresholds.s1, color: '#38bdf8', label: `${station1} วิกฤต ${thresholds.s1.toFixed(1)}m`, py: pyS1 },
           { v: thresholds.s2, color: '#fbbf24', label: `${station2} วิกฤต ${thresholds.s2.toFixed(1)}m`, py: pyS2 },
-        ].map((t, i) => (
+        ].filter((t) => t.v > 0).map((t, i) => (
           <g key={i}>
             <line x1={PAD.left} x2={W - PAD.right} y1={t.py(t.v)} y2={t.py(t.v)}
               stroke={t.color} strokeDasharray="5 4" strokeOpacity={0.55} strokeWidth={1} />

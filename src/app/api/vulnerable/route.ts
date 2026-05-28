@@ -147,14 +147,7 @@ export async function GET(req: NextRequest) {
       .catch(() => {})
   }
 
-  return NextResponse.json({
-    data,
-    meta: {
-      total: data.length,
-      masked: !fullAccess,
-      generatedAt: new Date().toISOString(),
-    },
-  })
+  return NextResponse.json(data)
 }
 
 // -----------------------------------------------------------------------

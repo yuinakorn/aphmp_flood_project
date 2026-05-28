@@ -22,6 +22,7 @@ import { PanelShell } from './PanelShell'
 type BooleanLayerKey = Exclude<keyof LayerState, 'gistda' | 'floodMarks' | 'cmuFlood'>
 type SwatchKind =
   | 'flood-mark'
+  | 'user-flood-mark'
   | 'gistda'
   | 'vuln'
   | 'infra'
@@ -43,6 +44,7 @@ const rows: Row[] = [
   { key: 'vulnerable', label: 'กลุ่มเปราะบาง', meta: 'แสดง risk ตามตำแหน่ง', swatch: 'vuln' },
   { key: 'infra', label: 'สถานพยาบาล / ศูนย์อพยพ', meta: '7 จุด', swatch: 'infra' },
   { key: 'routes', label: 'เส้นทางอพยพ', meta: 'คำนวณ shelter ใกล้สุด', swatch: 'route' },
+  { key: 'userFloodMarks', label: 'หมุดที่เจ้าหน้าที่ปัก', meta: 'Flood mark ปักเอง', swatch: 'user-flood-mark' },
 ]
 
 function Swatch({ kind }: { kind: SwatchKind }) {
@@ -55,6 +57,17 @@ function Swatch({ kind }: { kind: SwatchKind }) {
           style={{
             background: 'oklch(0.78 0.16 75 / 0.35)',
             boxShadow: 'inset 0 0 0 1px oklch(0.66 0.20 30 / 0.8)',
+          }}
+        />
+      )
+    case 'user-flood-mark':
+      return (
+        <span
+          aria-hidden
+          className="size-3 rounded-full border border-dashed"
+          style={{
+            background: 'oklch(0.68 0.15 230 / 0.3)',
+            borderColor: 'oklch(0.68 0.15 230)',
           }}
         />
       )

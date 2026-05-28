@@ -14,6 +14,8 @@ import { TunePanel } from '@/components/panels/TunePanel'
 import { MapOverlay } from '@/components/map/MapOverlay'
 import { WaterLevelSidebar } from '@/components/map/WaterLevelSidebar'
 import { FloodAlertBanner } from '@/components/map/FloodAlertBanner'
+import { UserFloodMarkForm } from '@/components/map/UserFloodMarkForm'
+import { MapPinPlus } from 'lucide-react'
 import { buildEvacRouteOSRM, nearestShelter } from '@/lib/geo'
 import type { AlertLevel, ProvinceId } from '@/lib/water-level'
 import { PROVINCE_CONFIGS } from '@/lib/water-level'
@@ -29,9 +31,12 @@ import type {
   GistdaLayerKey,
   Infrastructure,
   LayerState,
+  UserFloodMark,
   VulnerablePerson,
   VulnerableStats,
 } from '@/types'
+
+const WRITE_ROLES = new Set(['admin', 'officer', 'eoc', 'vhv', 'ems', 'ddpm'])
 
 const DEFAULT_LAYERS: LayerState = {
   gistda: {
@@ -64,6 +69,7 @@ const DEFAULT_LAYERS: LayerState = {
   vulnerable: true,
   infra: true,
   routes: true,
+  userFloodMarks: true,
 }
 
 const ALERT_POLL_MS = 5 * 60 * 1000
@@ -79,6 +85,10 @@ export function MapClient({ session }: Props) {
   const [infra, setInfra] = useState<Infrastructure[]>([])
   const [floodMarkProvinces, setFloodMarkProvinces] = useState<FloodMarkProvince[]>([])
   const [floodMarkProvince, setFloodMarkProvince] = useState<string | null>(null)
+  const [userFloodMarks, setUserFloodMarks] = useState<UserFloodMark[]>([])
+  const [pinMode, setPinMode] = useState(false)
+  const [pinDraft, setPinDraft] = useState<{ lat: number; lng: number } | null>(null)
+  const canPin = !!session && WRITE_ROLES.has(session.role)
   const [vulnStats, setVulnStats] = useState<VulnerableStats>({
     flood: 0,
     near: 0,
@@ -103,14 +113,28 @@ export function MapClient({ session }: Props) {
   // Load map markers
   useEffect(() => {
     Promise.all([
-      fetch('/api/vulnerable').then((r) => r.json()),
-      fetch('/data/infrastructure.json').then((r) => r.json()),
-    ])
-      .then(([v, i]) => {
-        setVulnerable(v as VulnerablePerson[])
-        setInfra(i as Infrastructure[])
-      })
-      .catch(console.error)
+      fetch('/api/vulnerable')
+        .then((r) => {
+          if (!r.ok) throw new Error(`API error: ${r.status}`)
+          return r.json()
+        })
+        .catch((e) => {
+          console.error('Failed to load vulnerable persons:', e)
+          return []
+        }),
+      fetch('/data/infrastructure.json')
+        .then((r) => {
+          if (!r.ok) throw new Error(`API error: ${r.status}`)
+          return r.json()
+        })
+        .catch((e) => {
+          console.error('Failed to load infrastructure:', e)
+          return []
+        }),
+    ]).then(([v, i]) => {
+      setVulnerable(Array.isArray(v) ? v : [])
+      setInfra(Array.isArray(i) ? i : [])
+    })
   }, [])
 
   // Load CMU flood alert stats (PIP-based counts + water level)
@@ -169,6 +193,15 @@ export function MapClient({ session }: Props) {
       .catch(console.error)
   }, [])
 
+  useEffect(() => {
+    fetch('/api/user-flood-marks')
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data)) setUserFloodMarks(data as UserFloodMark[])
+      })
+      .catch(console.error)
+  }, [])
+
   // Keyboard shortcuts: L/R/E/I/T toggle panels; Esc closes
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -223,6 +256,17 @@ export function MapClient({ session }: Props) {
     [floodMarkProvinces],
   )
 
+  const onPinPlace = useCallback((lat: number, lng: number) => {
+    setPinDraft({ lat, lng })
+    setPinMode(false)
+  }, [])
+
+  const onMarkCreated = useCallback((mark: UserFloodMark) => {
+    setUserFloodMarks((prev) => [mark, ...prev])
+    setPinDraft(null)
+    setLayers((p) => ({ ...p, userFloodMarks: true }))
+  }, [])
+
   const flyTo = useCallback((person: VulnerablePerson) => {
     mapRef.current?.flyTo([person.lat, person.lng], 16, { duration: 0.6 })
     setFocusPersonId(person.id)
@@ -230,17 +274,6 @@ export function MapClient({ session }: Props) {
 
   const flyToInfra = useCallback((item: Infrastructure) => {
     mapRef.current?.flyTo([item.lat, item.lng], 16, { duration: 0.6 })
-  }, [])
-
-  const fitProvince = useCallback(() => {
-    mapRef.current?.flyToBounds(
-      [[18.01, 100.39], [19.56, 101.26]],
-      { duration: 0.7 },
-    )
-  }, [])
-
-  const zoomCity = useCallback(() => {
-    mapRef.current?.flyTo([18.78, 100.78], 14, { duration: 0.5 })
   }, [])
 
   const onProvinceChange = useCallback((p: ProvinceId) => {
@@ -397,14 +430,36 @@ export function MapClient({ session }: Props) {
             basemap={basemap}
             floodMarkProvince={floodMarkProvince}
             focusPersonId={focusPersonId}
+            userFloodMarks={userFloodMarks}
+            pinMode={pinMode}
+            onPinPlace={onPinPlace}
             onMapReady={(m) => (mapRef.current = m)}
             onRequestRoute={drawRoute}
           />
-          <MapOverlay
-            onFitProvince={fitProvince}
-            onZoomCity={zoomCity}
-            onRouteAll={routeAll}
-          />
+          <MapOverlay />
+          {canPin && (
+            <button
+              type="button"
+              onClick={() => setPinMode((v) => !v)}
+              title={pinMode ? 'คลิกบนแผนที่เพื่อปัก (กดเพื่อยกเลิก)' : 'ปักหมุด Flood Mark'}
+              aria-label={pinMode ? 'ยกเลิกการปักหมุด' : 'ปักหมุด Flood Mark'}
+              aria-pressed={pinMode}
+              className={`pointer-events-auto absolute right-4 top-1/2 z-[401] flex size-10 -translate-y-1/2 items-center justify-center rounded-md border transition-colors md:size-9 ${
+                pinMode
+                  ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-fg)]'
+                  : 'border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--fg-muted)] hover:border-[var(--border-strong)] hover:text-[var(--fg)]'
+              }`}
+            >
+              <MapPinPlus size={16} strokeWidth={1.75} />
+            </button>
+          )}
+          {canPin && (
+            <UserFloodMarkForm
+              draft={pinDraft}
+              onCancel={() => setPinDraft(null)}
+              onCreated={onMarkCreated}
+            />
+          )}
         </div>
       </div>
     </div>

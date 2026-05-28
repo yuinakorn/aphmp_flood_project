@@ -135,6 +135,28 @@ export const vulnerablePersons = pgTable('vulnerable_persons', {
   uniqueIndex('vp_source_unique_idx').on(t.sourceSystem, t.sourceUnit, t.sourceId),
 ])
 
+// Flood marks ที่ผู้ใช้ปักเอง — เผื่อจังหวัดที่ CMU Water Center ไม่มีข้อมูล
+export const userFloodMarks = pgTable('user_flood_marks', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  lat: numeric('lat', { precision: 10, scale: 6 }).notNull(),
+  lng: numeric('lng', { precision: 10, scale: 6 }).notNull(),
+  waterLevelCm: numeric('water_level_cm', { precision: 6, scale: 1 }).notNull(),
+  level: smallint('level').notNull(), // 1-5 derive จาก waterLevelCm
+  placeDetail: text('place_detail'),
+  placeAround: text('place_around'),
+  province: text('province'),
+  amphoe: text('amphoe'),
+  tambon: text('tambon'),
+  contactPhone: text('contact_phone'),
+  observedAt: timestamp('observed_at', { withTimezone: true }).notNull().defaultNow(),
+  imageUrl: text('image_url'), // เผื่ออนาคต — ตอนนี้ยังไม่รับรูป
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  // ไม่ผูก FK — ผู้ปักอาจเป็น SSO identity ที่ไม่ได้ mirror ลงตาราง users
+  createdBy: uuid('created_by'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+})
+
 // Infrastructure
 export const infrastructures = pgTable('infrastructures', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),

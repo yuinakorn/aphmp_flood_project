@@ -206,6 +206,7 @@ export interface LayerState {
   vulnerable: boolean
   infra: boolean
   routes: boolean
+  userFloodMarks: boolean
 }
 
 export interface FloodMark {
@@ -230,6 +231,25 @@ export interface FloodMarkProvince {
   name: string
   count: number
   bounds: [[number, number], [number, number]]
+}
+
+// Flood mark ที่ผู้ใช้ปักเอง (officer/vhv+) — เผื่อจังหวัดที่ CMU ไม่มีข้อมูล
+export interface UserFloodMark {
+  id: string
+  lat: number
+  lng: number
+  waterLevelCm: number
+  level: FloodMarkLevel
+  placeDetail: string | null
+  placeAround: string | null
+  province: string | null
+  amphoe: string | null
+  tambon: string | null
+  contactPhone: string | null
+  observedAt: string | null
+  imageUrl: string | null
+  createdBy: string | null
+  createdAt: string | null
 }
 
 export interface FloodMarkLevelConfig {

@@ -13,9 +13,19 @@ export function PanelShell({ title, hint, onClose, children }: Props) {
   return (
     <section
       aria-label={title}
-      className="flex h-full w-[380px] shrink-0 flex-col border-r border-[var(--border)] bg-[var(--bg-elevated)]"
+      className="
+        fixed inset-x-0 bottom-14 z-[490] flex max-h-[68vh] w-full flex-col overflow-hidden
+        rounded-t-2xl border border-[var(--border)] bg-[var(--bg-elevated)]
+        shadow-[0_-8px_24px_var(--shadow-elevation)] animate-sheet-up
+        md:static md:bottom-auto md:z-auto md:h-full md:max-h-none md:w-[380px] md:shrink-0
+        md:rounded-none md:border-0 md:border-r md:shadow-none md:animate-none
+      "
     >
-      <header className="flex items-start gap-4 border-b border-[var(--border)] px-6 pb-5 pt-6">
+      {/* Grab handle — mobile bottom sheet affordance */}
+      <div aria-hidden className="flex justify-center pt-2 md:hidden">
+        <span className="h-1 w-9 rounded-full bg-[var(--border-strong)]" />
+      </div>
+      <header className="flex items-start gap-4 border-b border-[var(--border)] px-6 pb-4 pt-3 md:pb-5 md:pt-6">
         <div className="flex flex-col gap-1.5">
           <h2 className="text-[14px] font-semibold leading-none tracking-tight text-[var(--fg)]">
             {title}
@@ -30,7 +40,7 @@ export function PanelShell({ title, hint, onClose, children }: Props) {
           type="button"
           aria-label="ปิดแผง"
           onClick={onClose}
-          className="ml-auto -mr-1 -mt-1 flex size-8 items-center justify-center rounded-md text-[var(--fg-muted)] transition-colors hover:bg-[var(--bg-sunken)] hover:text-[var(--fg)]"
+          className="ml-auto -mr-1 -mt-1 flex size-9 items-center justify-center rounded-md text-[var(--fg-muted)] transition-colors hover:bg-[var(--bg-sunken)] hover:text-[var(--fg)] md:size-8"
         >
           <X size={16} strokeWidth={1.75} />
         </button>

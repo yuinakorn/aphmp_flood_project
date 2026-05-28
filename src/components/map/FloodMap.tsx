@@ -16,6 +16,7 @@ import type {
   FloodMark,
   FloodMarkLevel,
   LayerState,
+  UserFloodMark,
   VulnerablePerson,
   Infrastructure,
   RiskLevel,
@@ -137,6 +138,9 @@ interface Props {
   basemap: BasemapType
   floodMarkProvince: string | null
   focusPersonId?: number | null
+  userFloodMarks?: UserFloodMark[]
+  pinMode?: boolean
+  onPinPlace?: (lat: number, lng: number) => void
   onMapReady?: (map: LeafletMap) => void
   onRequestRoute?: (personId: number) => void
 }
@@ -148,6 +152,9 @@ export function FloodMap({
   basemap,
   floodMarkProvince,
   focusPersonId,
+  userFloodMarks = [],
+  pinMode = false,
+  onPinPlace,
   onMapReady,
   onRequestRoute,
 }: Props) {
@@ -161,6 +168,7 @@ export function FloodMap({
   const gistdaRefs = useRef<Partial<Record<GistdaLayerKey, TileLayer>>>({})
   const floodMarkGroupRefs = useRef<Partial<Record<FloodMarkLevel, LayerGroup>>>({})
   const floodMarkCacheRef = useRef<Partial<Record<FloodMarkLevel, FloodMark[]>>>({})
+  const userFloodMarkGroupRef = useRef<LayerGroup | null>(null)
   const cmuFloodGroupRefs = useRef<Partial<Record<CmuFloodLayerKey, LayerGroup>>>({})
   const cmuFloodLoadedRef = useRef<Partial<Record<CmuFloodLayerKey, boolean>>>({})
   const [mapReady, setMapReady] = useState(false)
@@ -204,6 +212,7 @@ export function FloodMap({
         vulnGroupRef.current = L.layerGroup().addTo(map)
         infraGroupRef.current = L.layerGroup().addTo(map)
         routeGroupRef.current = L.layerGroup().addTo(map)
+        userFloodMarkGroupRef.current = L.layerGroup().addTo(map)
         FLOOD_MARK_LEVELS.forEach((cfg) => {
           floodMarkGroupRefs.current[cfg.key] = L.layerGroup()
         })
@@ -434,6 +443,34 @@ export function FloodMap({
     }
   }, [mapReady, layers.cmuFlood])
 
+  // User-pinned flood marks (officer/vhv) — distinct dashed style from CMU marks
+  useEffect(() => {
+    if (!mapReady || !userFloodMarkGroupRef.current) return
+      ; (async () => {
+        const L = (await import('leaflet')).default
+        renderUserFloodMarks(L, userFloodMarkGroupRef.current!, userFloodMarks)
+      })()
+  }, [mapReady, userFloodMarks])
+
+  // Pin mode — click on map to capture a coordinate for a new flood mark
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapReady) return
+    const container = map.getContainer()
+    if (pinMode) {
+      container.style.cursor = 'crosshair'
+      const handler = (e: import('leaflet').LeafletMouseEvent) => {
+        onPinPlace?.(e.latlng.lat, e.latlng.lng)
+      }
+      map.on('click', handler)
+      return () => {
+        map.off('click', handler)
+        container.style.cursor = ''
+      }
+    }
+    container.style.cursor = ''
+  }, [pinMode, mapReady, onPinPlace])
+
   // Layer visibility
   useEffect(() => {
     const map = mapRef.current
@@ -446,6 +483,7 @@ export function FloodMap({
     toggle(vulnGroupRef.current, layers.vulnerable)
     toggle(infraGroupRef.current, layers.infra)
     toggle(routeGroupRef.current, layers.routes)
+    toggle(userFloodMarkGroupRef.current, layers.userFloodMarks)
     FLOOD_MARK_LEVELS.forEach((cfg) => {
       toggle(floodMarkGroupRefs.current[cfg.key], layers.floodMarks[cfg.key])
     })
@@ -550,6 +588,51 @@ function renderFloodMarks(
         )
         .addTo(group)
     })
+}
+
+function renderUserFloodMarks(
+  L: typeof import('leaflet'),
+  group: import('leaflet').LayerGroup,
+  marks: UserFloodMark[],
+) {
+  group.clearLayers()
+
+  marks.forEach((mark) => {
+    const color = floodMarkColor(mark.level)
+    const radius = Math.max(5, Math.min(10, 4.5 + mark.waterLevelCm / 45))
+    const detail = mark.placeDetail ?? mark.placeAround ?? 'ไม่ระบุสถานที่'
+    const observed = mark.observedAt
+      ? new Date(mark.observedAt).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' })
+      : '-'
+
+    // ขอบประ + สีตามระดับ — แยกจากหมุด CMU (เส้นทึบ)
+    L.circleMarker([mark.lat, mark.lng], {
+      radius,
+      color,
+      weight: 2,
+      opacity: 0.95,
+      dashArray: '3,3',
+      fillColor: color,
+      fillOpacity: 0.35,
+    })
+      .bindPopup(
+        `<div style="min-width:220px">
+        <div style="font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--fg-subtle);margin-bottom:4px">Flood Mark · ผู้ใช้ปัก</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px">
+          <span style="font-size:13px;font-weight:600;color:var(--fg)">ระดับ ${mark.level}</span>
+          <span style="font-family:var(--font-mono);font-size:12px;color:${color}">${popupText(mark.waterLevelCm)} ซม.</span>
+        </div>
+        <div style="font-size:12px;color:var(--fg);line-height:1.45;margin-bottom:8px">${popupText(detail)}</div>
+        <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:11.5px">
+          <span style="color:var(--fg-subtle)">วันที่วัด</span><span style="font-family:var(--font-mono)">${escapeHtml(observed)}</span>
+          <span style="color:var(--fg-subtle)">พื้นที่</span><span>${popupText([mark.tambon, mark.amphoe, mark.province].filter(Boolean).join(' · ') || null)}</span>
+          <span style="color:var(--fg-subtle)">ใกล้เคียง</span><span>${popupText(mark.placeAround)}</span>
+          <span style="color:var(--fg-subtle)">ติดต่อ</span><span style="font-family:var(--font-mono)">${popupText(mark.contactPhone)}</span>
+        </div>
+      </div>`,
+      )
+      .addTo(group)
+  })
 }
 
 function firstText(parent: Element, tag: string): string {

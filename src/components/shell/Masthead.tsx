@@ -54,10 +54,10 @@ export function Masthead({ session }: Props) {
     href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(href + '/')
 
   return (
-    <header className="flex h-14 shrink-0 items-center gap-6 border-b border-[var(--border)] bg-[var(--bg)] px-6">
+    <header className="flex h-14 shrink-0 items-center gap-3 border-b border-[var(--border)] bg-[var(--bg)] px-3 md:gap-6 md:px-6">
       <Link
         href="/map"
-        className="flex items-center gap-3 transition-opacity hover:opacity-80"
+        className="flex items-center gap-2 transition-opacity hover:opacity-80 md:gap-3"
       >
         <Waves
           aria-hidden
@@ -69,7 +69,7 @@ export function Masthead({ session }: Props) {
         </span>
       </Link>
 
-      <span className="h-5 w-px bg-[var(--border)]" aria-hidden />
+      <span className="hidden h-5 w-px bg-[var(--border)] sm:block" aria-hidden />
 
       <nav className="flex items-center gap-1 text-[12.5px]">
         <NavLink href="/map" active={isActive('/map')}>แผนที่</NavLink>
@@ -137,17 +137,17 @@ export function Masthead({ session }: Props) {
         )}
       </nav>
 
-      <div className="ml-auto flex items-center gap-4 text-[11px] text-[var(--fg-subtle)]">
+      <div className="ml-auto flex items-center gap-3 text-[11px] text-[var(--fg-subtle)] md:gap-4">
         <span className="hidden font-mono uppercase tracking-[0.12em] lg:inline">
           Sentinel-1 · GISTDA
         </span>
         <ThemeToggle />
         {session ? (
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 md:gap-3">
             <span className="font-mono text-[10.5px] uppercase tracking-[0.12em] text-[var(--accent)]">
               {session.role}
             </span>
-            <span className="text-[12.5px] text-[var(--fg-muted)]">
+            <span className="hidden text-[12.5px] text-[var(--fg-muted)] sm:inline">
               {session.name}
             </span>
           </div>

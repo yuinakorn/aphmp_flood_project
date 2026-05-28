@@ -22,6 +22,20 @@
       "when": 1779905819408,
       "tag": "0002_add_source_fields_and_unit_api_keys",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1779951569420,
+      "tag": "0003_chilly_the_professor",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1779953000935,
+      "tag": "0004_elite_thunderbird",
+      "breakpoints": true
     }
   ]
 }

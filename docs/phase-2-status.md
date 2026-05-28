@@ -108,9 +108,9 @@ Filter: `bbox`, `status`, `priority`, `province`, `limit`
 
 ### ต้องมีก่อน Phase 3
 
-- [ ] `PATCH /api/vulnerable/[id]` — officer อัปเดต followUpStatus / careUnit / assignedVhvId
-- [ ] `GET /api/vulnerable/[id]` — ดูรายละเอียดคนเดียว พร้อม audit log
-- [ ] `GET /api/health-visits?personId=` ทำงานถูกต้องกับ personId ที่มาจาก JHCIS (sourceId) ด้วย
+- [x] `PATCH /api/vulnerable/[id]` — officer อัปเดต followUpStatus / careUnit / assignedVhvId / medicalPriority / lastKnownStatus / lastContactedAt
+- [x] `GET /api/vulnerable/[id]` — ดูรายละเอียดคนเดียว พร้อม audit log + PDPA mask
+- [x] `GET /api/health-visits?personId=` รองรับทั้ง UUID และ sourceId ของ JHCIS (ส่ง `?personId=<pid>&sourceSystem=jhcis`)
 
 ---
 

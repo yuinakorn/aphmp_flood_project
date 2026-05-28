@@ -52,7 +52,7 @@ function Field({ label, value, delta, color = 'var(--fg)', onClick }: FieldProps
         {label}
       </span>
       <div className="flex items-baseline gap-2.5 leading-none">
-        <span className="font-mono text-[22px] font-semibold tabular-nums" style={{ color }}>
+        <span className="font-mono text-[19px] font-semibold tabular-nums md:text-[22px]" style={{ color }}>
           {value}
         </span>
         {delta && (
@@ -69,7 +69,7 @@ function Field({ label, value, delta, color = 'var(--fg)', onClick }: FieldProps
       <button
         type="button"
         onClick={onClick}
-        className="group flex min-w-[112px] flex-col justify-center gap-1.5 rounded-md px-2 -mx-2 transition-colors hover:bg-[var(--bg-elevated)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/40"
+        className="group flex min-w-[96px] shrink-0 flex-col justify-center gap-1.5 rounded-md px-2 -mx-2 transition-colors hover:bg-[var(--bg-elevated)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/40 md:min-w-[112px]"
         title="คลิกเพื่อดูรายชื่อ"
       >
         {inner}
@@ -78,14 +78,14 @@ function Field({ label, value, delta, color = 'var(--fg)', onClick }: FieldProps
   }
 
   return (
-    <div className="flex min-w-[112px] flex-col justify-center gap-1.5">
+    <div className="flex min-w-[96px] shrink-0 flex-col justify-center gap-1.5 md:min-w-[112px]">
       {inner}
     </div>
   )
 }
 
 const Divider = () => (
-  <span aria-hidden className="h-10 w-px self-center bg-[var(--border)]" />
+  <span aria-hidden className="h-10 w-px shrink-0 self-center bg-[var(--border)]" />
 )
 
 const ZONE_THRESHOLD: Record<1 | 2 | 3 | 4 | 5, string> = {
@@ -108,9 +108,9 @@ export function StatusStrip({ waterLevel, s1Level, s1Alert, activeZone, alertLev
     : null
 
   return (
-    <div className="flex h-[76px] shrink-0 items-stretch gap-10 border-b border-[var(--border)] bg-[var(--bg)] px-8">
+    <div className="scrollbar-none flex h-[64px] shrink-0 items-stretch gap-5 overflow-x-auto border-b border-[var(--border)] bg-[var(--bg)] px-4 md:h-[76px] md:gap-10 md:overflow-x-visible md:px-8">
       {/* Province selector */}
-      <div className="flex min-w-[130px] flex-col justify-center gap-1.5">
+      <div className="flex min-w-[120px] shrink-0 flex-col justify-center gap-1.5 md:min-w-[130px]">
         <span className="text-[10px] font-medium uppercase leading-none tracking-[0.1em] text-[var(--fg-subtle)]">
           จังหวัด
         </span>
@@ -134,13 +134,13 @@ export function StatusStrip({ waterLevel, s1Level, s1Alert, activeZone, alertLev
       </div>
       <Divider />
       {/* Dual-station water level */}
-      <div className="flex items-stretch gap-5">
+      <div className="flex shrink-0 items-stretch gap-4 md:gap-5">
         <div className="flex flex-col justify-center gap-1">
           <span className="text-[10px] font-medium uppercase leading-none tracking-[0.1em] text-[var(--fg-subtle)]">
             ต้นน้ำ <span className="font-mono">{cfg.s1}</span>
           </span>
           <div className="flex items-baseline gap-1.5 leading-none">
-            <span className="font-mono text-[22px] font-semibold tabular-nums" style={{ color: ALERT_TONE[s1Alert] }}>
+            <span className="font-mono text-[19px] font-semibold tabular-nums md:text-[22px]" style={{ color: ALERT_TONE[s1Alert] }}>
               {s1Display}
             </span>
             <span className="text-[11px] text-[var(--fg-muted)]">ม.</span>
@@ -155,7 +155,7 @@ export function StatusStrip({ waterLevel, s1Level, s1Alert, activeZone, alertLev
             ปลายน้ำ <span className="font-mono">{cfg.s2}</span>
           </span>
           <div className="flex items-baseline gap-1.5 leading-none">
-            <span className="font-mono text-[22px] font-semibold tabular-nums" style={{ color: ALERT_TONE[alertLevel] }}>
+            <span className="font-mono text-[19px] font-semibold tabular-nums md:text-[22px]" style={{ color: ALERT_TONE[alertLevel] }}>
               {s2Display}
             </span>
             <span className="text-[11px] text-[var(--fg-muted)]">ม.</span>
@@ -196,7 +196,7 @@ export function StatusStrip({ waterLevel, s1Level, s1Alert, activeZone, alertLev
         color="var(--risk-safe)"
       />
 
-      <div className="ml-auto flex items-center gap-3.5 self-center pl-6">
+      <div className="flex shrink-0 items-center gap-3.5 self-center pl-4 md:ml-auto md:pl-6">
         <span className="text-[10px] font-medium uppercase tracking-[0.1em] text-[var(--fg-subtle)]">
           {timeDisplay ? 'อัปเดต' : 'CMU Water Center'}
         </span>

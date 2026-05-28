@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { desc, eq } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 import { getDb } from '@/lib/db'
 import {
@@ -26,8 +26,12 @@ function followUpStatusFromVisit(body: Record<string, unknown>): FollowUpStatus 
 }
 
 // -----------------------------------------------------------------------
-// GET /api/health-visits?personId=<uuid>&limit=<n>
+// GET /api/health-visits?personId=<uuid|sourceId>&sourceSystem=<system>&limit=<n>
 // officer+ เห็นประวัติการเยี่ยม — ไม่มี full access = forbidden
+//
+// personId รับได้ 2 แบบ:
+//  1. UUID — ใช้ตรง ๆ
+//  2. sourceId ของ JHCIS/HOSxP — ต้องส่ง sourceSystem มาด้วย, ระบบ resolve เป็น UUID ก่อน
 // -----------------------------------------------------------------------
 
 export async function GET(req: NextRequest) {
@@ -36,16 +40,39 @@ export async function GET(req: NextRequest) {
   if (!canWriteFieldData(session.user.role as UserRole)) return forbidden()
 
   const { searchParams } = new URL(req.url)
-  const personId = searchParams.get('personId')
+  const personIdParam = searchParams.get('personId')
+  const sourceSystem = searchParams.get('sourceSystem')
   const limit = Math.min(Number(searchParams.get('limit')) || 50, 200)
 
-  if (personId && !isUuid(personId)) return badRequest('personId must be a UUID')
-
   const db = getDb()
+
+  let resolvedPersonId: string | null = null
+
+  if (personIdParam) {
+    if (isUuid(personIdParam)) {
+      resolvedPersonId = personIdParam
+    } else {
+      // ไม่ใช่ UUID — ลอง resolve จาก sourceId
+      if (!sourceSystem) return badRequest('sourceSystem is required when personId is a sourceId (non-UUID)')
+      const [found] = await db
+        .select({ id: vulnerablePersons.id })
+        .from(vulnerablePersons)
+        .where(
+          and(
+            eq(vulnerablePersons.sourceId, personIdParam),
+            eq(vulnerablePersons.sourceSystem, sourceSystem),
+          ),
+        )
+        .limit(1)
+      if (!found) return NextResponse.json({ data: [], meta: { total: 0 } })
+      resolvedPersonId = found.id
+    }
+  }
+
   const rows = await db
     .select()
     .from(healthVisits)
-    .where(personId ? eq(healthVisits.vulnerablePersonId, personId) : undefined)
+    .where(resolvedPersonId ? eq(healthVisits.vulnerablePersonId, resolvedPersonId) : undefined)
     .orderBy(desc(healthVisits.observedAt))
     .limit(limit)
 

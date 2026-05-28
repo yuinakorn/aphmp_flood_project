@@ -206,6 +206,33 @@ a {
     0%, 100% { opacity: 0.55; }
     50% { opacity: 1; }
   }
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+  .animate-sheet-up {
+    animation: sheet-up 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  @keyframes sheet-up {
+    from { transform: translateY(6%); opacity: 0; }
+    to   { transform: translateY(0);  opacity: 1; }
+  }
+  .animate-card-swap {
+    animation: card-swap 420ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  @keyframes card-swap {
+    from { opacity: 0; transform: translateX(18px) scale(0.97); }
+    to   { opacity: 1; transform: translateX(0) scale(1); }
+  }
+}
+
+/* Mobile: lift Leaflet controls above the bottom nav bar (h-14 ≈ 56px) */
+@media (max-width: 767px) {
+  .leaflet-bottom {
+    margin-bottom: 60px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

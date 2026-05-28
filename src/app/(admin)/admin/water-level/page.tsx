@@ -7,7 +7,7 @@ import { WaterLevelChart } from './WaterLevelChart'
 import { WaterDashboard } from './WaterDashboard'
 import { ProvinceSelector } from './ProvinceSelector'
 
-export const metadata = { title: 'ระดับน้ำรายชั่วโมง — FloodWatch Admin' }
+export const metadata = { title: 'ระดับน้ำรายชั่วโมง — GIS Health Intelligence' }
 export const dynamic = 'force-dynamic'
 
 type Row = {

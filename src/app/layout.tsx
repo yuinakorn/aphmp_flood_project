@@ -16,9 +16,9 @@ const mono = JetBrains_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'FloodWatch',
+  title: 'GIS Health Intelligence',
   description:
-    'ระบบติดตามน้ำท่วม ด้วยข้อมูล Sentinel-1/2 SAR และ GISTDA',
+    'แพลตฟอร์มข้อมูลสุขภาพเชิงพื้นที่ เริ่มจากโมดูลเฝ้าระวังน้ำท่วมเพื่อดูแลกลุ่มเปราะบาง',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -2,7 +2,7 @@ import { Hospital, Tent, Flag, Stethoscope, Plus, Pencil, Trash2 } from 'lucide-
 import infraData from '../../../../../public/data/infrastructure.json'
 import type { Infrastructure } from '@/types'
 
-export const metadata = { title: 'สถานที่สำคัญ — FloodWatch Admin' }
+export const metadata = { title: 'สถานที่สำคัญ — GIS Health Intelligence' }
 
 const meta: Record<
   string,

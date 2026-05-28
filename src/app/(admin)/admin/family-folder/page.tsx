@@ -4,7 +4,7 @@ import { FolderHeart } from 'lucide-react'
 import { FamilyFolderClient } from './FamilyFolderClient'
 import { getFamilyFolderSummary, getFamilyFolderHouseholds } from '@/lib/family-folder'
 
-export const metadata = { title: 'Family Folder กลุ่มเปราะบาง — FloodWatch Admin' }
+export const metadata = { title: 'Family Folder กลุ่มเปราะบาง — GIS Health Intelligence' }
 
 export default async function FamilyFolderPage() {
   const session = await auth()

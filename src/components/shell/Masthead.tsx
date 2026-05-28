@@ -65,14 +65,14 @@ export function Masthead({ session }: Props) {
           className="size-5 text-[var(--accent)]"
         />
         <span className="text-[14px] font-semibold tracking-tight">
-          FloodWatch
+          GIS Health Intelligence
         </span>
       </Link>
 
       <span className="hidden h-5 w-px bg-[var(--border)] sm:block" aria-hidden />
 
       <nav className="flex items-center gap-1 text-[12.5px]">
-        <NavLink href="/map" active={isActive('/map')}>แผนที่</NavLink>
+        <NavLink href="/map" active={isActive('/map')}>Flood Map</NavLink>
         {session && (
           <DropdownMenu>
             <DropdownMenuTrigger

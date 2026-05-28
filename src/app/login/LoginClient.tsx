@@ -53,27 +53,26 @@ export function LoginClient({ ssoEnabled }: LoginClientProps) {
             <Waves size={22} strokeWidth={1.5} className="text-[var(--accent)]" />
             <div className="flex flex-col">
               <span className="text-[15px] font-semibold tracking-tight">
-                PH Flood Aid
+                GIS Health Intelligence
               </span>
               <span className="font-mono text-[9.5px] uppercase tracking-[0.12em] text-[var(--fg-subtle)]">
-                Public Health Flood Operations
+                แพลตฟอร์มข้อมูลสุขภาพเชิงพื้นที่
               </span>
             </div>
           </div>
 
           <div className="max-w-md">
             <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--accent)]">
-              Public Health Flood Operations (PHFO)
+              โมดูลปัจจุบัน · เฝ้าระวังน้ำท่วม
             </p>
             <h1 className="mt-3 text-[26px] font-semibold leading-tight tracking-tight">
-              ติดตามสถานการณ์น้ำ
+              ข้อมูลเชิงพื้นที่
               <br />
-              น้ำท่วมช่วยทัน กลุ่มเปราะบาง
+              เพื่อดูแลกลุ่มเปราะบาง
             </h1>
             <p className="mt-4 max-w-sm text-[13px] leading-relaxed text-[var(--fg-muted)]">
-              ระบบสาธารณสุขเพื่อการติดตามและช่วยเหลือกลุ่มเปราะบาง
-              <br />
-              ก่อน-ระหว่าง-หลังน้ำท่วม
+              แพลตฟอร์มข่าวกรองสุขภาพเชิงพื้นที่ เริ่มจากการเฝ้าระวังและช่วยเหลือ
+              กลุ่มเปราะบางก่อน-ระหว่าง-หลังน้ำท่วม พร้อมขยายสู่ภารกิจสุขภาพอื่นในอนาคต
             </p>
           </div>
 
@@ -98,13 +97,13 @@ export function LoginClient({ ssoEnabled }: LoginClientProps) {
           </Link>
 
           <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--fg-subtle)]">
-            PH Flood Aid
+            GIS Health Intelligence
           </p>
           <h2 className="mt-2 text-[20px] font-semibold tracking-tight">
             เข้าสู่ระบบ
           </h2>
           <p className="mt-2 text-[12.5px] leading-relaxed text-[var(--fg-muted)]">
-            ติดตามสถานการณ์น้ำ • น้ำท่วมช่วยทัน กลุ่มเสี่ยง
+            แพลตฟอร์มข้อมูลสุขภาพเชิงพื้นที่ • โมดูลเฝ้าระวังน้ำท่วม
           </p>
 
           {ssoEnabled ? (

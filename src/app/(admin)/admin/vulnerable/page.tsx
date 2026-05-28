@@ -2,7 +2,7 @@ import { auth } from '@/lib/auth'
 import { Plus, ShieldCheck } from 'lucide-react'
 import { VulnerableTable } from './VulnerableTable'
 
-export const metadata = { title: 'จัดการกลุ่มเปราะบาง — FloodWatch Admin' }
+export const metadata = { title: 'จัดการกลุ่มเปราะบาง — GIS Health Intelligence' }
 
 export default async function VulnerablePage() {
   const session = await auth()

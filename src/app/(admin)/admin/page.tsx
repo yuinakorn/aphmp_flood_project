@@ -2,7 +2,7 @@ import { auth } from '@/lib/auth'
 import Link from 'next/link'
 import { Users, Building2, Map, BarChart3, Droplets, ArrowUpRight, FolderHeart } from 'lucide-react'
 
-export const metadata = { title: 'Dashboard — FloodWatch Admin' }
+export const metadata = { title: 'Dashboard — GIS Health Intelligence' }
 
 const cards = [
   {

@@ -14,7 +14,8 @@ import {
   sessionUserId,
   unauthorized,
 } from '@/lib/field-api'
-import { helpRequests, vulnerablePersons } from '@/db/schema'
+import { resolveIncidentId } from '@/lib/incident'
+import { helpRequests, householdMembers } from '@/db/schema'
 import type { HelpRequestPriority, MedicalPriority } from '@/types'
 import floodPointsData from '../../../../public/data/flood-points.json'
 
@@ -36,15 +37,19 @@ function escalatedPriority(
   return current
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const session = await auth()
   if (!session?.user) return unauthorized()
   if (!canTriage(session.user.role)) return forbidden()
+
+  const incidentId = new URL(req.url).searchParams.get('incidentId')
+  if (incidentId && !isUuid(incidentId)) return badRequest('incidentId must be a UUID')
 
   const db = getDb()
   const rows = await db
     .select()
     .from(helpRequests)
+    .where(incidentId ? eq(helpRequests.incidentId, incidentId) : undefined)
     .orderBy(desc(helpRequests.createdAt))
     .limit(100)
 
@@ -65,9 +70,9 @@ export async function POST(req: NextRequest) {
   const requestedPriority = typeof body.priority === 'string' ? body.priority : 'normal'
   if (!PRIORITIES.has(requestedPriority)) return badRequest('Invalid priority')
 
-  const vulnerablePersonId = body.vulnerablePersonId
-  if (vulnerablePersonId !== undefined && !isUuid(vulnerablePersonId)) {
-    return badRequest('vulnerablePersonId must be a UUID')
+  const memberId = body.memberId
+  if (memberId !== undefined && !isUuid(memberId)) {
+    return badRequest('memberId must be a UUID')
   }
 
   const preferredShelterId = body.preferredShelterId
@@ -81,16 +86,20 @@ export async function POST(req: NextRequest) {
   if (lng !== null && !Number.isFinite(lng)) return badRequest('lng must be a number')
 
   const db = getDb()
+
+  const incident = await resolveIncidentId(body.incidentId, db)
+  if (!incident.ok) return badRequest(incident.error)
+
   let finalPriority = requestedPriority as HelpRequestPriority
 
-  if (vulnerablePersonId) {
+  if (memberId) {
     const [person] = await db
       .select()
-      .from(vulnerablePersons)
-      .where(eq(vulnerablePersons.id, vulnerablePersonId))
+      .from(householdMembers)
+      .where(eq(householdMembers.id, memberId))
       .limit(1)
 
-    if (!person) return badRequest('vulnerablePersonId not found')
+    if (!person) return badRequest('memberId not found')
 
     const personLat = numberFromDb(person.lat)
     const personLng = numberFromDb(person.lng)
@@ -106,7 +115,8 @@ export async function POST(req: NextRequest) {
   const [created] = await db
     .insert(helpRequests)
     .values({
-      vulnerablePersonId: vulnerablePersonId ?? null,
+      incidentId: incident.incidentId,
+      memberId: memberId ?? null,
       requestedBy: sessionUserId(session),
       sourceRole: session.user.role,
       requestType,
@@ -121,16 +131,16 @@ export async function POST(req: NextRequest) {
     })
     .returning()
 
-  if (vulnerablePersonId) {
+  if (memberId) {
     await db
-      .update(vulnerablePersons)
+      .update(householdMembers)
       .set({
         followUpStatus: 'needs_help',
         lastContactedAt: new Date(),
         lastKnownStatus: requestType,
         updatedAt: new Date(),
       })
-      .where(eq(vulnerablePersons.id, vulnerablePersonId))
+      .where(eq(householdMembers.id, memberId))
   }
 
   return NextResponse.json({ data: created }, { status: 201 })

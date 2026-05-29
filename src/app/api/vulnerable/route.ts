@@ -12,7 +12,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq, isNotNull, isNull } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 import { getDb } from '@/lib/db'
 import { classifyRisk } from '@/lib/geo'
@@ -27,7 +27,7 @@ import {
   sessionUserId,
   unauthorized,
 } from '@/lib/field-api'
-import { accessLog, vulnerablePersons } from '@/db/schema'
+import { accessLog, householdMembers } from '@/db/schema'
 import type { UserRole } from '@/types'
 import floodPointsData from '../../../../public/data/flood-points.json'
 
@@ -61,14 +61,15 @@ export async function GET(req: NextRequest) {
 
   const db = getDb()
 
-  const conditions = [isNull(vulnerablePersons.deletedAt)]
-  if (status) conditions.push(eq(vulnerablePersons.followUpStatus, status))
-  if (priority) conditions.push(eq(vulnerablePersons.medicalPriority, priority))
-  if (province) conditions.push(eq(vulnerablePersons.province, province))
+  // ทะเบียนกลุ่มดูแล = member ที่มี type (เปราะบาง/มีภาวะสุขภาพ) และยังไม่ถูกลบ
+  const conditions = [isNotNull(householdMembers.type), isNull(householdMembers.deletedAt)]
+  if (status) conditions.push(eq(householdMembers.followUpStatus, status))
+  if (priority) conditions.push(eq(householdMembers.medicalPriority, priority))
+  if (province) conditions.push(eq(householdMembers.province, province))
 
   const rows = await db
     .select()
-    .from(vulnerablePersons)
+    .from(householdMembers)
     .where(and(...conditions))
     .limit(limit)
 
@@ -194,7 +195,7 @@ export async function POST(req: NextRequest) {
 
   const db = getDb()
   const [created] = await db
-    .insert(vulnerablePersons)
+    .insert(householdMembers)
     .values({
       prefix,
       firstName,

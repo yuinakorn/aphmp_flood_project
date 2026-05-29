@@ -26,6 +26,33 @@ export interface VulnerableHousehold {
   vulnerableCount: number
 }
 
+// สมาชิกบ้านสำหรับ popup บนแผนที่ — มีเบอร์ + flag กลุ่มเปราะบาง
+export interface HouseholdMapMember {
+  name: string
+  age: number
+  sex: 'ชาย' | 'หญิง' | '-'
+  position: string
+  group: HouseholdMember['group']
+  isHead: boolean
+  isVulnerable: boolean
+  phone: string | null
+}
+
+// หมุดบ้านบนแผนที่ — full data (masking ทำที่ route ตาม role)
+export interface HouseholdMapMarker {
+  id: string
+  hno: string
+  village: string
+  villno: string
+  tambon: string | null
+  amphoe: string | null
+  province: string | null
+  lat: number
+  lng: number
+  vulnerableCount: number
+  members: HouseholdMapMember[]
+}
+
 export interface VillageSummary {
   vcode: string
   vname: string
@@ -90,6 +117,7 @@ export async function getFamilyFolderSummary(): Promise<VillageSummary[]> {
 
   const membersByHouse = new Map<string, MemberRow[]>()
   for (const m of memberRows) {
+    if (!m.householdId) continue // query กรองเฉพาะ member ที่ผูกครัวเรือนอยู่แล้ว
     const arr = membersByHouse.get(m.householdId) ?? []
     arr.push(m)
     membersByHouse.set(m.householdId, arr)
@@ -154,6 +182,7 @@ export async function getFamilyFolderHouseholds(
 
   const membersByHouse = new Map<string, MemberRow[]>()
   for (const m of memberRows) {
+    if (!m.householdId) continue // query กรองเฉพาะ member ที่ผูกครัวเรือนอยู่แล้ว
     const arr = membersByHouse.get(m.householdId) ?? []
     arr.push(m)
     membersByHouse.set(m.householdId, arr)
@@ -186,4 +215,62 @@ export async function getFamilyFolderHouseholds(
     .filter((h): h is VulnerableHousehold => h !== null)
 
   return { households: all.slice(offset, offset + limit), total: all.length }
+}
+
+// หมุดบ้านสำหรับแผนที่ — เฉพาะบ้านที่มีพิกัด + มีสมาชิกกลุ่มเปราะบาง ≥1 คน
+export async function getVulnerableHouseholdMarkers(): Promise<HouseholdMapMarker[]> {
+  const db = getDb()
+  const houseRows = await db.select().from(households)
+  if (houseRows.length === 0) return []
+
+  const memberRows = await db
+    .select()
+    .from(householdMembers)
+    .where(inArray(householdMembers.householdId, houseRows.map((h) => h.id)))
+
+  const membersByHouse = new Map<string, MemberRow[]>()
+  for (const m of memberRows) {
+    if (!m.householdId) continue // query กรองเฉพาะ member ที่ผูกครัวเรือนอยู่แล้ว
+    const arr = membersByHouse.get(m.householdId) ?? []
+    arr.push(m)
+    membersByHouse.set(m.householdId, arr)
+  }
+
+  const markers: HouseholdMapMarker[] = []
+  for (const h of houseRows) {
+    if (h.lat == null || h.lng == null) continue
+    const mem = (membersByHouse.get(h.id) ?? []).slice().sort((a, b) => {
+      if (a.isHead !== b.isHead) return a.isHead ? -1 : 1
+      return (b.age ?? 0) - (a.age ?? 0)
+    })
+    const members: HouseholdMapMember[] = mem.map((m) => {
+      const group = classifyGroup(m.age, m.isDisabled, m.isChronic)
+      return {
+        name: `${m.prefix ?? ''}${m.firstName}${m.lastName ? ' ' + m.lastName : ''}`.trim(),
+        age: m.age ?? 0,
+        sex: m.sex === 'ชาย' ? 'ชาย' : m.sex === 'หญิง' ? 'หญิง' : '-',
+        position: m.isHead ? 'หัวหน้าครัวเรือน' : (m.familyPosition ?? 'สมาชิก'),
+        group,
+        isHead: m.isHead,
+        isVulnerable: group !== 'ทั่วไป',
+        phone: m.phone || null,
+      }
+    })
+    const vulnerableCount = members.filter((x) => x.isVulnerable).length
+    if (vulnerableCount === 0) continue
+    markers.push({
+      id: h.id,
+      hno: h.hno ?? '-',
+      village: h.villageName ?? '-',
+      villno: h.villno ?? '',
+      tambon: h.tambon ?? null,
+      amphoe: h.amphoe ?? null,
+      province: h.province ?? null,
+      lat: Number(h.lat),
+      lng: Number(h.lng),
+      vulnerableCount,
+      members,
+    })
+  }
+  return markers
 }

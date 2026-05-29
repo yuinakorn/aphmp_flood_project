@@ -12,10 +12,10 @@ const meta: Record<
     tone: string
   }
 > = {
-  hospital: { icon: Hospital, label: 'โรงพยาบาล', tone: 'var(--risk-safe)' },
-  clinic: { icon: Stethoscope, label: 'รพ.สต.', tone: 'var(--risk-safe)' },
-  shelter: { icon: Tent, label: 'ศูนย์อพยพ', tone: 'var(--accent)' },
-  assembly: { icon: Flag, label: 'จุดรวมพล', tone: 'var(--accent)' },
+  hospital: { icon: Hospital, label: 'โรงพยาบาล', tone: 'var(--infra-medical)' },
+  clinic: { icon: Stethoscope, label: 'รพ.สต.', tone: 'var(--infra-medical)' },
+  shelter: { icon: Tent, label: 'ศูนย์อพยพ', tone: 'var(--infra-shelter)' },
+  assembly: { icon: Flag, label: 'จุดรวมพล', tone: 'var(--infra-shelter)' },
 }
 
 export default function InfraPage() {

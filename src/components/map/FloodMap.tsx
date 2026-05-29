@@ -18,6 +18,7 @@ import type {
   LayerState,
   UserFloodMark,
   VulnerablePerson,
+  VulnerableHouseholdMarker,
   Infrastructure,
   RiskLevel,
   GistdaLayerKey,
@@ -33,18 +34,11 @@ const RISK_COLOR: Record<RiskLevel, string> = {
   safe: 'oklch(0.74 0.10 145)',
 }
 
-const TYPE_COLOR: Record<string, string> = {
-  bedridden: 'oklch(0.66 0.20 30)',
-  elderly: 'oklch(0.78 0.16 75)',
-  disabled: 'oklch(0.62 0.18 305)',
-  pregnant: 'oklch(0.72 0.14 350)',
-}
-
 const INFRA_COLOR: Record<string, string> = {
-  hospital: 'oklch(0.74 0.10 145)',
-  clinic: 'oklch(0.74 0.10 145)',
-  shelter: 'oklch(0.68 0.15 230)',
-  assembly: 'oklch(0.68 0.15 230)',
+  hospital: 'var(--infra-medical)',
+  clinic: 'var(--infra-medical)',
+  shelter: 'var(--infra-shelter)',
+  assembly: 'var(--infra-shelter)',
 }
 
 const INFRA_LABEL: Record<string, string> = {
@@ -63,50 +57,121 @@ const INFRA_SVG: Record<string, string> = {
   assembly: `<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/>`,
 }
 
-const VULN_SVG: Record<string, string> = {
-  bedridden: `<path d="M2 4v16"/><path d="M2 8h18a2 2 0 0 1 2 2v10"/><path d="M2 17h20"/><path d="M6 8v9"/>`,
-  elderly: `<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>`,
-  disabled: `<circle cx="13" cy="3" r="2"/><path d="M13 6v5l3 3"/><path d="M10 21a5 5 0 0 1 10 0"/><path d="M10 12l-1 4h7l1 3"/>`,
-  pregnant: `<path d="M9 12h.01"/><path d="M15 12h.01"/><path d="M10 16c.5.3 1.2.5 2 .5s1.5-.2 2-.5"/><path d="M19 6.3a9 9 0 0 1 1.8 3.9 2 2 0 0 1 0 3.6 9 9 0 0 1-17.6 0 2 2 0 0 1 0-3.6A9 9 0 0 1 12 3c2 0 3.5 1.1 3.5 2.5s-.9 2.5-2 2.5c-.8 0-1.5-.4-1.5-1"/>`,
+const GROUP_COLOR: Record<string, string> = {
+  'ผู้สูงอายุ': 'oklch(0.78 0.16 75)',
+  'เด็กเล็ก': 'oklch(0.72 0.14 350)',
+  'ผู้พิการ': 'oklch(0.62 0.18 305)',
+  'โรคเรื้อรัง': 'oklch(0.66 0.20 30)',
+  'ทั่วไป': 'var(--fg-subtle)',
 }
 
-function vulnMarkerHtml(type: string, risk: RiskLevel): string {
-  const tone = TYPE_COLOR[type] ?? 'var(--fg-muted)'
+// หมุดบ้าน — แสดง badge จำนวนกลุ่มเปราะบางในบ้าน
+function houseMarkerHtml(vulnerableCount: number, risk: RiskLevel): string {
   const ringColor = RISK_COLOR[risk] ?? 'var(--border)'
-  const svg = VULN_SVG[type] ?? VULN_SVG.elderly
   return `
-    <div style="
-      width:28px;height:28px;
-      display:flex;align-items:center;justify-content:center;
-      border-radius:50%;
-      background:color-mix(in oklch, ${tone} 20%, var(--bg-elevated));
-      border:2.5px solid ${ringColor};
-      box-shadow:0 2px 6px oklch(0 0 0 / 0.45);
-      color:${tone};
-    ">
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="14" height="14" viewBox="0 0 24 24"
-        fill="none" stroke="currentColor"
-        stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-      >${svg}</svg>
+    <div style="position:relative;width:30px;height:30px">
+      <div style="
+        width:30px;height:30px;
+        display:flex;align-items:center;justify-content:center;
+        border-radius:8px;
+        background:color-mix(in oklch, ${ringColor} 22%, var(--bg-elevated));
+        border:2.5px solid ${ringColor};
+        box-shadow:0 2px 6px oklch(0 0 0 / 0.45);
+        color:${ringColor};
+      ">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+          fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 9.5 12 3l9 6.5"/><path d="M5 10v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V10"/>
+        </svg>
+      </div>
+      <div style="
+        position:absolute;top:-7px;right:-7px;min-width:17px;height:17px;padding:0 4px;
+        display:flex;align-items:center;justify-content:center;
+        border-radius:9px;background:${ringColor};color:var(--bg);
+        font-family:var(--font-mono);font-size:10px;font-weight:700;line-height:1;
+        border:1.5px solid var(--bg-elevated);
+      ">${vulnerableCount}</div>
     </div>
   `
 }
 
+function householdPopupHtml(h: VulnerableHouseholdMarker, risk: RiskLevel): string {
+  const riskLabel: Record<RiskLevel, string> = {
+    flood: 'ในเขตน้ำท่วม',
+    near: 'ใกล้เขตน้ำท่วม',
+    safe: 'นอกเขตน้ำท่วม',
+  }
+  const ringColor = RISK_COLOR[risk]
+  const villageLabel = h.village && !h.village.startsWith('บ้าน') ? `บ้าน${h.village}` : h.village
+  const address = [villageLabel || null, h.villno ? `หมู่ ${h.villno}` : null, h.tambon, h.amphoe, h.province]
+    .filter(Boolean)
+    .join(' · ')
+
+  const phoneCell = (phone?: string | null) =>
+    phone
+      ? `<a href="tel:${escapeHtml(phone.replace(/[^0-9+]/g, ''))}" style="font-family:var(--font-mono);font-size:11.5px;color:var(--accent);text-decoration:none;white-space:nowrap">${escapeHtml(phone)}</a>`
+      : '<span style="color:var(--fg-subtle)">-</span>'
+
+  const headTag = (isHead?: boolean) =>
+    isHead ? ' <span style="font-size:9px;color:var(--fg-subtle)">(หัวหน้าครัวเรือน)</span>' : ''
+
+  // คนเปราะบาง → ชื่อ + ความสัมพันธ์·อายุ + badge กลุ่ม
+  const vulnRow = (m: VulnerableHouseholdMarker['members'][number]) => {
+    const gColor = GROUP_COLOR[m.group] ?? 'var(--fg-subtle)'
+    const name = m.name ? escapeHtml(m.name) : 'สมาชิก'
+    const meta = [m.position, m.age != null ? `${m.age} ปี` : null].filter(Boolean).join(' · ')
+    return `<div style="display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:6px 0;border-left:2.5px solid ${gColor};padding-left:8px">
+      <div>
+        <div style="font-size:12.5px;font-weight:600;color:var(--fg)">${name}${headTag(m.isHead)}</div>
+        ${meta ? `<div style="font-size:10.5px;color:var(--fg-subtle)">${escapeHtml(meta)}</div>` : ''}
+        <span style="display:inline-block;margin-top:2px;padding:1px 6px;border-radius:4px;font-size:9.5px;background:color-mix(in oklch, ${gColor} 18%, transparent);color:${gColor}">${m.group}</span>
+      </div>
+      <div style="align-self:center">${phoneCell(m.phone)}</div>
+    </div>`
+  }
+
+  // คนทั่วไป → แค่ เพศ·อายุ (ไม่มีชื่อ) + เบอร์
+  const otherRow = (m: VulnerableHouseholdMarker['members'][number]) => {
+    const sexAge = [m.sex && m.sex !== '-' ? m.sex : null, m.age != null ? `${m.age} ปี` : null]
+      .filter(Boolean)
+      .join(' · ') || 'สมาชิก'
+    return `<div style="display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:6px 0;border-left:2.5px solid var(--border);padding-left:8px">
+      <div style="font-size:12.5px;font-weight:500;color:var(--fg);align-self:center">${escapeHtml(sexAge)}${headTag(m.isHead)}</div>
+      <div style="align-self:center">${phoneCell(m.phone)}</div>
+    </div>`
+  }
+
+  const vulnMembers = h.members.filter((m) => m.isVulnerable)
+  const otherMembers = h.members.filter((m) => !m.isVulnerable)
+
+  const sectionLabel = (text: string) =>
+    `<div style="font-size:10px;letter-spacing:0.06em;text-transform:uppercase;color:var(--fg-subtle);margin:2px 0">${text}</div>`
+
+  const vulnSection = vulnMembers.length
+    ? `${sectionLabel(`กลุ่มเปราะบาง (${vulnMembers.length})`)}<div style="margin-bottom:8px">${vulnMembers.map(vulnRow).join('')}</div>`
+    : ''
+  const otherSection = otherMembers.length
+    ? `${sectionLabel(`สมาชิกอื่นในบ้าน (${otherMembers.length})`)}<div style="margin-bottom:8px">${otherMembers.map(otherRow).join('')}</div>`
+    : ''
+
+  return `<div style="min-width:260px;max-width:300px">
+    <div style="font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--fg-subtle);margin-bottom:2px">ครัวเรือน${h.hno ? ` · บ้านเลขที่ ${escapeHtml(h.hno)}` : ''}</div>
+    <div style="font-size:13px;font-weight:600;color:var(--fg);margin-bottom:6px;line-height:1.35">${escapeHtml(address || '-')}</div>
+    <div style="display:flex;gap:6px;align-items:center;padding:5px 8px;border-radius:6px;background:color-mix(in oklch, ${ringColor} 14%, transparent);color:${ringColor};font-size:11px;font-weight:500;margin-bottom:8px">
+      <span style="width:6px;height:6px;border-radius:50%;background:${ringColor}"></span>
+      ${riskLabel[risk]} · สมาชิก ${h.members.length} คน
+    </div>
+    <div style="max-height:240px;overflow-y:auto;margin-bottom:8px">${vulnSection}${otherSection}</div>
+    <button id="evac-${h.id}" style="width:100%;padding:7px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--fg);font-size:11.5px;font-family:var(--font-sans);cursor:pointer">
+      แสดงเส้นทางอพยพ →
+    </button>
+  </div>`
+}
+
 function infraMarkerHtml(type: string): string {
-  const tone = INFRA_COLOR[type] ?? 'var(--accent)'
   const svg = INFRA_SVG[type] ?? ''
   return `
-    <div style="
-      width:28px;height:28px;
-      display:flex;align-items:center;justify-content:center;
-      border-radius:6px;
-      background:color-mix(in oklch, ${tone} 18%, var(--bg-elevated));
-      border:1.5px solid ${tone};
-      box-shadow:0 2px 6px oklch(0 0 0 / 0.45);
-      color:${tone};
-    ">
+    <div class="infra-marker-icon infra-marker-icon-${type}">
       <svg
         xmlns="http://www.w3.org/2000/svg"
         width="15" height="15" viewBox="0 0 24 24"
@@ -133,11 +198,11 @@ const TILE_URLS: Record<BasemapType, string | string[]> = {
 
 interface Props {
   layers: LayerState
-  vulnerable: VulnerablePerson[]
+  households: VulnerableHouseholdMarker[]
   infra: Infrastructure[]
   basemap: BasemapType
   floodMarkProvince: string | null
-  focusPersonId?: number | null
+  focusHouseholdId?: string | null
   userFloodMarks?: UserFloodMark[]
   pinMode?: boolean
   onPinPlace?: (lat: number, lng: number) => void
@@ -147,16 +212,16 @@ interface Props {
   sessionRole?: string | null
   onDeleteMark?: (id: string) => void
   onMapReady?: (map: LeafletMap) => void
-  onRequestRoute?: (personId: number) => void
+  onRequestHouseRoute?: (lat: number, lng: number, label: string) => void
 }
 
 export function FloodMap({
   layers,
-  vulnerable,
+  households,
   infra,
   basemap,
   floodMarkProvince,
-  focusPersonId,
+  focusHouseholdId,
   userFloodMarks = [],
   pinMode = false,
   onPinPlace,
@@ -166,7 +231,7 @@ export function FloodMap({
   sessionRole = null,
   onDeleteMark,
   onMapReady,
-  onRequestRoute,
+  onRequestHouseRoute,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<LeafletMap | null>(null)
@@ -174,7 +239,7 @@ export function FloodMap({
   const vulnGroupRef = useRef<LayerGroup | null>(null)
   const infraGroupRef = useRef<LayerGroup | null>(null)
   const routeGroupRef = useRef<LayerGroup | null>(null)
-  const markerMapRef = useRef<Map<number, import('leaflet').Marker>>(new Map())
+  const markerMapRef = useRef<Map<string, import('leaflet').Marker>>(new Map())
   const gistdaRefs = useRef<Partial<Record<GistdaLayerKey, TileLayer>>>({})
   const floodMarkGroupRefs = useRef<Partial<Record<FloodMarkLevel, LayerGroup>>>({})
   const floodMarkCacheRef = useRef<Partial<Record<FloodMarkLevel, FloodMark[]>>>({})
@@ -262,7 +327,7 @@ export function FloodMap({
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Vulnerable markers (vector circleMarker, not div-icon)
+  // หมุดบ้าน — 1 หมุด/ครัวเรือนที่มีกลุ่มเปราะบาง popup แสดงสมาชิกทุกคน + เบอร์
   useEffect(() => {
     if (!mapReady || !vulnGroupRef.current) return
       ; (async () => {
@@ -271,52 +336,29 @@ export function FloodMap({
         vg.clearLayers()
         markerMapRef.current.clear()
 
-        vulnerable.forEach((p) => {
-          const risk: RiskLevel = (p.risk ?? 'safe') as RiskLevel
-          const ringColor = RISK_COLOR[risk]
+        households.forEach((h) => {
+          const risk: RiskLevel = (h.risk ?? 'safe') as RiskLevel
 
           const icon = L.divIcon({
-            className: 'vuln-marker',
-            html: vulnMarkerHtml(p.type, risk),
-            iconSize: [28, 28],
-            iconAnchor: [14, 14],
+            className: 'house-marker',
+            html: houseMarkerHtml(h.vulnerableCount, risk),
+            iconSize: [30, 30],
+            iconAnchor: [15, 15],
           })
 
-          const marker = L.marker([p.lat, p.lng], { icon })
-          markerMapRef.current.set(p.id, marker)
-
-          const riskLabel: Record<RiskLevel, string> = {
-            flood: 'ในเขตน้ำท่วม',
-            near: 'ใกล้เขต',
-            safe: 'ปลอดภัย',
-          }
-
-          marker.bindPopup(
-            `<div style="min-width:200px">
-            <div style="font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--fg-subtle);margin-bottom:4px">${p.label}</div>
-            <div style="font-size:14px;font-weight:600;color:var(--fg);margin-bottom:8px">${p.name}</div>
-            <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12px;margin-bottom:10px">
-              ${p.age !== undefined ? `<span style="color:var(--fg-subtle)">อายุ</span><span style="font-family:var(--font-mono)">${p.age} ปี</span>` : ''}
-              ${p.cond !== undefined ? `<span style="color:var(--fg-subtle)">ภาวะ</span><span>${p.cond}</span>` : ''}
-              <span style="color:var(--fg-subtle)">ที่อยู่</span><span>${p.fullAddress || p.vil}</span>
-              ${p.eq ? `<span style="color:var(--fg-subtle)">อุปกรณ์</span><span>${p.eq}</span>` : ''}
-            </div>
-            <div style="display:flex;gap:6px;align-items:center;padding:5px 8px;border-radius:6px;background:color-mix(in oklch, ${ringColor} 14%, transparent);color:${ringColor};font-size:11px;font-weight:500;margin-bottom:8px">
-              <span style="width:6px;height:6px;border-radius:50%;background:${ringColor}"></span>
-              ${riskLabel[risk]}
-            </div>
-            <button id="evac-${p.id}" style="width:100%;padding:7px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--fg);font-size:11.5px;font-family:var(--font-sans);cursor:pointer">
-              แสดงเส้นทางอพยพ →
-            </button>
-          </div>`,
-          )
+          const marker = L.marker([h.lat, h.lng], { icon })
+          markerMapRef.current.set(h.id, marker)
+          marker.bindPopup(householdPopupHtml(h, risk), { maxWidth: 320 })
 
           marker.on('popupopen', () => {
             setTimeout(() => {
-              const btn = document.getElementById(`evac-${p.id}`)
+              const btn = document.getElementById(`evac-${h.id}`)
               btn?.addEventListener(
                 'click',
-                () => onRequestRoute?.(p.id),
+                () => {
+                  const label = h.hno ? `บ้านเลขที่ ${h.hno}` : `บ้าน${h.village}`
+                  onRequestHouseRoute?.(h.lat, h.lng, label)
+                },
                 { once: true },
               )
             }, 0)
@@ -325,17 +367,17 @@ export function FloodMap({
           vg.addLayer(marker)
         })
       })()
-  }, [mapReady, vulnerable, onRequestRoute])
+  }, [mapReady, households, onRequestHouseRoute])
 
-  // Open popup for a specific person when focusPersonId changes
+  // เปิด popup ของบ้านเมื่อ focusHouseholdId เปลี่ยน
   useEffect(() => {
-    if (focusPersonId == null || !mapReady) return
+    if (focusHouseholdId == null || !mapReady) return
     const map = mapRef.current
-    const marker = markerMapRef.current.get(focusPersonId)
+    const marker = markerMapRef.current.get(focusHouseholdId)
     if (!map || !marker) return
     map.closePopup()
     map.once('moveend', () => marker.openPopup())
-  }, [focusPersonId, mapReady])
+  }, [focusHouseholdId, mapReady])
 
   // Infra markers (vector squares using divIcon, no emoji)
   useEffect(() => {

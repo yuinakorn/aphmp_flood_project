@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { asc } from 'drizzle-orm'
+import { and, asc, isNotNull, isNull } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 import { getDb } from '@/lib/db'
 import { classifyRisk } from '@/lib/geo'
 import { canWriteFieldData, composeName, forbidden, numberFromDb, parseBbox, unauthorized } from '@/lib/field-api'
-import { vulnerablePersons } from '@/db/schema'
+import { householdMembers } from '@/db/schema'
 import type { FollowUpStatus, MedicalPriority, RiskLevel } from '@/types'
 import floodPointsData from '../../../../../public/data/flood-points.json'
 
@@ -37,8 +37,9 @@ export async function GET(req: NextRequest) {
   const db = getDb()
   const rows = await db
     .select()
-    .from(vulnerablePersons)
-    .orderBy(asc(vulnerablePersons.createdAt))
+    .from(householdMembers)
+    .where(and(isNotNull(householdMembers.type), isNull(householdMembers.deletedAt)))
+    .orderBy(asc(householdMembers.createdAt))
 
   const tasks = rows
     .map((p) => {
@@ -59,8 +60,8 @@ export async function GET(req: NextRequest) {
         lat,
         lng,
         risk,
-        medicalPriority: p.medicalPriority as MedicalPriority,
-        followUpStatus: p.followUpStatus as FollowUpStatus,
+        medicalPriority: (p.medicalPriority ?? 'C') as MedicalPriority,
+        followUpStatus: (p.followUpStatus ?? 'pending') as FollowUpStatus,
         careUnit: p.careUnit,
         caregiverPhone: p.caregiverPhone,
         lastContactedAt: p.lastContactedAt?.toISOString() ?? null,

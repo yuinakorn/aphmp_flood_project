@@ -30,7 +30,7 @@ function medicalPriority(type: string, equipment?: string) {
 
 async function main() {
   const { getDb } = await import('@/lib/db')
-  const { floodPoints, floodPolygons, vulnerablePersons, infrastructures } =
+  const { floodPoints, floodPolygons, householdMembers, infrastructures } =
     await import('./schema')
   const db = getDb()
 
@@ -79,8 +79,8 @@ async function main() {
     consent: true,
     }
   })
-  await db.insert(vulnerablePersons).values(vulnRows).onConflictDoNothing()
-  console.log(`Inserted ${vulnRows.length} vulnerable persons`)
+  await db.insert(householdMembers).values(vulnRows).onConflictDoNothing()
+  console.log(`Inserted ${vulnRows.length} vulnerable persons (household_members)`)
 
   // --- Infra ---
   const infra = await import('../../public/data/infrastructure.json', { assert: { type: 'json' } })

@@ -41,6 +41,24 @@ export type HelpRequestStatus =
   | 'resolved'
   | 'cancelled'
 export type ShelterReadinessStatus = 'open' | 'near_capacity' | 'full' | 'closed' | 'unsafe'
+export type IncidentType = 'flood' | 'storm' | 'other'
+export type IncidentStatus = 'active' | 'monitoring' | 'closed'
+
+export interface Incident {
+  id: string
+  name: string
+  type: IncidentType
+  status: IncidentStatus
+  province?: string | null
+  amphoe?: string | null
+  tambon?: string | null
+  description?: string | null
+  startedAt: string
+  endedAt?: string | null
+  createdBy?: string | null
+  createdAt?: string | null
+  updatedAt?: string | null
+}
 
 export interface FloodPoint {
   lat: number
@@ -73,6 +91,34 @@ export interface VulnerablePerson {
   lastKnownStatus?: string
 }
 
+export interface HouseholdMapMember {
+  name?: string
+  age?: number
+  sex?: 'ชาย' | 'หญิง' | '-'
+  position?: string
+  group: 'ผู้สูงอายุ' | 'เด็กเล็ก' | 'ผู้พิการ' | 'โรคเรื้อรัง' | 'ทั่วไป'
+  isHead?: boolean
+  isVulnerable: boolean
+  phone?: string | null
+}
+
+// หมุด "บ้าน" บนแผนที่ — popup แสดงสมาชิกทุกคน + เบอร์ (ฟิลด์ส่วนตัวอาจหายไปตาม PDPA role)
+export interface VulnerableHouseholdMarker {
+  id: string
+  hno?: string
+  village: string
+  villno: string
+  tambon?: string | null
+  amphoe?: string | null
+  province?: string | null
+  lat: number
+  lng: number
+  vulnerableCount: number
+  memberCount?: number
+  risk?: RiskLevel
+  members: HouseholdMapMember[]
+}
+
 export interface Infrastructure {
   id?: number
   name: string
@@ -94,7 +140,8 @@ export interface Infrastructure {
 
 export interface HealthVisit {
   id: string
-  vulnerablePersonId?: string
+  incidentId?: string | null
+  memberId?: string
   visitedBy?: string
   visitStatus: VisitStatus
   personStatus?: PersonFieldStatus
@@ -109,7 +156,8 @@ export interface HealthVisit {
 
 export interface HelpRequest {
   id: string
-  vulnerablePersonId?: string
+  incidentId?: string | null
+  memberId?: string
   requestedBy?: string
   sourceRole: UserRole | 'public'
   requestType: HelpRequestType
@@ -150,7 +198,7 @@ export interface ShelterStatusSnapshot {
 export interface ShelterAdmission {
   id: string
   shelterId: string
-  vulnerablePersonId?: string
+  memberId?: string
   helpRequestId?: string
   admittedBy?: string
   status: 'admitted' | 'transferred' | 'discharged' | 'cancelled'

@@ -15,7 +15,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { and, eq, inArray, isNull, notInArray, sql } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
-import { vulnerablePersons } from '@/db/schema'
+import { householdMembers } from '@/db/schema'
 import { authenticateUnit, extractBearerKey } from '@/lib/unit-auth'
 import { badRequest } from '@/lib/field-api'
 
@@ -190,19 +190,19 @@ export async function POST(req: NextRequest) {
 
     // conflict target: (source_system, source_unit, source_id)
     const result = await db
-      .insert(vulnerablePersons)
+      .insert(householdMembers)
       .values({ ...values, followUpStatus: 'pending' })
       .onConflictDoUpdate({
         target: [
-          vulnerablePersons.sourceSystem,
-          vulnerablePersons.sourceUnit,
-          vulnerablePersons.sourceId,
+          householdMembers.sourceSystem,
+          householdMembers.sourceUnit,
+          householdMembers.sourceId,
         ],
         set: values,
         // เพิ่ม where เพื่อนับว่าเป็น update หรือ insert
-        setWhere: sql`${vulnerablePersons.sourceSyncedAt} IS DISTINCT FROM ${now}`,
+        setWhere: sql`${householdMembers.sourceSyncedAt} IS DISTINCT FROM ${now}`,
       })
-      .returning({ id: vulnerablePersons.id, createdAt: vulnerablePersons.createdAt })
+      .returning({ id: householdMembers.id, createdAt: householdMembers.createdAt })
 
     if (result.length > 0) {
       const isNew = result[0].createdAt?.getTime() === now.getTime()
@@ -217,17 +217,17 @@ export async function POST(req: NextRequest) {
   let deleted = 0
   if (deleteMissing && upsertedSourceIds.length > 0) {
     const deleteResult = await db
-      .update(vulnerablePersons)
+      .update(householdMembers)
       .set({ deletedAt: now, updatedAt: now })
       .where(
         and(
-          eq(vulnerablePersons.sourceSystem, sourceSystem),
-          eq(vulnerablePersons.sourceUnit, unit.unitCode),
-          isNull(vulnerablePersons.deletedAt),
-          notInArray(vulnerablePersons.sourceId, upsertedSourceIds),
+          eq(householdMembers.sourceSystem, sourceSystem),
+          eq(householdMembers.sourceUnit, unit.unitCode),
+          isNull(householdMembers.deletedAt),
+          notInArray(householdMembers.sourceId, upsertedSourceIds),
         ),
       )
-      .returning({ id: vulnerablePersons.id })
+      .returning({ id: householdMembers.id })
 
     deleted = deleteResult.length
   }

@@ -5,8 +5,8 @@ import { classifyFloodLevel } from '@/lib/geo'
 import { classifyAlert } from '@/lib/water-level'
 import { loadStationThresholds } from '@/lib/station-db'
 import type { AlertLevel } from '@/lib/water-level'
-import { vulnerablePersons } from '@/db/schema'
-import { isNull, sql } from 'drizzle-orm'
+import { householdMembers } from '@/db/schema'
+import { and, isNotNull, isNull, sql } from 'drizzle-orm'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -86,9 +86,9 @@ export async function GET() {
   try {
     const db = getDb()
     const rows = await db
-      .select({ lat: vulnerablePersons.lat, lng: vulnerablePersons.lng })
-      .from(vulnerablePersons)
-      .where(isNull(vulnerablePersons.deletedAt))
+      .select({ lat: householdMembers.lat, lng: householdMembers.lng })
+      .from(householdMembers)
+      .where(and(isNotNull(householdMembers.type), isNull(householdMembers.deletedAt)))
 
     for (const row of rows) {
       const lat = Number(row.lat)

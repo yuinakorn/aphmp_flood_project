@@ -18,7 +18,7 @@ import {
   sessionUserId,
   unauthorized,
 } from '@/lib/field-api'
-import { accessLog, vulnerablePersons } from '@/db/schema'
+import { accessLog, householdMembers } from '@/db/schema'
 import type { UserRole } from '@/types'
 import floodPointsData from '../../../../../public/data/flood-points.json'
 
@@ -50,8 +50,8 @@ export async function GET(
   const db = getDb()
   const [p] = await db
     .select()
-    .from(vulnerablePersons)
-    .where(eq(vulnerablePersons.id, id))
+    .from(householdMembers)
+    .where(eq(householdMembers.id, id))
     .limit(1)
 
   if (!p || p.deletedAt) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -145,7 +145,7 @@ export async function PATCH(
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null
   if (!body) return badRequest('Invalid JSON body')
 
-  const patch: Partial<typeof vulnerablePersons.$inferInsert> = {
+  const patch: Partial<typeof householdMembers.$inferInsert> = {
     updatedAt: new Date(),
   }
 
@@ -185,9 +185,9 @@ export async function PATCH(
 
   const db = getDb()
   const [updated] = await db
-    .update(vulnerablePersons)
+    .update(householdMembers)
     .set(patch)
-    .where(eq(vulnerablePersons.id, id))
+    .where(eq(householdMembers.id, id))
     .returning()
 
   if (!updated) return NextResponse.json({ error: 'Not found' }, { status: 404 })

@@ -11,7 +11,8 @@ import {
   sessionUserId,
   unauthorized,
 } from '@/lib/field-api'
-import { healthVisits, vulnerablePersons } from '@/db/schema'
+import { resolveIncidentId } from '@/lib/incident'
+import { healthVisits, householdMembers } from '@/db/schema'
 import type { FollowUpStatus, UserRole } from '@/types'
 
 const VISIT_STATUSES = new Set(['pending', 'completed', 'unreachable', 'needs_follow_up'])
@@ -55,12 +56,12 @@ export async function GET(req: NextRequest) {
       // ไม่ใช่ UUID — ลอง resolve จาก sourceId
       if (!sourceSystem) return badRequest('sourceSystem is required when personId is a sourceId (non-UUID)')
       const [found] = await db
-        .select({ id: vulnerablePersons.id })
-        .from(vulnerablePersons)
+        .select({ id: householdMembers.id })
+        .from(householdMembers)
         .where(
           and(
-            eq(vulnerablePersons.sourceId, personIdParam),
-            eq(vulnerablePersons.sourceSystem, sourceSystem),
+            eq(householdMembers.sourceId, personIdParam),
+            eq(householdMembers.sourceSystem, sourceSystem),
           ),
         )
         .limit(1)
@@ -69,17 +70,26 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  const incidentIdParam = searchParams.get('incidentId')
+  if (incidentIdParam && !isUuid(incidentIdParam)) return badRequest('incidentId must be a UUID')
+
+  const filters = [
+    resolvedPersonId ? eq(healthVisits.memberId, resolvedPersonId) : undefined,
+    incidentIdParam ? eq(healthVisits.incidentId, incidentIdParam) : undefined,
+  ].filter(Boolean)
+
   const rows = await db
     .select()
     .from(healthVisits)
-    .where(resolvedPersonId ? eq(healthVisits.vulnerablePersonId, resolvedPersonId) : undefined)
+    .where(filters.length ? and(...filters) : undefined)
     .orderBy(desc(healthVisits.observedAt))
     .limit(limit)
 
   return NextResponse.json({
     data: rows.map((v) => ({
       id: v.id,
-      vulnerablePersonId: v.vulnerablePersonId,
+      incidentId: v.incidentId,
+      memberId: v.memberId,
       visitedBy: v.visitedBy,
       visitStatus: v.visitStatus,
       personStatus: v.personStatus,
@@ -108,9 +118,9 @@ export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null
   if (!body) return badRequest('Invalid JSON body')
 
-  const vulnerablePersonId = body.vulnerablePersonId
-  if (vulnerablePersonId !== undefined && !isUuid(vulnerablePersonId)) {
-    return badRequest('vulnerablePersonId must be a UUID')
+  const memberId = body.memberId
+  if (memberId !== undefined && !isUuid(memberId)) {
+    return badRequest('memberId must be a UUID')
   }
 
   const visitStatus = typeof body.visitStatus === 'string' ? body.visitStatus : 'completed'
@@ -125,11 +135,16 @@ export async function POST(req: NextRequest) {
   if (lng !== null && !Number.isFinite(lng)) return badRequest('lng must be a number')
 
   const db = getDb()
+
+  const incident = await resolveIncidentId(body.incidentId, db)
+  if (!incident.ok) return badRequest(incident.error)
+
   const observedAt = isoOrNow(body.observedAt)
   const [created] = await db
     .insert(healthVisits)
     .values({
-      vulnerablePersonId: vulnerablePersonId ?? null,
+      incidentId: incident.incidentId,
+      memberId: memberId ?? null,
       visitedBy: sessionUserId(session),
       visitStatus,
       personStatus: personStatus ?? null,
@@ -143,16 +158,16 @@ export async function POST(req: NextRequest) {
     })
     .returning()
 
-  if (vulnerablePersonId) {
+  if (memberId) {
     await db
-      .update(vulnerablePersons)
+      .update(householdMembers)
       .set({
         followUpStatus: followUpStatusFromVisit(body),
         lastVisitedAt: observedAt,
         lastKnownStatus: personStatus ?? visitStatus,
         updatedAt: new Date(),
       })
-      .where(eq(vulnerablePersons.id, vulnerablePersonId))
+      .where(eq(householdMembers.id, memberId))
   }
 
   return NextResponse.json({ data: created }, { status: 201 })

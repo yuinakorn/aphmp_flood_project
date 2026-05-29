@@ -9,6 +9,7 @@ import {
   Users,
   Building2,
   Droplets,
+  AlertTriangle,
 } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
@@ -104,7 +105,15 @@ export function Masthead({ session }: Props) {
               </DropdownMenuItem>
               
               <DropdownMenuSeparator className="my-1 border-t border-[var(--border)]" />
-              
+
+              <DropdownMenuItem
+                render={<Link href="/admin/incidents" />}
+                className="gap-2 px-2.5 py-2 text-[12.5px] cursor-pointer"
+              >
+                <AlertTriangle className="size-4 shrink-0 opacity-70" />
+                <span>เหตุการณ์ภัยพิบัติ</span>
+              </DropdownMenuItem>
+
               <DropdownMenuItem
                 render={<Link href="/admin/family-folder" />}
                 className="gap-2 px-2.5 py-2 text-[12.5px] cursor-pointer"

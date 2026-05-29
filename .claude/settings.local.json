@@ -80,7 +80,22 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" -X POST http://localhost:3003/api/uploads)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"http://localhost:3003/api/uploads/../../package.json\")",
       "Bash(npx eslint *)",
-      "Bash(node -e \"console.log\\(require.resolve\\('@base-ui/react/dialog'\\)\\)\")"
+      "Bash(node -e \"console.log\\(require.resolve\\('@base-ui/react/dialog'\\)\\)\")",
+      "Bash(curl -s -o /dev/null http://localhost:3000)",
+      "Bash(curl -s http://localhost:3000/api/family-folder/map)",
+      "Bash(curl -s -i http://localhost:3000/api/family-folder/map)",
+      "Bash(xargs -I{} ps -o pid,etime,command -p {})",
+      "Bash(curl -s http://localhost:3003/api/family-folder/map)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('households:',len\\(d\\)\\); print\\(json.dumps\\(d[0],ensure_ascii=False,indent=2\\)[:700]\\) if d else print\\('empty'\\)\")",
+      "Bash(npx tsx -e ' *)",
+      "Bash(curl -s -o /dev/null -w \"map page: %{http_code}\\\\n\" http://localhost:3003/map)",
+      "Bash(curl -s -o /dev/null -w \"GET /api/incidents -> %{http_code}\\\\n\" http://localhost:3003/api/incidents)",
+      "Bash(curl -s -o /dev/null -w \"GET /admin/incidents -> %{http_code}\\\\n\" http://localhost:3003/admin/incidents)",
+      "Bash(kill 72132 72134)",
+      "Bash(echo \"exit=$?\")",
+      "Bash(grep -viE \"NOTICE|severity|file:|line:|routine:|code:|message:|detail:|^\\\\s*'|^}|^\\\\{|drop cascades|^\\\\s*$\")",
+      "Bash(curl -s -o /dev/null -w '%{http_code}' http://localhost:3003__TRACKED_VAR__)",
+      "Bash(curl -s \"http://localhost:3003/api/vulnerable?limit=3\")"
     ],
     "additionalDirectories": [
       "/private/tmp/s2c_extract",

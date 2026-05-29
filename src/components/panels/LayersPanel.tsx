@@ -135,7 +135,7 @@ function Swatch({ kind }: { kind: SwatchKind }) {
         <span
           aria-hidden
           className="size-3 rounded-sm"
-          style={{ background: 'var(--risk-safe)' }}
+          style={{ background: 'linear-gradient(135deg, var(--infra-medical) 0%, var(--infra-shelter) 100%)' }}
         />
       )
     case 'route':

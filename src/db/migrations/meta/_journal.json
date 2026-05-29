@@ -71,6 +71,27 @@
       "when": 1780015234205,
       "tag": "0009_lush_gateway",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1780032229492,
+      "tag": "0010_watery_betty_brant",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1780048756406,
+      "tag": "0011_round_madrox",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1780050107579,
+      "tag": "0012_natural_living_mummy",
+      "breakpoints": true
     }
   ]
 }

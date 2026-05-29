@@ -97,47 +97,6 @@ export const unitApiKeys = pgTable('unit_api_keys', {
   lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
 })
 
-// Vulnerable persons
-export const vulnerablePersons = pgTable('vulnerable_persons', {
-  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
-  prefix: text('prefix'),                  // คำนำหน้า
-  firstName: text('first_name').notNull(), // ชื่อ
-  lastName: text('last_name').notNull(),   // นามสกุล
-  type: text('type').notNull(), // bedridden | elderly | disabled | pregnant
-  label: text('label').notNull(),
-  age: smallint('age'),
-  cond: text('cond'),
-  equipment: text('equipment'),
-  village: text('village'),
-  tambon: text('tambon'),
-  amphoe: text('amphoe'),
-  province: text('province'),
-  lat: numeric('lat', { precision: 10, scale: 6 }).notNull(),
-  lng: numeric('lng', { precision: 10, scale: 6 }).notNull(),
-  caregiverPhone: text('caregiver_phone'),
-  careUnit: text('care_unit'), // รพ.สต./หน่วยบริการประจำ
-  assignedVhvId: uuid('assigned_vhv_id').references(() => users.id),
-  medicalPriority: text('medical_priority').notNull().default('C'), // A | B | C
-  followUpStatus: text('follow_up_status').notNull().default('pending'), // pending | contacted | needs_help | moved | referred | closed
-  lastContactedAt: timestamp('last_contacted_at', { withTimezone: true }),
-  lastVisitedAt: timestamp('last_visited_at', { withTimezone: true }),
-  lastKnownStatus: text('last_known_status'),
-  consent: boolean('consent').default(false),
-  // แหล่งข้อมูล — null หมายถึงกรอกเอง (manual)
-  sourceSystem: text('source_system'),     // 'jhcis' | 'hosxp' | 'manual' | 'import'
-  sourceUnit: text('source_unit'),         // pcucode ของต้นทาง
-  sourceId: text('source_id'),            // PID หรือ ID ในระบบต้นทาง
-  sourceSyncedAt: timestamp('source_synced_at', { withTimezone: true }),
-  householdId: uuid('household_id').references(() => households.id), // เชื่อมกับ family folder
-  deletedAt: timestamp('deleted_at', { withTimezone: true }), // soft delete
-  createdBy: uuid('created_by').references(() => users.id),
-  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
-}, (t) => [
-  // ป้องกัน duplicate จากแหล่งเดิม — NULL ถือว่าไม่ conflict (Postgres standard)
-  uniqueIndex('vp_source_unique_idx').on(t.sourceSystem, t.sourceUnit, t.sourceId),
-])
-
 // ───────── ที่อยู่มาตรฐาน (กรมการปกครอง DOPA) — จังหวัด → อำเภอ → ตำบล ─────────
 export const geoProvinces = pgTable('geo_provinces', {
   id: integer('id').primaryKey(),
@@ -180,14 +139,18 @@ export const households = pgTable('households', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 })
 
+// householdMembers = "คน" หนึ่งคนในระบบ (ทะเบียนประชากร + ส่วนขยายสุขภาพ/ดูแลในตารางเดียว)
+// คนที่อยู่ในทะเบียนกลุ่มเปราะบาง/ดูแล = แถวที่ `type` IS NOT NULL
+// householdId เป็น nullable — รองรับคนที่กรอกเดี่ยว (manual/ingest) โดยยังไม่ผูก family folder
 export const householdMembers = pgTable('household_members', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
-  householdId: uuid('household_id').notNull().references(() => households.id, { onDelete: 'cascade' }),
+  householdId: uuid('household_id').references(() => households.id, { onDelete: 'cascade' }),
   prefix: text('prefix'),                  // คำนำหน้า (นาย/นาง/ด.ช./ฯลฯ)
   firstName: text('first_name').notNull(), // ชื่อ
   lastName: text('last_name').notNull(),   // นามสกุล
   age: smallint('age'),
   sex: text('sex'),                  // 'ชาย' | 'หญิง' | '-'
+  phone: text('phone'),              // เบอร์ติดต่อรายบุคคล
   familyPosition: text('family_position'), // หัวหน้าครัวเรือน / คู่สมรส / บุตร ...
   isHead: boolean('is_head').notNull().default(false),
   isDisabled: boolean('is_disabled').notNull().default(false),
@@ -196,8 +159,38 @@ export const householdMembers = pgTable('household_members', {
   father: text('father'),
   mother: text('mother'),
   mate: text('mate'),
+  // ───── ส่วนขยายสุขภาพ/กลุ่มเปราะบาง (เดิมอยู่ตาราง vulnerable_persons) ─────
+  type: text('type'),                // bedridden | elderly | disabled | pregnant | other — null = ไม่อยู่ในทะเบียนดูแล
+  label: text('label'),
+  cond: text('cond'),
+  equipment: text('equipment'),
+  village: text('village'),
+  tambon: text('tambon'),
+  amphoe: text('amphoe'),
+  province: text('province'),
+  lat: numeric('lat', { precision: 10, scale: 6 }),  // พิกัดเฉพาะคน — ถ้า null ใช้พิกัดของ household
+  lng: numeric('lng', { precision: 10, scale: 6 }),
+  caregiverPhone: text('caregiver_phone'),
+  careUnit: text('care_unit'),       // รพ.สต./หน่วยบริการประจำ
+  assignedVhvId: uuid('assigned_vhv_id').references(() => users.id),
+  medicalPriority: text('medical_priority'), // A | B | C
+  followUpStatus: text('follow_up_status'),  // pending | contacted | needs_help | moved | referred | closed
+  lastContactedAt: timestamp('last_contacted_at', { withTimezone: true }),
+  lastVisitedAt: timestamp('last_visited_at', { withTimezone: true }),
+  lastKnownStatus: text('last_known_status'),
+  consent: boolean('consent').default(false),
+  sourceSystem: text('source_system'),     // 'jhcis' | 'hosxp' | 'manual' | 'import'
+  sourceUnit: text('source_unit'),
+  sourceId: text('source_id'),
+  sourceSyncedAt: timestamp('source_synced_at', { withTimezone: true }),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }), // soft delete
+  createdBy: uuid('created_by').references(() => users.id),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
-})
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+}, (t) => [
+  // ป้องกัน duplicate จากแหล่งเดิม — NULL ถือว่าไม่ conflict (Postgres standard)
+  uniqueIndex('hm_source_unique_idx').on(t.sourceSystem, t.sourceUnit, t.sourceId),
+])
 
 // Flood marks ที่ผู้ใช้ปักเอง — เผื่อจังหวัดที่ CMU Water Center ไม่มีข้อมูล
 export const userFloodMarks = pgTable('user_flood_marks', {
@@ -253,10 +246,28 @@ export const infrastructures = pgTable('infrastructures', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 })
 
+// เหตุการณ์ภัยพิบัติ (Incident) — "โหมดวิกฤต" ที่เปิดซ้อนทับทะเบียนสุขภาพ
+export const incidents = pgTable('incidents', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  name: text('name').notNull(),          // เช่น "น้ำท่วม ต.สันทราย ต.ค. 2568"
+  type: text('type').notNull().default('flood'),     // flood | storm | other
+  status: text('status').notNull().default('active'), // active | monitoring | closed
+  province: text('province'),
+  amphoe: text('amphoe'),
+  tambon: text('tambon'),
+  description: text('description'),
+  startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
+  endedAt: timestamp('ended_at', { withTimezone: true }),
+  createdBy: uuid('created_by').references(() => users.id),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+})
+
 // อสม. / field health visits
 export const healthVisits = pgTable('health_visits', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
-  vulnerablePersonId: uuid('vulnerable_person_id').references(() => vulnerablePersons.id),
+  incidentId: uuid('incident_id').references(() => incidents.id),
+  memberId: uuid('member_id').references(() => householdMembers.id),
   visitedBy: uuid('visited_by').references(() => users.id),
   visitStatus: text('visit_status').notNull().default('pending'), // pending | completed | unreachable | needs_follow_up
   personStatus: text('person_status'), // safe | needs_help | evacuated | referred | unknown
@@ -273,7 +284,8 @@ export const healthVisits = pgTable('health_visits', {
 // Help requests from VHV/field staff/EOC
 export const helpRequests = pgTable('help_requests', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
-  vulnerablePersonId: uuid('vulnerable_person_id').references(() => vulnerablePersons.id),
+  incidentId: uuid('incident_id').references(() => incidents.id),
+  memberId: uuid('member_id').references(() => householdMembers.id),
   requestedBy: uuid('requested_by').references(() => users.id),
   sourceRole: text('source_role').notNull().default('vhv'), // vhv | eoc | ems | officer | public
   requestType: text('request_type').notNull(), // medical | evacuation | supplies | rescue | shelter | other
@@ -320,7 +332,7 @@ export const shelterStatusSnapshots = pgTable('shelter_status_snapshots', {
 export const shelterAdmissions = pgTable('shelter_admissions', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
   shelterId: uuid('shelter_id').notNull().references(() => infrastructures.id),
-  vulnerablePersonId: uuid('vulnerable_person_id').references(() => vulnerablePersons.id),
+  memberId: uuid('member_id').references(() => householdMembers.id),
   helpRequestId: uuid('help_request_id').references(() => helpRequests.id),
   admittedBy: uuid('admitted_by').references(() => users.id),
   status: text('status').notNull().default('admitted'), // admitted | transferred | discharged | cancelled

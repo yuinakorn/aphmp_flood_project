@@ -4,7 +4,7 @@
  * 3 จังหวัด: เชียงใหม่ เชียงราย น่าน  (idempotent — ล้างของ mock เดิมก่อน)
  *
  * ความสอดคล้อง: สมาชิกครัวเรือนที่เป็นกลุ่มเปราะบาง (ผู้สูงอายุ/พิการ/โรคเรื้อรัง/ตั้งครรภ์)
- * จะถูกสร้างเป็น record ใน vulnerable_persons พร้อมผูก household_id กลับไปยังครัวเรือนเดียวกัน
+ * จะมีฟิลด์สุขภาพ (type/priority/อุปกรณ์ ฯลฯ) เติมในแถว household_members แถวเดียวกัน — ไม่มีตารางแยก
  */
 import { existsSync, readFileSync } from 'node:fs'
 
@@ -26,6 +26,7 @@ const rand = <T>(a: T[]): T => a[Math.floor(Math.random() * a.length)]
 const randInt = (lo: number, hi: number) => lo + Math.floor(Math.random() * (hi - lo + 1))
 const chance = (p: number) => Math.random() < p
 const jitter = (n: number, d = 0.02) => n + (Math.random() - 0.5) * 2 * d
+const thaiPhone = () => `0${rand(['8', '9', '6'])}${randInt(0, 9)}-${String(randInt(0, 999)).padStart(3, '0')}-${String(randInt(0, 9999)).padStart(4, '0')}`
 
 // ── geo config (จุดศูนย์กลาง + อำเภอ/ตำบล/หมู่บ้านจริง) ─────────────────────────
 interface Village { villcode: string; villageName: string; villno: string; amphoe: string; tambon: string; lat: number; lng: number }
@@ -182,12 +183,10 @@ function toVulnerable(m: GenMember): { type: string; label: string; priority: st
 
 async function main() {
   const { getDb } = await import('@/lib/db')
-  const { households, householdMembers, vulnerablePersons } = await import('./schema')
-  const { eq } = await import('drizzle-orm')
+  const { households, householdMembers } = await import('./schema')
   const db = getDb()
 
   // ล้างของ mock เดิม (ลำดับตาม FK)
-  await db.delete(vulnerablePersons).where(eq(vulnerablePersons.sourceSystem, 'import'))
   await db.delete(householdMembers)
   await db.delete(households)
 
@@ -218,6 +217,8 @@ async function main() {
 
         const fam = makeFamily()
         for (const m of fam) {
+          // member = คน 1 คน; ถ้าเข้าเกณฑ์กลุ่มดูแลให้ใส่ฟิลด์สุขภาพในแถวเดียวกัน (type != null)
+          const vp = toVulnerable(m)
           await db.insert(householdMembers).values({
             householdId: house.id,
             prefix: m.prefix,
@@ -225,6 +226,7 @@ async function main() {
             lastName: m.lastName,
             age: m.age,
             sex: m.sex,
+            phone: thaiPhone(),
             familyPosition: m.familyPosition,
             isHead: m.isHead,
             isDisabled: m.isDisabled,
@@ -232,39 +234,32 @@ async function main() {
             father: m.father ?? null,
             mother: m.mother ?? null,
             mate: m.mate ?? null,
+            // ── ส่วนขยายสุขภาพ (เฉพาะคนในทะเบียนดูแล) ──
+            ...(vp
+              ? {
+                  type: vp.type,
+                  label: vp.label,
+                  cond: vp.cond,
+                  equipment: vp.equipment,
+                  village: `ม.${v.villno} ${v.villageName}`,
+                  tambon: v.tambon,
+                  amphoe: v.amphoe,
+                  province: prov.province,
+                  lat: String(jitter(lat, 0.001)),
+                  lng: String(jitter(lng, 0.001)),
+                  caregiverPhone: `08${randInt(1, 9)}${String(randInt(0, 9999999)).padStart(7, '0')}`,
+                  careUnit: `รพ.สต.${v.tambon}`,
+                  medicalPriority: vp.priority,
+                  followUpStatus: 'pending',
+                  consent: chance(0.7),
+                  sourceSystem: 'import',
+                  sourceUnit: prov.abbr,
+                  sourceSyncedAt: new Date(),
+                }
+              : {}),
           })
           memberN++
-
-          // ผูกเข้าทะเบียนกลุ่มเปราะบาง (ถ้าเข้าเกณฑ์)
-          const vp = toVulnerable(m)
-          if (vp) {
-            await db.insert(vulnerablePersons).values({
-              prefix: m.prefix,
-              firstName: m.firstName,
-              lastName: m.lastName,
-              type: vp.type,
-              label: vp.label,
-              age: m.age,
-              cond: vp.cond,
-              equipment: vp.equipment,
-              village: `ม.${v.villno} ${v.villageName}`,
-              tambon: v.tambon,
-              amphoe: v.amphoe,
-              province: prov.province,
-              lat: String(jitter(lat, 0.001)),
-              lng: String(jitter(lng, 0.001)),
-              caregiverPhone: `08${randInt(1, 9)}${String(randInt(0, 9999999)).padStart(7, '0')}`,
-              careUnit: `รพ.สต.${v.tambon}`,
-              medicalPriority: vp.priority,
-              followUpStatus: 'pending',
-              consent: chance(0.7),
-              sourceSystem: 'import',
-              sourceUnit: prov.abbr,
-              householdId: house.id,
-              sourceSyncedAt: new Date(),
-            })
-            vulnN++
-          }
+          if (vp) vulnN++
         }
       }
     }

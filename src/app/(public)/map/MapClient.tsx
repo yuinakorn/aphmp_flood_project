@@ -14,6 +14,7 @@ import { TunePanel } from '@/components/panels/TunePanel'
 import { MapOverlay } from '@/components/map/MapOverlay'
 import { WaterLevelSidebar } from '@/components/map/WaterLevelSidebar'
 import { FloodAlertBanner } from '@/components/map/FloodAlertBanner'
+import { IncidentModeBanner } from '@/components/map/IncidentModeBanner'
 import { UserFloodMarkForm } from '@/components/map/UserFloodMarkForm'
 import { MapPinPlus, LocateFixed, Loader2 } from 'lucide-react'
 import { buildEvacRouteOSRM, nearestShelter } from '@/lib/geo'
@@ -33,6 +34,7 @@ import type {
   LayerState,
   UserFloodMark,
   VulnerablePerson,
+  VulnerableHouseholdMarker,
   VulnerableStats,
 } from '@/types'
 
@@ -82,6 +84,7 @@ export function MapClient({ session }: Props) {
   const [layers, setLayers] = useState<LayerState>(DEFAULT_LAYERS)
   const [activePanel, setActivePanel] = useState<RailPanel>('roster')
   const [vulnerable, setVulnerable] = useState<VulnerablePerson[]>([])
+  const [households, setHouseholds] = useState<VulnerableHouseholdMarker[]>([])
   const [infra, setInfra] = useState<Infrastructure[]>([])
   const [floodMarkProvinces, setFloodMarkProvinces] = useState<FloodMarkProvince[]>([])
   const [floodMarkProvince, setFloodMarkProvince] = useState<string | null>(null)
@@ -104,9 +107,7 @@ export function MapClient({ session }: Props) {
   const [province, setProvince] = useState<ProvinceId>('chiangmai')
   const [rosterFilter, setRosterFilter] = useState<'all' | 'flooded' | 'at_risk'>('all')
 
-  const [basemap, setBasemap] = useState<BasemapType>('topo')
-
-  const [focusPersonId, setFocusPersonId] = useState<number | null>(null)
+  const [basemap, setBasemap] = useState<BasemapType>('google')
 
   const mapRef = useRef<LeafletMap | null>(null)
   const routeGroupRef = useRef<LayerGroup | null>(null)
@@ -132,9 +133,19 @@ export function MapClient({ session }: Props) {
           console.error('Failed to load infrastructure:', e)
           return []
         }),
-    ]).then(([v, i]) => {
+      fetch('/api/family-folder/map')
+        .then((r) => {
+          if (!r.ok) throw new Error(`API error: ${r.status}`)
+          return r.json()
+        })
+        .catch((e) => {
+          console.error('Failed to load vulnerable households:', e)
+          return []
+        }),
+    ]).then(([v, i, h]) => {
       setVulnerable(Array.isArray(v) ? v : [])
       setInfra(Array.isArray(i) ? i : [])
+      setHouseholds(Array.isArray(h) ? h : [])
     })
   }, [])
 
@@ -353,7 +364,6 @@ export function MapClient({ session }: Props) {
 
   const flyTo = useCallback((person: VulnerablePerson) => {
     mapRef.current?.flyTo([person.lat, person.lng], 16, { duration: 0.6 })
-    setFocusPersonId(person.id)
   }, [])
 
   const flyToInfra = useCallback((item: Infrastructure) => {
@@ -427,6 +437,50 @@ export function MapClient({ session }: Props) {
       }
     }
   }, [vulnerable, drawRoute])
+
+  // เส้นทางอพยพจากบ้าน (พิกัดครัวเรือน) → ศูนย์อพยพ/หน่วยบริการที่ใกล้สุด
+  const drawHouseRoute = useCallback(
+    async (lat: number, lng: number, label: string) => {
+      const shelters = infra.filter(
+        (x) =>
+          x.type === 'shelter' ||
+          x.type === 'assembly' ||
+          x.type === 'hospital' ||
+          x.type === 'clinic',
+      )
+      const origin = { lat, lng, name: label } as VulnerablePerson
+      const shelter = nearestShelter(origin, shelters)
+      if (!shelter) return
+      const map = mapRef.current
+      if (!map) return
+      const L = (await import('leaflet')).default
+      if (!routeGroupRef.current) {
+        routeGroupRef.current = L.layerGroup().addTo(map)
+      }
+      const route = await buildEvacRouteOSRM(origin, shelter)
+      const durationText = route.durationMin != null ? ` · ${route.durationMin} นาที` : ''
+      const fallbackNote = route.isStraightLine
+        ? '<div style="font-size:10px;color:var(--warn);margin-top:4px">⚠ เส้นตรง (routing ขัดข้อง)</div>'
+        : ''
+      L.polyline(route.coords as [number, number][], {
+        color: 'oklch(0.66 0.20 30)',
+        weight: 3.5,
+        opacity: 0.95,
+        dashArray: route.isStraightLine ? '6, 6' : undefined,
+      })
+        .bindPopup(
+          `<div>
+            <div style="font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--fg-subtle);margin-bottom:4px">เส้นทางอพยพ</div>
+            <div style="font-size:13px;font-weight:600;margin-bottom:2px">${label}</div>
+            <div style="font-size:12px;color:var(--fg-muted);margin-bottom:6px">→ ${shelter.name}</div>
+            <div style="font-family:var(--font-mono);font-size:12px;color:var(--accent)">${route.distanceKm} กม.${durationText}</div>
+            ${fallbackNote}
+          </div>`,
+        )
+        .addTo(routeGroupRef.current)
+    },
+    [infra],
+  )
 
   const clearRoutes = useCallback(() => {
     routeGroupRef.current?.clearLayers()
@@ -507,13 +561,13 @@ export function MapClient({ session }: Props) {
 
         <div id="map-region" role="region" aria-label="แผนที่น้ำท่วม" className="relative flex-1">
           <FloodAlertBanner />
+          <IncidentModeBanner />
           <MapWrapper
             layers={layers}
-            vulnerable={vulnerable}
+            households={households}
             infra={infra}
             basemap={basemap}
             floodMarkProvince={floodMarkProvince}
-            focusPersonId={focusPersonId}
             userFloodMarks={userFloodMarks}
             pinMode={pinMode}
             onPinPlace={onPinPlace}
@@ -523,7 +577,7 @@ export function MapClient({ session }: Props) {
             sessionRole={session?.role ?? null}
             onDeleteMark={onDeleteMark}
             onMapReady={(m) => (mapRef.current = m)}
-            onRequestRoute={drawRoute}
+            onRequestHouseRoute={drawHouseRoute}
           />
           <MapOverlay />
           {canPin && (

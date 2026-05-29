@@ -236,6 +236,7 @@ export interface FloodMarkProvince {
 // Flood mark ที่ผู้ใช้ปักเอง (officer/vhv+) — เผื่อจังหวัดที่ CMU ไม่มีข้อมูล
 export interface UserFloodMark {
   id: string
+  code: string | null
   lat: number
   lng: number
   waterLevelCm: number

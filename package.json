@@ -14,7 +14,8 @@
     "db:seed": "tsx src/db/seed.ts",
     "db:seed:geo": "tsx src/db/seed-geo.ts",
     "db:seed:maesai": "tsx src/db/seed-maesai-stations.ts",
-    "db:seed:vulnerable": "tsx src/db/seed-vulnerable-mock.ts"
+    "db:seed:vulnerable": "tsx src/db/seed-vulnerable-mock.ts",
+    "db:backfill:flood-codes": "tsx src/db/backfill-flood-mark-codes.ts"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.11.2",

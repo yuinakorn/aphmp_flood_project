@@ -78,7 +78,8 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" -m 25 http://localhost:3003/api/family-folder/summary)",
       "Bash(mkdir -p \"src/app/api/uploads/[...path]\")",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" -X POST http://localhost:3003/api/uploads)",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"http://localhost:3003/api/uploads/../../package.json\")"
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"http://localhost:3003/api/uploads/../../package.json\")",
+      "Bash(npx eslint *)"
     ],
     "additionalDirectories": [
       "/private/tmp/s2c_extract",

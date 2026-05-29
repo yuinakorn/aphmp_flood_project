@@ -5,10 +5,10 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { and, desc, eq, isNull } from 'drizzle-orm'
+import { and, desc, eq, isNull, sql } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 import { getDb } from '@/lib/db'
-import { deriveFloodMarkLevel } from '@/lib/flood-marks'
+import { deriveFloodMarkLevel, floodMarkProvinceAbbr, formatFloodMarkCode } from '@/lib/flood-marks'
 import {
   badRequest,
   canWriteFieldData,
@@ -19,7 +19,7 @@ import {
   sessionUserId,
   unauthorized,
 } from '@/lib/field-api'
-import { userFloodMarks } from '@/db/schema'
+import { userFloodMarks, userFloodMarkCodeSeq } from '@/db/schema'
 import type { UserFloodMark, UserRole } from '@/types'
 
 export const dynamic = 'force-dynamic'
@@ -27,6 +27,7 @@ export const dynamic = 'force-dynamic'
 function serialize(row: typeof userFloodMarks.$inferSelect): UserFloodMark {
   return {
     id: row.id,
+    code: row.code,
     lat: numberFromDb(row.lat) ?? 0,
     lng: numberFromDb(row.lng) ?? 0,
     waterLevelCm: numberFromDb(row.waterLevelCm) ?? 0,
@@ -106,30 +107,50 @@ export async function POST(req: NextRequest) {
   }
 
   const level = deriveFloodMarkLevel(waterLevelCm)
+  const province = typeof body.province === 'string' ? body.province.trim() || null : null
+  const abbr = floodMarkProvinceAbbr(province)
 
   const db = getDb()
-  const [created] = await db
-    .insert(userFloodMarks)
-    .values({
-      lat: String(lat),
-      lng: String(lng),
-      waterLevelCm: String(waterLevelCm),
-      level,
-      placeDetail: typeof body.placeDetail === 'string' ? body.placeDetail.trim() || null : null,
-      placeAround: typeof body.placeAround === 'string' ? body.placeAround.trim() || null : null,
-      province: typeof body.province === 'string' ? body.province.trim() || null : null,
-      amphoe: typeof body.amphoe === 'string' ? body.amphoe.trim() || null : null,
-      tambon: typeof body.tambon === 'string' ? body.tambon.trim() || null : null,
-      contactPhone: typeof body.contactPhone === 'string' ? body.contactPhone.trim() || null : null,
-      // รับเฉพาะ path รูปที่อัปโหลดผ่าน /api/uploads เท่านั้น (กัน URL ภายนอก)
-      imageUrl:
-        typeof body.imageUrl === 'string' && body.imageUrl.startsWith('/api/uploads/')
-          ? body.imageUrl
-          : null,
-      observedAt: isoOrNow(body.observedAt),
-      createdBy: sessionUserId(session),
-    })
-    .returning()
+  const created = await db.transaction(async (tx) => {
+    // จองรหัสจุดแบบ atomic: upsert เพิ่มตัวนับของ prefix จังหวัดแล้วอ่านค่าใหม่กลับมา
+    let code: string | null = null
+    if (abbr) {
+      const [seq] = await tx
+        .insert(userFloodMarkCodeSeq)
+        .values({ prefix: abbr, lastNo: 1 })
+        .onConflictDoUpdate({
+          target: userFloodMarkCodeSeq.prefix,
+          set: { lastNo: sql`${userFloodMarkCodeSeq.lastNo} + 1` },
+        })
+        .returning()
+      code = formatFloodMarkCode(abbr, seq.lastNo)
+    }
+
+    const [row] = await tx
+      .insert(userFloodMarks)
+      .values({
+        code,
+        lat: String(lat),
+        lng: String(lng),
+        waterLevelCm: String(waterLevelCm),
+        level,
+        placeDetail: typeof body.placeDetail === 'string' ? body.placeDetail.trim() || null : null,
+        placeAround: typeof body.placeAround === 'string' ? body.placeAround.trim() || null : null,
+        province,
+        amphoe: typeof body.amphoe === 'string' ? body.amphoe.trim() || null : null,
+        tambon: typeof body.tambon === 'string' ? body.tambon.trim() || null : null,
+        contactPhone: typeof body.contactPhone === 'string' ? body.contactPhone.trim() || null : null,
+        // รับเฉพาะ path รูปที่อัปโหลดผ่าน /api/uploads เท่านั้น (กัน URL ภายนอก)
+        imageUrl:
+          typeof body.imageUrl === 'string' && body.imageUrl.startsWith('/api/uploads/')
+            ? body.imageUrl
+            : null,
+        observedAt: isoOrNow(body.observedAt),
+        createdBy: sessionUserId(session),
+      })
+      .returning()
+    return row
+  })
 
   return NextResponse.json({ data: serialize(created) }, { status: 201 })
 }

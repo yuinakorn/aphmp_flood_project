@@ -195,11 +195,25 @@ export function MapClient({ session }: Props) {
 
   useEffect(() => {
     fetch('/api/user-flood-marks')
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`API error: ${r.status}`)
+        return r.text()
+      })
+      .then((txt) => {
+        if (!txt) return []
+        try {
+          return JSON.parse(txt)
+        } catch (e) {
+          console.error('Malformed JSON from /api/user-flood-marks:', e)
+          return []
+        }
+      })
       .then((data) => {
         if (Array.isArray(data)) setUserFloodMarks(data as UserFloodMark[])
       })
-      .catch(console.error)
+      .catch((e) => {
+        console.error('Failed to load user flood marks:', e)
+      })
   }, [])
 
   // Keyboard shortcuts: L/R/E/I/T toggle panels; Esc closes

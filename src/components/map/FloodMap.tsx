@@ -635,7 +635,10 @@ function renderUserFloodMarks(
     })
       .bindPopup(
         `<div style="min-width:220px">
-        <div style="font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--fg-subtle);margin-bottom:4px">Flood Mark · ผู้ใช้ปัก</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px">
+          <span style="font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--fg-subtle)">Flood Mark · ผู้ใช้ปัก</span>
+          ${mark.code ? `<span style="font-family:var(--font-mono);font-size:11px;font-weight:600;color:var(--fg)">${escapeHtml(mark.code)}</span>` : ''}
+        </div>
         <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px">
           <span style="font-size:13px;font-weight:600;color:var(--fg)">ระดับ ${mark.level}</span>
           <span style="font-family:var(--font-mono);font-size:12px;color:${color}">${popupText(mark.waterLevelCm)} ซม.</span>

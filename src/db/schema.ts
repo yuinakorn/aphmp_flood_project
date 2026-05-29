@@ -202,6 +202,8 @@ export const householdMembers = pgTable('household_members', {
 // Flood marks ที่ผู้ใช้ปักเอง — เผื่อจังหวัดที่ CMU Water Center ไม่มีข้อมูล
 export const userFloodMarks = pgTable('user_flood_marks', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  // รหัสจุดแบบอ่านง่าย เช่น CR_00001 — running number แยกตามจังหวัด (null ถ้าจังหวัดอยู่นอกขอบเขต)
+  code: text('code'),
   lat: numeric('lat', { precision: 10, scale: 6 }).notNull(),
   lng: numeric('lng', { precision: 10, scale: 6 }).notNull(),
   waterLevelCm: numeric('water_level_cm', { precision: 6, scale: 1 }).notNull(),
@@ -219,6 +221,14 @@ export const userFloodMarks = pgTable('user_flood_marks', {
   createdBy: uuid('created_by'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+}, (t) => [
+  uniqueIndex('user_flood_marks_code_key').on(t.code),
+])
+
+// ตัวนับ running number ของรหัสจุด flood mark แยกตาม prefix จังหวัด (atomic upsert ตอนปักหมุด)
+export const userFloodMarkCodeSeq = pgTable('user_flood_mark_code_seq', {
+  prefix: text('prefix').primaryKey(),
+  lastNo: integer('last_no').notNull().default(0),
 })
 
 // Infrastructure

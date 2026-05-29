@@ -79,7 +79,8 @@
       "Bash(mkdir -p \"src/app/api/uploads/[...path]\")",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" -X POST http://localhost:3003/api/uploads)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"http://localhost:3003/api/uploads/../../package.json\")",
-      "Bash(npx eslint *)"
+      "Bash(npx eslint *)",
+      "Bash(node -e \"console.log\\(require.resolve\\('@base-ui/react/dialog'\\)\\)\")"
     ],
     "additionalDirectories": [
       "/private/tmp/s2c_extract",

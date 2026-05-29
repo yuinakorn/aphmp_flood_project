@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { ImagePlus, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Camera, ImagePlus, X } from 'lucide-react'
 import {
   Sheet,
   SheetContent,
@@ -27,6 +27,19 @@ function toLocalInputValue(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
+// มือถือ (< sm): เด้งฟอร์มจากด้านล่างเพื่อให้แผนที่/หมุดยังเห็นด้านบน
+function useIsMobile(): boolean {
+  const [isMobile, setIsMobile] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)')
+    const update = () => setIsMobile(mq.matches)
+    update()
+    mq.addEventListener('change', update)
+    return () => mq.removeEventListener('change', update)
+  }, [])
+  return isMobile
+}
+
 export function UserFloodMarkForm({ draft, onCancel, onCreated }: Props) {
   const [waterLevel, setWaterLevel] = useState('')
   const [placeDetail, setPlaceDetail] = useState('')
@@ -47,6 +60,7 @@ export function UserFloodMarkForm({ draft, onCancel, onCreated }: Props) {
     setPreviewUrl(f ? URL.createObjectURL(f) : null)
   }
 
+  const isMobile = useIsMobile()
   const open = draft !== null
   const cm = Number(waterLevel)
   const levelPreview = Number.isFinite(cm) && waterLevel.trim() !== '' ? deriveFloodMarkLevel(cm) : null
@@ -125,18 +139,35 @@ export function UserFloodMarkForm({ draft, onCancel, onCreated }: Props) {
   }
 
   return (
-    <Sheet open={open} onOpenChange={(o) => { if (!o) handleCancel() }}>
-      <SheetContent side="right" className="w-full gap-0 sm:max-w-md">
+    <Sheet
+      open={open}
+      modal={false}
+      onOpenChange={(o, details) => {
+        if (o) return
+        // อย่าปิดฟอร์มเมื่อคลิก/ลากบนแผนที่ (ปรับตำแหน่งหมุด) — ปิดเฉพาะ Esc / ปุ่มปิด / ยกเลิก
+        if (details?.reason === 'outside-press') return
+        handleCancel()
+      }}
+    >
+      <SheetContent
+        side={isMobile ? 'bottom' : 'right'}
+        showOverlay={false}
+        className={
+          isMobile
+            ? 'max-h-[72vh] gap-0 rounded-t-2xl'
+            : 'w-full gap-0 sm:max-w-md'
+        }
+      >
         <SheetHeader className="border-b border-[var(--border)]">
           <SheetTitle>ปักหมุด Flood Mark</SheetTitle>
           <SheetDescription>
             {draft
-              ? `พิกัด ${draft.lat.toFixed(5)}, ${draft.lng.toFixed(5)}`
+              ? `พิกัด ${draft.lat.toFixed(5)}, ${draft.lng.toFixed(5)} · ลากหมุดบนแผนที่เพื่อปรับ`
               : ''}
           </SheetDescription>
         </SheetHeader>
 
-        <div className="flex flex-col gap-3 overflow-y-auto px-4 py-4">
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-4">
           <Field label="ระดับน้ำ (ซม.)" required>
             <div className="flex items-center gap-2">
               <Input
@@ -218,16 +249,32 @@ export function UserFloodMarkForm({ draft, onCancel, onCreated }: Props) {
                 </button>
               </div>
             ) : (
-              <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-[var(--border-strong)] px-3 py-4 text-[12px] text-[var(--fg-muted)] transition-colors hover:border-[var(--accent)] hover:text-[var(--fg)]">
-                <ImagePlus size={15} strokeWidth={1.75} />
-                เลือกรูป (JPEG/PNG/WebP ≤ 5MB)
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  className="hidden"
-                  onChange={(e) => onPickFile(e.target.files?.[0] ?? null)}
-                />
-              </label>
+              <div className="flex flex-col gap-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-[var(--border-strong)] px-3 py-4 text-[12px] text-[var(--fg-muted)] transition-colors hover:border-[var(--accent)] hover:text-[var(--fg)]">
+                    <Camera size={15} strokeWidth={1.75} />
+                    ถ่ายรูป
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      capture="environment"
+                      className="hidden"
+                      onChange={(e) => onPickFile(e.target.files?.[0] ?? null)}
+                    />
+                  </label>
+                  <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-[var(--border-strong)] px-3 py-4 text-[12px] text-[var(--fg-muted)] transition-colors hover:border-[var(--accent)] hover:text-[var(--fg)]">
+                    <ImagePlus size={15} strokeWidth={1.75} />
+                    เลือกรูป
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      onChange={(e) => onPickFile(e.target.files?.[0] ?? null)}
+                    />
+                  </label>
+                </div>
+                <span className="text-[10.5px] text-[var(--fg-subtle)]">JPEG/PNG/WebP ≤ 5MB</span>
+              </div>
             )}
           </Field>
 

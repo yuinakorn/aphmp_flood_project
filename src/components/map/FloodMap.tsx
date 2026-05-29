@@ -141,6 +141,8 @@ interface Props {
   userFloodMarks?: UserFloodMark[]
   pinMode?: boolean
   onPinPlace?: (lat: number, lng: number) => void
+  pinDraft?: { lat: number; lng: number } | null
+  onPinDragEnd?: (lat: number, lng: number) => void
   sessionUserId?: string | null
   sessionRole?: string | null
   onDeleteMark?: (id: string) => void
@@ -158,6 +160,8 @@ export function FloodMap({
   userFloodMarks = [],
   pinMode = false,
   onPinPlace,
+  pinDraft = null,
+  onPinDragEnd,
   sessionUserId = null,
   sessionRole = null,
   onDeleteMark,
@@ -175,6 +179,7 @@ export function FloodMap({
   const floodMarkGroupRefs = useRef<Partial<Record<FloodMarkLevel, LayerGroup>>>({})
   const floodMarkCacheRef = useRef<Partial<Record<FloodMarkLevel, FloodMark[]>>>({})
   const userFloodMarkGroupRef = useRef<LayerGroup | null>(null)
+  const draftMarkerRef = useRef<import('leaflet').Marker | null>(null)
   const cmuFloodGroupRefs = useRef<Partial<Record<CmuFloodLayerKey, LayerGroup>>>({})
   const cmuFloodLoadedRef = useRef<Partial<Record<CmuFloodLayerKey, boolean>>>({})
   const [mapReady, setMapReady] = useState(false)
@@ -480,6 +485,46 @@ export function FloodMap({
     }
     container.style.cursor = ''
   }, [pinMode, mapReady, onPinPlace])
+
+  // Draft marker — แสดงจุดที่กำลังจะปัก (ลากเพื่อปรับตำแหน่งได้)
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapReady) return
+    let cancelled = false
+    ;(async () => {
+      const L = (await import('leaflet')).default
+      if (cancelled || !mapRef.current) return
+      if (!pinDraft) {
+        draftMarkerRef.current?.remove()
+        draftMarkerRef.current = null
+        return
+      }
+      const icon = L.divIcon({
+        className: 'flood-draft-marker',
+        html:
+          '<div style="width:16px;height:16px;border-radius:50%;background:var(--accent);border:3px solid #fff;box-shadow:0 0 0 2px var(--accent),0 1px 5px rgba(0,0,0,.5)"></div>',
+        iconSize: [22, 22],
+        iconAnchor: [11, 11],
+      })
+      if (!draftMarkerRef.current) {
+        const marker = L.marker([pinDraft.lat, pinDraft.lng], {
+          icon,
+          draggable: true,
+          zIndexOffset: 1000,
+        }).addTo(map)
+        marker.on('dragend', () => {
+          const ll = marker.getLatLng()
+          onPinDragEnd?.(ll.lat, ll.lng)
+        })
+        draftMarkerRef.current = marker
+      } else {
+        draftMarkerRef.current.setLatLng([pinDraft.lat, pinDraft.lng])
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [pinDraft, mapReady, onPinDragEnd])
 
   // Layer visibility
   useEffect(() => {

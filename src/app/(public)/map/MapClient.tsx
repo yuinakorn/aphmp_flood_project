@@ -15,7 +15,7 @@ import { MapOverlay } from '@/components/map/MapOverlay'
 import { WaterLevelSidebar } from '@/components/map/WaterLevelSidebar'
 import { FloodAlertBanner } from '@/components/map/FloodAlertBanner'
 import { UserFloodMarkForm } from '@/components/map/UserFloodMarkForm'
-import { MapPinPlus } from 'lucide-react'
+import { MapPinPlus, LocateFixed, Loader2 } from 'lucide-react'
 import { buildEvacRouteOSRM, nearestShelter } from '@/lib/geo'
 import type { AlertLevel, ProvinceId } from '@/lib/water-level'
 import { PROVINCE_CONFIGS } from '@/lib/water-level'
@@ -88,6 +88,7 @@ export function MapClient({ session }: Props) {
   const [userFloodMarks, setUserFloodMarks] = useState<UserFloodMark[]>([])
   const [pinMode, setPinMode] = useState(false)
   const [pinDraft, setPinDraft] = useState<{ lat: number; lng: number } | null>(null)
+  const [locating, setLocating] = useState(false)
   const canPin = !!session && WRITE_ROLES.has(session.role)
   const [vulnStats, setVulnStats] = useState<VulnerableStats>({
     flood: 0,
@@ -103,7 +104,7 @@ export function MapClient({ session }: Props) {
   const [province, setProvince] = useState<ProvinceId>('chiangmai')
   const [rosterFilter, setRosterFilter] = useState<'all' | 'flooded' | 'at_risk'>('all')
 
-  const [basemap, setBasemap] = useState<BasemapType>('google_sat')
+  const [basemap, setBasemap] = useState<BasemapType>('topo')
 
   const [focusPersonId, setFocusPersonId] = useState<number | null>(null)
 
@@ -270,10 +271,63 @@ export function MapClient({ session }: Props) {
     [floodMarkProvinces],
   )
 
-  const onPinPlace = useCallback((lat: number, lng: number) => {
-    setPinDraft({ lat, lng })
-    setPinMode(false)
+  // เลื่อนแผนที่ไปยังหมุด — บนมือถือดันหมุดขึ้นให้พ้น bottom sheet ที่บังด้านล่าง
+  const revealDraftOnMap = useCallback((lat: number, lng: number, zoom?: number) => {
+    const map = mapRef.current
+    if (!map) return
+    const isMobile = window.matchMedia('(max-width: 639px)').matches
+    const z = zoom ?? map.getZoom()
+    if (isMobile) {
+      const p = map.project([lat, lng], z)
+      p.y += map.getSize().y * 0.32
+      map.flyTo(map.unproject(p, z), z, { duration: 0.7 })
+    } else {
+      map.flyTo([lat, lng], z, { duration: 0.7 })
+    }
   }, [])
+
+  const onPinPlace = useCallback(
+    (lat: number, lng: number) => {
+      setPinDraft({ lat, lng })
+      setPinMode(false)
+      // เดสก์ท็อปไม่ต้องเลื่อน (ฟอร์มอยู่ขวา ไม่บังจุดที่คลิก); มือถือเลื่อนให้พ้น sheet
+      if (window.matchMedia('(max-width: 639px)').matches) revealDraftOnMap(lat, lng)
+    },
+    [revealDraftOnMap],
+  )
+
+  const onPinDragEnd = useCallback((lat: number, lng: number) => {
+    setPinDraft({ lat, lng })
+  }, [])
+
+  // ปักหมุดจากพิกัด GPS ของอุปกรณ์จริง — สำหรับผู้ใช้งานลงพื้นที่
+  const onUseMyLocation = useCallback(() => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      window.alert('อุปกรณ์นี้ไม่รองรับการระบุตำแหน่ง')
+      return
+    }
+    setLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLocating(false)
+        const { latitude, longitude } = pos.coords
+        setPinMode(false)
+        setPinDraft({ lat: latitude, lng: longitude })
+        revealDraftOnMap(latitude, longitude, 17)
+      },
+      (err) => {
+        setLocating(false)
+        const msg =
+          err.code === err.PERMISSION_DENIED
+            ? 'ไม่ได้รับอนุญาตให้เข้าถึงตำแหน่ง — โปรดเปิดสิทธิ์ตำแหน่งในเบราว์เซอร์'
+            : err.code === err.POSITION_UNAVAILABLE
+              ? 'ไม่สามารถระบุตำแหน่งได้ในขณะนี้'
+              : 'ระบุตำแหน่งใช้เวลานานเกินไป ลองอีกครั้ง'
+        window.alert(msg)
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+    )
+  }, [revealDraftOnMap])
 
   const onMarkCreated = useCallback((mark: UserFloodMark) => {
     setUserFloodMarks((prev) => [mark, ...prev])
@@ -463,6 +517,8 @@ export function MapClient({ session }: Props) {
             userFloodMarks={userFloodMarks}
             pinMode={pinMode}
             onPinPlace={onPinPlace}
+            pinDraft={pinDraft}
+            onPinDragEnd={onPinDragEnd}
             sessionUserId={session?.id ?? null}
             sessionRole={session?.role ?? null}
             onDeleteMark={onDeleteMark}
@@ -471,20 +527,36 @@ export function MapClient({ session }: Props) {
           />
           <MapOverlay />
           {canPin && (
-            <button
-              type="button"
-              onClick={() => setPinMode((v) => !v)}
-              title={pinMode ? 'คลิกบนแผนที่เพื่อปัก (กดเพื่อยกเลิก)' : 'ปักหมุด Flood Mark'}
-              aria-label={pinMode ? 'ยกเลิกการปักหมุด' : 'ปักหมุด Flood Mark'}
-              aria-pressed={pinMode}
-              className={`pointer-events-auto absolute right-4 top-1/2 z-[401] flex size-10 -translate-y-1/2 items-center justify-center rounded-md border transition-colors md:size-9 ${
-                pinMode
-                  ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-fg)]'
-                  : 'border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--fg-muted)] hover:border-[var(--border-strong)] hover:text-[var(--fg)]'
-              }`}
-            >
-              <MapPinPlus size={16} strokeWidth={1.75} />
-            </button>
+            <div className="pointer-events-none absolute right-4 top-1/2 z-[401] flex -translate-y-1/2 flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => setPinMode((v) => !v)}
+                title={pinMode ? 'คลิกบนแผนที่เพื่อปัก (กดเพื่อยกเลิก)' : 'ปักหมุด Flood Mark'}
+                aria-label={pinMode ? 'ยกเลิกการปักหมุด' : 'ปักหมุด Flood Mark'}
+                aria-pressed={pinMode}
+                className={`pointer-events-auto flex size-10 items-center justify-center rounded-md border transition-colors md:size-9 ${
+                  pinMode
+                    ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-fg)]'
+                    : 'border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--fg-muted)] hover:border-[var(--border-strong)] hover:text-[var(--fg)]'
+                }`}
+              >
+                <MapPinPlus size={16} strokeWidth={1.75} />
+              </button>
+              <button
+                type="button"
+                onClick={onUseMyLocation}
+                disabled={locating}
+                title="ปักหมุดจากตำแหน่งปัจจุบัน (GPS)"
+                aria-label="ปักหมุดจากตำแหน่งปัจจุบัน"
+                className="pointer-events-auto flex size-10 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--fg-muted)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--fg)] disabled:cursor-not-allowed disabled:opacity-60 md:size-9"
+              >
+                {locating ? (
+                  <Loader2 size={16} strokeWidth={1.75} className="animate-spin" />
+                ) : (
+                  <LocateFixed size={16} strokeWidth={1.75} />
+                )}
+              </button>
+            </div>
           )}
           {canPin && (
             <UserFloodMarkForm

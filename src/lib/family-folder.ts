@@ -1,4 +1,6 @@
-import pool from '@/lib/jhcis-db'
+import { getDb } from '@/lib/db'
+import { households, householdMembers } from '@/db/schema'
+import { asc, eq, inArray } from 'drizzle-orm'
 
 export interface HouseholdMember {
   pid: number
@@ -36,35 +38,100 @@ export interface VillageSummary {
   chronic: number
 }
 
+type MemberRow = typeof householdMembers.$inferSelect
+type HouseRow = typeof households.$inferSelect
+
+// uuid → เลข int แบบ stable (ใช้เป็น hcode/pid ให้เข้ากับ interface เดิมที่เป็น number)
+function intFromUuid(id: string): number {
+  return parseInt(id.replace(/-/g, '').slice(0, 7), 16)
+}
+
+function classifyGroup(
+  age: number | null,
+  isDisabled: boolean,
+  isChronic: boolean,
+): HouseholdMember['group'] {
+  if (age != null && age >= 60) return 'ผู้สูงอายุ'
+  if (age != null && age <= 5) return 'เด็กเล็ก'
+  if (isDisabled) return 'ผู้พิการ'
+  if (isChronic) return 'โรคเรื้อรัง'
+  return 'ทั่วไป'
+}
+
+function toMember(m: MemberRow): HouseholdMember {
+  const age = m.age ?? 0
+  const group = classifyGroup(m.age, m.isDisabled, m.isChronic)
+  const position = m.isHead ? 'หัวหน้าครัวเรือน' : (m.familyPosition ?? 'สมาชิก')
+  const sex: HouseholdMember['sex'] =
+    m.sex === 'ชาย' ? 'ชาย' : m.sex === 'หญิง' ? 'หญิง' : '-'
+  return {
+    pid: intFromUuid(m.id),
+    name: `${m.prefix ?? ''}${m.firstName}${m.lastName ? ' ' + m.lastName : ''}`.trim(),
+    age,
+    sex,
+    position,
+    group,
+    isHead: m.isHead,
+    father: m.father || undefined,
+    mother: m.mother || undefined,
+    mate: m.mate || undefined,
+  }
+}
+
 export async function getFamilyFolderSummary(): Promise<VillageSummary[]> {
-  const [rows] = await pool.query(`
-    SELECT
-      h.villcode AS vcode,
-      IFNULL(v.villname, '-') AS vname,
-      IF(v.villno != 0 AND v.villno IS NOT NULL, CAST(v.villno AS CHAR), '') AS villno,
-      COUNT(DISTINCT p.hcode) AS totalHouses,
-      COUNT(DISTINCT CASE
-        WHEN TIMESTAMPDIFF(YEAR, p.birth, CURDATE()) >= 60
-          OR TIMESTAMPDIFF(YEAR, p.birth, CURDATE()) BETWEEN 0 AND 5
-          OR pu.pid IS NOT NULL
-          OR pc.pid IS NOT NULL
-        THEN p.hcode END
-      ) AS vulnerableHouses,
-      COUNT(DISTINCT CASE WHEN TIMESTAMPDIFF(YEAR, p.birth, CURDATE()) >= 60 THEN p.pid END) AS elderly,
-      COUNT(DISTINCT CASE WHEN TIMESTAMPDIFF(YEAR, p.birth, CURDATE()) BETWEEN 0 AND 5 THEN p.pid END) AS children,
-      COUNT(DISTINCT CASE WHEN pu.pid IS NOT NULL THEN p.pid END) AS disabled,
-      COUNT(DISTINCT CASE WHEN pc.pid IS NOT NULL THEN p.pid END) AS chronic
-    FROM person p
-    JOIN house h ON p.pcucodeperson = h.pcucode AND p.hcode = h.hcode
-    LEFT JOIN village v ON h.pcucode = v.pcucode AND h.villcode = v.villcode
-    LEFT JOIN personunable pu ON p.pcucodeperson = pu.pcucodeperson AND p.pid = pu.pid
-    LEFT JOIN (SELECT DISTINCT pcucodeperson, pid FROM personchronic) pc
-      ON p.pcucodeperson = pc.pcucodeperson AND p.pid = pc.pid
-    WHERE (p.dischargetype IS NULL OR p.dischargetype = '9')
-    GROUP BY h.villcode, v.villname, v.villno
-    ORDER BY v.villno ASC
-  `)
-  return rows as VillageSummary[]
+  const db = getDb()
+  const houseRows = await db.select().from(households)
+  if (houseRows.length === 0) return []
+
+  const memberRows = await db
+    .select()
+    .from(householdMembers)
+    .where(inArray(householdMembers.householdId, houseRows.map((h) => h.id)))
+
+  const membersByHouse = new Map<string, MemberRow[]>()
+  for (const m of memberRows) {
+    const arr = membersByHouse.get(m.householdId) ?? []
+    arr.push(m)
+    membersByHouse.set(m.householdId, arr)
+  }
+
+  // group ครัวเรือนตาม villcode → สรุปรายหมู่บ้าน
+  const villageMap = new Map<string, VillageSummary>()
+  for (const h of houseRows) {
+    const vcode = h.villcode ?? '-'
+    let v = villageMap.get(vcode)
+    if (!v) {
+      v = {
+        vcode,
+        vname: h.villageName ?? '-',
+        villno: h.villno ?? '',
+        totalHouses: 0,
+        vulnerableHouses: 0,
+        elderly: 0,
+        children: 0,
+        disabled: 0,
+        chronic: 0,
+      }
+      villageMap.set(vcode, v)
+    }
+
+    v.totalHouses += 1
+    const mem = membersByHouse.get(h.id) ?? []
+    let houseHasVulnerable = false
+    for (const m of mem) {
+      const g = classifyGroup(m.age, m.isDisabled, m.isChronic)
+      if (g === 'ผู้สูงอายุ') v.elderly += 1
+      else if (g === 'เด็กเล็ก') v.children += 1
+      else if (g === 'ผู้พิการ') v.disabled += 1
+      else if (g === 'โรคเรื้อรัง') v.chronic += 1
+      if (g !== 'ทั่วไป') houseHasVulnerable = true
+    }
+    if (houseHasVulnerable) v.vulnerableHouses += 1
+  }
+
+  return Array.from(villageMap.values()).sort((a, b) =>
+    (a.villno || '').localeCompare(b.villno || '', 'th', { numeric: true }),
+  )
 }
 
 export async function getFamilyFolderHouseholds(
@@ -72,130 +139,51 @@ export async function getFamilyFolderHouseholds(
   offset = 0,
   villcode?: string,
 ): Promise<{ households: VulnerableHousehold[]; total: number }> {
-  const villFilter = villcode ? `AND h.villcode = ?` : ''
-  const villParams = villcode ? [villcode] : []
+  const db = getDb()
+  const houseRows = await db
+    .select()
+    .from(households)
+    .where(villcode ? eq(households.villcode, villcode) : undefined)
+    .orderBy(asc(households.villno), asc(households.hno))
+  if (houseRows.length === 0) return { households: [], total: 0 }
 
-  const [hcodeRows] = await pool.query(
-    `SELECT DISTINCT p.hcode
-     FROM person p
-     LEFT JOIN personunable pu ON p.pcucodeperson = pu.pcucodeperson AND p.pid = pu.pid
-     JOIN house h ON p.pcucodeperson = h.pcucode AND p.hcode = h.hcode
-     WHERE (p.dischargetype IS NULL OR p.dischargetype = '9')
-       AND (
-         TIMESTAMPDIFF(YEAR, p.birth, CURDATE()) >= 60
-         OR TIMESTAMPDIFF(YEAR, p.birth, CURDATE()) BETWEEN 0 AND 5
-         OR pu.pid IS NOT NULL
-         OR p.pid IN (SELECT pid FROM personchronic)
-       )
-       ${villFilter}
-     ORDER BY p.hcode
-     LIMIT ? OFFSET ?`,
-    [...villParams, limit, offset],
-  )
+  const memberRows = await db
+    .select()
+    .from(householdMembers)
+    .where(inArray(householdMembers.householdId, houseRows.map((h) => h.id)))
 
-  const hcodes = hcodeRows as { hcode: number }[]
-  if (hcodes.length === 0) return { households: [], total: 0 }
-
-  const [countRows] = await pool.query(
-    `SELECT COUNT(DISTINCT p.hcode) as total
-     FROM person p
-     LEFT JOIN personunable pu ON p.pcucodeperson = pu.pcucodeperson AND p.pid = pu.pid
-     JOIN house h ON p.pcucodeperson = h.pcucode AND p.hcode = h.hcode
-     WHERE (p.dischargetype IS NULL OR p.dischargetype = '9')
-       AND (
-         TIMESTAMPDIFF(YEAR, p.birth, CURDATE()) >= 60
-         OR TIMESTAMPDIFF(YEAR, p.birth, CURDATE()) BETWEEN 0 AND 5
-         OR pu.pid IS NOT NULL
-         OR p.pid IN (SELECT pid FROM personchronic)
-       )
-       ${villFilter}`,
-    villParams,
-  )
-  const total = (countRows as { total: number }[])[0]?.total ?? 0
-
-  const hcodeList = hcodes.map((r) => r.hcode)
-  const placeholders = hcodeList.map(() => '?').join(',')
-
-  const [memberRows] = await pool.query(
-    `SELECT
-       p.hcode, p.pid,
-       CONCAT(IFNULL(p.prename,''), p.fname, ' ', p.lname) AS name,
-       TIMESTAMPDIFF(YEAR, p.birth, CURDATE()) AS age,
-       p.sex, p.familyposition,
-       fp.famposname,
-       h.pid AS head_pid,
-       h.hno, h.xgis AS lat, h.ygis AS lng,
-       IF(v.villno != 0 AND v.villno IS NOT NULL, CAST(v.villno AS CHAR), '') AS villno,
-       IFNULL(v.villname, '-') AS vname,
-       IFNULL(p.father, '') AS father,
-       IFNULL(p.mother, '') AS mother,
-       IFNULL(p.mate, '') AS mate,
-       IF(pu.pid IS NOT NULL, 1, 0) AS is_disabled,
-       IF(pc.pid IS NOT NULL, 1, 0) AS is_chronic
-     FROM person p
-     JOIN house h ON p.pcucodeperson = h.pcucode AND p.hcode = h.hcode
-     LEFT JOIN village v ON h.pcucode = v.pcucode AND h.villcode = v.villcode
-     LEFT JOIN cfamilyposition fp ON p.familyposition = fp.famposcode
-     LEFT JOIN personunable pu ON p.pcucodeperson = pu.pcucodeperson AND p.pid = pu.pid
-     LEFT JOIN (SELECT DISTINCT pcucodeperson, pid FROM personchronic) pc
-       ON p.pcucodeperson = pc.pcucodeperson AND p.pid = pc.pid
-     WHERE (p.dischargetype IS NULL OR p.dischargetype = '9')
-       AND p.hcode IN (${placeholders})
-     ORDER BY p.hcode, IF(h.pid = p.pid, 0, 1), p.birth ASC`,
-    hcodeList,
-  )
-
-  type MemberRow = {
-    hcode: number; pid: number; name: string; age: number; sex: string
-    familyposition: string | null; famposname: string | null; head_pid: number | null
-    hno: string | null; lat: string | null; lng: string | null
-    villno: string; vname: string; father: string; mother: string; mate: string
-    is_disabled: number; is_chronic: number
+  const membersByHouse = new Map<string, MemberRow[]>()
+  for (const m of memberRows) {
+    const arr = membersByHouse.get(m.householdId) ?? []
+    arr.push(m)
+    membersByHouse.set(m.householdId, arr)
   }
 
-  const rows = memberRows as MemberRow[]
-  const householdMap = new Map<number, VulnerableHousehold>()
-
-  for (const row of rows) {
-    if (!householdMap.has(row.hcode)) {
-      householdMap.set(row.hcode, {
-        hcode: row.hcode,
-        hno: row.hno ?? '-',
-        village: row.vname,
-        villno: row.villno,
-        lat: row.lat ? parseFloat(row.lat) : undefined,
-        lng: row.lng ? parseFloat(row.lng) : undefined,
-        members: [],
-        vulnerableCount: 0,
-      })
-    }
-
-    const house = householdMap.get(row.hcode)!
-    const age = Number(row.age) || 0
-    const isHead = row.head_pid === row.pid
-
-    let group: HouseholdMember['group'] = 'ทั่วไป'
-    if (age >= 60) group = 'ผู้สูงอายุ'
-    else if (age <= 5) group = 'เด็กเล็ก'
-    else if (row.is_disabled) group = 'ผู้พิการ'
-    else if (row.is_chronic) group = 'โรคเรื้อรัง'
-
-    let position = 'สมาชิก'
-    if (isHead) position = 'หัวหน้าครัวเรือน'
-    else if (row.famposname) position = row.famposname
-
-    const sexMap: Record<string, HouseholdMember['sex']> = { '1': 'ชาย', '2': 'หญิง' }
-
-    house.members.push({
-      pid: row.pid, name: row.name, age, sex: sexMap[row.sex] ?? '-',
-      position, group, isHead,
-      father: row.father || undefined,
-      mother: row.mother || undefined,
-      mate: row.mate || undefined,
+  const buildHouse = (h: HouseRow): VulnerableHousehold | null => {
+    const mem = (membersByHouse.get(h.id) ?? []).slice()
+    // หัวหน้าครัวเรือนก่อน แล้วเรียงอายุมาก→น้อย
+    mem.sort((a, b) => {
+      if (a.isHead !== b.isHead) return a.isHead ? -1 : 1
+      return (b.age ?? 0) - (a.age ?? 0)
     })
-
-    if (group !== 'ทั่วไป') house.vulnerableCount++
+    const members = mem.map(toMember)
+    const vulnerableCount = members.filter((x) => x.group !== 'ทั่วไป').length
+    if (vulnerableCount === 0) return null // family folder แสดงเฉพาะครัวเรือนที่มีกลุ่มเปราะบาง
+    return {
+      hcode: intFromUuid(h.id),
+      hno: h.hno ?? '-',
+      village: h.villageName ?? '-',
+      villno: h.villno ?? '',
+      lat: h.lat != null ? Number(h.lat) : undefined,
+      lng: h.lng != null ? Number(h.lng) : undefined,
+      members,
+      vulnerableCount,
+    }
   }
 
-  return { households: Array.from(householdMap.values()), total }
+  const all = houseRows
+    .map(buildHouse)
+    .filter((h): h is VulnerableHousehold => h !== null)
+
+  return { households: all.slice(offset, offset + limit), total: all.length }
 }

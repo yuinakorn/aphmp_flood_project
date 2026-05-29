@@ -11,6 +11,7 @@ import { classifyRisk } from '@/lib/geo'
 import {
   badRequest,
   canWriteFieldData,
+  composeName,
   forbidden,
   isUuid,
   numberFromDb,
@@ -87,7 +88,10 @@ export async function GET(
   return NextResponse.json({
     data: {
       id: p.id,
-      name: p.name,
+      name: composeName(p.prefix, p.firstName, p.lastName),
+      prefix: p.prefix,
+      firstName: p.firstName,
+      lastName: p.lastName,
       type: p.type,
       label: p.label,
       age: p.age,

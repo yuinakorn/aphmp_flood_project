@@ -100,7 +100,9 @@ export const unitApiKeys = pgTable('unit_api_keys', {
 // Vulnerable persons
 export const vulnerablePersons = pgTable('vulnerable_persons', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
-  name: text('name').notNull(),
+  prefix: text('prefix'),                  // คำนำหน้า
+  firstName: text('first_name').notNull(), // ชื่อ
+  lastName: text('last_name').notNull(),   // นามสกุล
   type: text('type').notNull(), // bedridden | elderly | disabled | pregnant
   label: text('label').notNull(),
   age: smallint('age'),
@@ -126,6 +128,7 @@ export const vulnerablePersons = pgTable('vulnerable_persons', {
   sourceUnit: text('source_unit'),         // pcucode ของต้นทาง
   sourceId: text('source_id'),            // PID หรือ ID ในระบบต้นทาง
   sourceSyncedAt: timestamp('source_synced_at', { withTimezone: true }),
+  householdId: uuid('household_id').references(() => households.id), // เชื่อมกับ family folder
   deletedAt: timestamp('deleted_at', { withTimezone: true }), // soft delete
   createdBy: uuid('created_by').references(() => users.id),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
@@ -159,6 +162,41 @@ export const geoSubdistricts = pgTable('geo_subdistricts', {
   districtId: integer('district_id')
     .notNull()
     .references(() => geoDistricts.id),
+})
+
+// ───────── Family Folder — ครัวเรือน + สมาชิก (แทนการดึงสดจาก JHCIS) ─────────
+export const households = pgTable('households', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  hno: text('hno'),                  // บ้านเลขที่
+  villageName: text('village_name'), // ชื่อหมู่บ้าน
+  villno: text('villno'),            // หมู่ที่
+  villcode: text('villcode'),        // รหัสหมู่บ้าน (ใช้ group ใน summary)
+  tambon: text('tambon'),
+  amphoe: text('amphoe'),
+  province: text('province'),
+  lat: numeric('lat', { precision: 10, scale: 6 }),
+  lng: numeric('lng', { precision: 10, scale: 6 }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+})
+
+export const householdMembers = pgTable('household_members', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  householdId: uuid('household_id').notNull().references(() => households.id, { onDelete: 'cascade' }),
+  prefix: text('prefix'),                  // คำนำหน้า (นาย/นาง/ด.ช./ฯลฯ)
+  firstName: text('first_name').notNull(), // ชื่อ
+  lastName: text('last_name').notNull(),   // นามสกุล
+  age: smallint('age'),
+  sex: text('sex'),                  // 'ชาย' | 'หญิง' | '-'
+  familyPosition: text('family_position'), // หัวหน้าครัวเรือน / คู่สมรส / บุตร ...
+  isHead: boolean('is_head').notNull().default(false),
+  isDisabled: boolean('is_disabled').notNull().default(false),
+  isChronic: boolean('is_chronic').notNull().default(false),
+  // ความสัมพันธ์ (ชื่อ) — สอดคล้องกับโครงสร้าง JHCIS เดิม
+  father: text('father'),
+  mother: text('mother'),
+  mate: text('mate'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 })
 
 // Flood marks ที่ผู้ใช้ปักเอง — เผื่อจังหวัดที่ CMU Water Center ไม่มีข้อมูล

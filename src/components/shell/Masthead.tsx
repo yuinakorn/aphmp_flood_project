@@ -2,6 +2,7 @@
 
 import {
   Waves,
+  MapPinned,
   ChevronDown,
   LayoutDashboard,
   FolderHeart,
@@ -39,8 +40,8 @@ function NavLink({
       aria-current={active ? 'page' : undefined}
       className={
         active
-          ? 'rounded-md bg-[var(--bg-elevated)] px-3 py-1.5 font-medium text-[var(--fg)] shadow-[inset_0_-1px_0_var(--accent)]'
-          : 'rounded-md px-3 py-1.5 text-[var(--fg-muted)] transition-colors hover:bg-[var(--bg-elevated)] hover:text-[var(--fg)]'
+          ? 'inline-flex items-center gap-1.5 rounded-md bg-[var(--bg-elevated)] px-3 py-1.5 font-medium text-[var(--fg)] shadow-[inset_0_-1px_0_var(--accent)]'
+          : 'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[var(--fg-muted)] transition-colors hover:bg-[var(--bg-elevated)] hover:text-[var(--fg)]'
       }
     >
       {children}
@@ -59,9 +60,9 @@ export function Masthead({ session }: Props) {
         href="/map"
         className="flex items-center gap-2 transition-opacity hover:opacity-80 md:gap-3"
       >
-        <Waves
+        <MapPinned
           aria-hidden
-          strokeWidth={1.5}
+          strokeWidth={1.75}
           className="size-5 text-[var(--accent)]"
         />
         <span className="text-[14px] font-semibold tracking-tight">
@@ -72,7 +73,10 @@ export function Masthead({ session }: Props) {
       <span className="hidden h-5 w-px bg-[var(--border)] sm:block" aria-hidden />
 
       <nav className="flex items-center gap-1 text-[12.5px]">
-        <NavLink href="/map" active={isActive('/map')}>Flood Map</NavLink>
+        <NavLink href="/map" active={isActive('/map')}>
+          <Waves aria-hidden strokeWidth={1.75} className="size-4" />
+          Flood Map
+        </NavLink>
         {session && (
           <DropdownMenu>
             <DropdownMenuTrigger

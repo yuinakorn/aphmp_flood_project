@@ -20,14 +20,14 @@ export default async function FamilyFolderPage() {
       <div className="flex items-end justify-between gap-6">
         <div>
           <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--fg-subtle)]">
-            JHCIS · Family Folder
+            Family Folder
           </p>
           <h1 className="mt-2 flex items-center gap-2.5 text-[22px] font-semibold tracking-tight">
             <FolderHeart size={20} strokeWidth={1.75} className="text-[var(--accent)]" />
             ครอบครัวกลุ่มเปราะบาง
           </h1>
           <p className="mt-1 text-[13px] text-[var(--fg-muted)]">
-            บ้านที่มีสมาชิกกลุ่มเปราะบาง · ดึงข้อมูลจาก JHCIS แบบ real-time
+            บ้านที่มีสมาชิกกลุ่มเปราะบาง · สมาชิก + ความสัมพันธ์ในครัวเรือน
           </p>
         </div>
       </div>

@@ -19,6 +19,7 @@ import { classifyRisk } from '@/lib/geo'
 import {
   badRequest,
   canWriteFieldData,
+  composeName,
   forbidden,
   isUuid,
   numberFromDb,
@@ -106,7 +107,10 @@ export async function GET(req: NextRequest) {
       // Full access
       return {
         id: p.id,
-        name: p.name,
+        name: composeName(p.prefix, p.firstName, p.lastName),
+        prefix: p.prefix,
+        firstName: p.firstName,
+        lastName: p.lastName,
         type: p.type,
         label: p.label,
         age: p.age,
@@ -166,8 +170,11 @@ export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null
   if (!body) return badRequest('Invalid JSON body')
 
-  const name = typeof body.name === 'string' ? body.name.trim() : ''
-  if (!name) return badRequest('name is required')
+  const prefix = typeof body.prefix === 'string' ? body.prefix.trim() : null
+  const firstName = typeof body.firstName === 'string' ? body.firstName.trim() : ''
+  const lastName = typeof body.lastName === 'string' ? body.lastName.trim() : ''
+  if (!firstName) return badRequest('firstName is required')
+  if (!lastName) return badRequest('lastName is required')
 
   const type = typeof body.type === 'string' ? body.type : ''
   if (!VALID_TYPES.has(type)) return badRequest(`type must be one of: ${[...VALID_TYPES].join(', ')}`)
@@ -189,7 +196,9 @@ export async function POST(req: NextRequest) {
   const [created] = await db
     .insert(vulnerablePersons)
     .values({
-      name,
+      prefix,
+      firstName,
+      lastName,
       type,
       label: typeof body.label === 'string' ? body.label : defaultLabel(type),
       age: body.age != null ? Number(body.age) || null : null,

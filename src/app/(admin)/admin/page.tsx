@@ -9,15 +9,15 @@ const cards = [
     href: '/admin/family-folder',
     icon: FolderHeart,
     title: 'Family Folder กลุ่มเปราะบาง',
-    desc: 'บ้านที่มีสมาชิกกลุ่มเปราะบาง · สมาชิก + ความสัมพันธ์ในครอบครัว จาก JHCIS',
-    meta: 'jhcis',
+    desc: 'บ้านที่มีสมาชิกกลุ่มเปราะบาง · สมาชิก + ความสัมพันธ์ในครอบครัว',
+    meta: 'ครัวเรือน',
   },
   {
     href: '/admin/vulnerable',
     icon: Users,
     title: 'กลุ่มเปราะบาง (แผนที่)',
     desc: 'ทะเบียนผู้ป่วยติดเตียง สูงอายุ พิการ พร้อมพิกัดบนแผนที่',
-    meta: 'jhcis',
+    meta: 'ทะเบียน',
   },
   {
     href: '/admin/infra',

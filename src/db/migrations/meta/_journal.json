@@ -43,6 +43,27 @@
       "when": 1779957048891,
       "tag": "0005_chilly_cerise",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1779965882185,
+      "tag": "0006_burly_shaman",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1779967462829,
+      "tag": "0007_fuzzy_impossible_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1779967526863,
+      "tag": "0008_damp_doctor_strange",
+      "breakpoints": true
     }
   ]
 }

@@ -59,8 +59,13 @@ async function main() {
 
   // --- Vulnerable ---
   const vuln = await import('../../public/data/vulnerable.json', { assert: { type: 'json' } })
-  const vulnRows = (vuln.default as any[]).map((p) => ({
-    name: p.name,
+  const vulnRows = (vuln.default as any[]).map((p) => {
+    const parts = String(p.name ?? '').trim().split(/\s+/)
+    const lastName = parts.length > 1 ? parts.pop()! : '-'
+    const firstName = parts.join(' ') || '-'
+    return {
+    firstName,
+    lastName,
     type: p.type,
     label: p.label,
     age: p.age,
@@ -72,7 +77,8 @@ async function main() {
     medicalPriority: medicalPriority(p.type, p.eq),
     followUpStatus: 'pending',
     consent: true,
-  }))
+    }
+  })
   await db.insert(vulnerablePersons).values(vulnRows).onConflictDoNothing()
   console.log(`Inserted ${vulnRows.length} vulnerable persons`)
 

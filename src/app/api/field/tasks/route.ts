@@ -3,7 +3,7 @@ import { asc } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 import { getDb } from '@/lib/db'
 import { classifyRisk } from '@/lib/geo'
-import { canWriteFieldData, forbidden, numberFromDb, parseBbox, unauthorized } from '@/lib/field-api'
+import { canWriteFieldData, composeName, forbidden, numberFromDb, parseBbox, unauthorized } from '@/lib/field-api'
 import { vulnerablePersons } from '@/db/schema'
 import type { FollowUpStatus, MedicalPriority, RiskLevel } from '@/types'
 import floodPointsData from '../../../../../public/data/flood-points.json'
@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
       const risk = lat !== null && lng !== null ? classifyRisk(lat, lng, floodCoords) : 'safe'
       return {
         id: p.id,
-        name: p.name,
+        name: composeName(p.prefix, p.firstName, p.lastName),
         type: p.type,
         label: p.label,
         age: p.age,

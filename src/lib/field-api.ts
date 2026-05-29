@@ -30,6 +30,15 @@ export function sessionUserId(session: Session | null) {
   return typeof id === 'string' && isUuid(id) ? id : null
 }
 
+// ประกอบชื่อเต็มจาก คำนำหน้า + ชื่อ + นามสกุล (คำนำหน้าติดกับชื่อตามแบบไทย)
+export function composeName(
+  prefix: string | null | undefined,
+  firstName: string,
+  lastName: string | null | undefined,
+) {
+  return `${prefix ?? ''}${firstName}${lastName ? ' ' + lastName : ''}`.trim()
+}
+
 export function isUuid(value: unknown): value is string {
   return (
     typeof value === 'string' &&

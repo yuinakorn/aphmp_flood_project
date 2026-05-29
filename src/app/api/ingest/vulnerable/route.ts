@@ -29,7 +29,9 @@ const VALID_PRIORITIES = new Set(['A', 'B', 'C'])
 
 interface IngestPerson {
   sourceId: string
-  name: string
+  prefix?: string | null
+  firstName: string
+  lastName: string
   type: string
   label?: string
   age?: number | null
@@ -62,8 +64,10 @@ function validatePerson(p: unknown, idx: number): { ok: true; data: IngestPerson
 
   if (!r.sourceId || typeof r.sourceId !== 'string' || !r.sourceId.trim())
     return { ok: false, error: `persons[${idx}]: sourceId is required` }
-  if (!r.name || typeof r.name !== 'string' || !r.name.trim())
-    return { ok: false, error: `persons[${idx}]: name is required` }
+  if (!r.firstName || typeof r.firstName !== 'string' || !r.firstName.trim())
+    return { ok: false, error: `persons[${idx}]: firstName is required` }
+  if (!r.lastName || typeof r.lastName !== 'string' || !r.lastName.trim())
+    return { ok: false, error: `persons[${idx}]: lastName is required` }
   if (!r.type || typeof r.type !== 'string' || !VALID_TYPES.has(r.type))
     return { ok: false, error: `persons[${idx}]: type must be one of ${[...VALID_TYPES].join(', ')}` }
 
@@ -81,7 +85,9 @@ function validatePerson(p: unknown, idx: number): { ok: true; data: IngestPerson
     ok: true,
     data: {
       sourceId: String(r.sourceId).trim(),
-      name: String(r.name).trim(),
+      prefix: typeof r.prefix === 'string' ? r.prefix.trim() : null,
+      firstName: String(r.firstName).trim(),
+      lastName: String(r.lastName).trim(),
       type: r.type as string,
       label: typeof r.label === 'string' ? r.label.trim() : defaultLabel(r.type as string),
       age: r.age != null ? Number(r.age) || null : null,
@@ -157,7 +163,9 @@ export async function POST(req: NextRequest) {
 
   for (const p of valid) {
     const values = {
-      name: p.name,
+      prefix: p.prefix ?? null,
+      firstName: p.firstName,
+      lastName: p.lastName,
       type: p.type,
       label: p.label ?? defaultLabel(p.type),
       age: p.age != null ? p.age as unknown as number : null,

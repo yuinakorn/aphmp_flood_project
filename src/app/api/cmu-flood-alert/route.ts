@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server'
 import { getDb } from '@/lib/db'
-import pool from '@/lib/jhcis-db'
 import { getFloodZones } from '@/lib/kml-parser'
 import { classifyFloodLevel } from '@/lib/geo'
 import { classifyAlert } from '@/lib/water-level'
 import { loadStationThresholds } from '@/lib/station-db'
 import type { AlertLevel } from '@/lib/water-level'
-import { sql } from 'drizzle-orm'
+import { vulnerablePersons } from '@/db/schema'
+import { isNull, sql } from 'drizzle-orm'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -80,32 +80,20 @@ export async function GET() {
     // water level DB unavailable — continue without it
   }
 
-  // --- vulnerable patients from JHCIS ---
+  // --- vulnerable patients from ทะเบียนกลุ่มเปราะบางของระบบเอง (vulnerable_persons) ---
   const counts: FloodAlertCounts = { level1: 0, level2: 0, level3: 0, level4: 0, level5: 0, outside: 0 }
 
   try {
-    const [rows] = await pool.query(`
-      SELECT h.xgis AS lat, h.ygis AS lng
-      FROM person p
-      INNER JOIN house h ON p.hcode = h.hcode AND p.pcucodeperson = h.pcucode
-      LEFT JOIN personunable u ON p.pid = u.pid AND p.pcucodeperson = u.pcucodeperson
-      LEFT JOIN personchronic c ON p.pid = c.pid AND p.pcucodeperson = c.pcucodeperson
-      WHERE (h.xgis IS NOT NULL AND h.xgis != '')
-        AND (h.ygis IS NOT NULL AND h.ygis != '')
-        AND p.dischargetype = '9'
-        AND p.typelive IN ('1', '3')
-        AND (
-          TIMESTAMPDIFF(YEAR, p.birth, CURDATE()) >= 60
-          OR u.pid IS NOT NULL
-          OR c.pid IS NOT NULL
-        )
-      GROUP BY p.pid, h.xgis, h.ygis
-    `)
+    const db = getDb()
+    const rows = await db
+      .select({ lat: vulnerablePersons.lat, lng: vulnerablePersons.lng })
+      .from(vulnerablePersons)
+      .where(isNull(vulnerablePersons.deletedAt))
 
-    for (const row of rows as Array<{ lat: string; lng: string }>) {
-      const lat = parseFloat(row.lat)
-      const lng = parseFloat(row.lng)
-      if (isNaN(lat) || isNaN(lng)) continue
+    for (const row of rows) {
+      const lat = Number(row.lat)
+      const lng = Number(row.lng)
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue
       const level = classifyFloodLevel(lat, lng, zones)
       if (level === 1) counts.level1++
       else if (level === 2) counts.level2++
@@ -115,7 +103,7 @@ export async function GET() {
       else counts.outside++
     }
   } catch (err) {
-    console.error('[cmu-flood-alert] JHCIS query failed:', err)
+    console.error('[cmu-flood-alert] vulnerable_persons query failed:', err)
     return NextResponse.json({ error: 'Database unavailable' }, { status: 503 })
   }
 

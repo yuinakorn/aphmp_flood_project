@@ -121,6 +121,11 @@ export async function POST(req: NextRequest) {
       amphoe: typeof body.amphoe === 'string' ? body.amphoe.trim() || null : null,
       tambon: typeof body.tambon === 'string' ? body.tambon.trim() || null : null,
       contactPhone: typeof body.contactPhone === 'string' ? body.contactPhone.trim() || null : null,
+      // รับเฉพาะ path รูปที่อัปโหลดผ่าน /api/uploads เท่านั้น (กัน URL ภายนอก)
+      imageUrl:
+        typeof body.imageUrl === 'string' && body.imageUrl.startsWith('/api/uploads/')
+          ? body.imageUrl
+          : null,
       observedAt: isoOrNow(body.observedAt),
       createdBy: sessionUserId(session),
     })

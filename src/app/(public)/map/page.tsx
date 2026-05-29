@@ -9,7 +9,7 @@ export const metadata = {
 export default async function MapPage() {
   const session = await auth()
   const mapSession = session?.user
-    ? { role: session.user.role ?? 'viewer', name: session.user.name ?? '' }
+    ? { id: session.user.id ?? '', role: session.user.role ?? 'viewer', name: session.user.name ?? '' }
     : null
 
   return <MapClient session={mapSession} />

@@ -75,11 +75,15 @@
       "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('waterLevel',d.get\\('waterLevel'\\),'activeZone',d.get\\('activeZone'\\),'alert',d.get\\('alertLevel'\\)\\); print\\('counts',d.get\\('counts'\\)\\); print\\('affectedTotal',d.get\\('affectedTotal'\\)\\)\")",
       "Bash(curl -s -m 25 http://localhost:3003/api/vulnerable)",
       "Bash(python3 -c 'import sys,json; d=json.load\\(sys.stdin\\); data=d.get\\('\\\\''data'\\\\'',[]\\); print\\('\\\\''total'\\\\'',len\\(data\\)\\); *)",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" -m 25 http://localhost:3003/api/family-folder/summary)"
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" -m 25 http://localhost:3003/api/family-folder/summary)",
+      "Bash(mkdir -p \"src/app/api/uploads/[...path]\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" -X POST http://localhost:3003/api/uploads)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"http://localhost:3003/api/uploads/../../package.json\")"
     ],
     "additionalDirectories": [
       "/private/tmp/s2c_extract",
-      "/Users/yuinakhon/_workspace/JS/NextJS/aphmp_flood_project/src/app/api/vulnerable"
+      "/Users/yuinakhon/_workspace/JS/NextJS/aphmp_flood_project/src/app/api/vulnerable",
+      "/Users/yuinakhon/_workspace/JS/NextJS/aphmp_flood_project/src/app/api/uploads"
     ]
   }
 }

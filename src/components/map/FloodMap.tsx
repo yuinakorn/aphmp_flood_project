@@ -141,6 +141,9 @@ interface Props {
   userFloodMarks?: UserFloodMark[]
   pinMode?: boolean
   onPinPlace?: (lat: number, lng: number) => void
+  sessionUserId?: string | null
+  sessionRole?: string | null
+  onDeleteMark?: (id: string) => void
   onMapReady?: (map: LeafletMap) => void
   onRequestRoute?: (personId: number) => void
 }
@@ -155,6 +158,9 @@ export function FloodMap({
   userFloodMarks = [],
   pinMode = false,
   onPinPlace,
+  sessionUserId = null,
+  sessionRole = null,
+  onDeleteMark,
   onMapReady,
   onRequestRoute,
 }: Props) {
@@ -448,9 +454,13 @@ export function FloodMap({
     if (!mapReady || !userFloodMarkGroupRef.current) return
       ; (async () => {
         const L = (await import('leaflet')).default
-        renderUserFloodMarks(L, userFloodMarkGroupRef.current!, userFloodMarks)
+        renderUserFloodMarks(L, userFloodMarkGroupRef.current!, userFloodMarks, {
+          sessionUserId,
+          sessionRole,
+          onDeleteMark,
+        })
       })()
-  }, [mapReady, userFloodMarks])
+  }, [mapReady, userFloodMarks, sessionUserId, sessionRole, onDeleteMark])
 
   // Pin mode — click on map to capture a coordinate for a new flood mark
   useEffect(() => {
@@ -594,10 +604,18 @@ function renderUserFloodMarks(
   L: typeof import('leaflet'),
   group: import('leaflet').LayerGroup,
   marks: UserFloodMark[],
+  opts: {
+    sessionUserId?: string | null
+    sessionRole?: string | null
+    onDeleteMark?: (id: string) => void
+  } = {},
 ) {
   group.clearLayers()
+  const { sessionUserId, sessionRole, onDeleteMark } = opts
 
   marks.forEach((mark) => {
+    const canDelete =
+      !!onDeleteMark && (sessionRole === 'admin' || (!!sessionUserId && mark.createdBy === sessionUserId))
     const color = floodMarkColor(mark.level)
     const radius = Math.max(5, Math.min(10, 4.5 + mark.waterLevelCm / 45))
     const detail = mark.placeDetail ?? mark.placeAround ?? 'ไม่ระบุสถานที่'
@@ -606,7 +624,7 @@ function renderUserFloodMarks(
       : '-'
 
     // ขอบประ + สีตามระดับ — แยกจากหมุด CMU (เส้นทึบ)
-    L.circleMarker([mark.lat, mark.lng], {
+    const marker = L.circleMarker([mark.lat, mark.lng], {
       radius,
       color,
       weight: 2,
@@ -623,15 +641,28 @@ function renderUserFloodMarks(
           <span style="font-family:var(--font-mono);font-size:12px;color:${color}">${popupText(mark.waterLevelCm)} ซม.</span>
         </div>
         <div style="font-size:12px;color:var(--fg);line-height:1.45;margin-bottom:8px">${popupText(detail)}</div>
+        ${mark.imageUrl ? `<a href="${escapeHtml(mark.imageUrl)}" target="_blank" rel="noopener"><img src="${escapeHtml(mark.imageUrl)}" alt="รูปจุดน้ำท่วม" style="display:block;width:100%;max-height:160px;object-fit:cover;border-radius:6px;border:1px solid var(--border);margin-bottom:8px" /></a>` : ''}
         <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 10px;font-size:11.5px">
           <span style="color:var(--fg-subtle)">วันที่วัด</span><span style="font-family:var(--font-mono)">${escapeHtml(observed)}</span>
           <span style="color:var(--fg-subtle)">พื้นที่</span><span>${popupText([mark.tambon, mark.amphoe, mark.province].filter(Boolean).join(' · ') || null)}</span>
           <span style="color:var(--fg-subtle)">ใกล้เคียง</span><span>${popupText(mark.placeAround)}</span>
           <span style="color:var(--fg-subtle)">ติดต่อ</span><span style="font-family:var(--font-mono)">${popupText(mark.contactPhone)}</span>
         </div>
+        ${canDelete ? `<button id="del-mark-${mark.id}" type="button" style="margin-top:10px;width:100%;padding:7px;border-radius:6px;border:1px solid var(--risk-flood);background:transparent;color:var(--risk-flood);font-size:11.5px;font-family:var(--font-sans);cursor:pointer">ลบหมุดนี้</button>` : ''}
       </div>`,
       )
-      .addTo(group)
+
+    if (canDelete) {
+      marker.on('popupopen', () => {
+        setTimeout(() => {
+          document
+            .getElementById(`del-mark-${mark.id}`)
+            ?.addEventListener('click', () => onDeleteMark!(mark.id), { once: true })
+        }, 0)
+      })
+    }
+
+    marker.addTo(group)
   })
 }
 

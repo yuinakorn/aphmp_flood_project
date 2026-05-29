@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { ImagePlus, X } from 'lucide-react'
 import {
   Sheet,
   SheetContent,
@@ -35,8 +36,16 @@ export function UserFloodMarkForm({ draft, onCancel, onCreated }: Props) {
   const [tambon, setTambon] = useState('')
   const [contactPhone, setContactPhone] = useState('')
   const [observedAt, setObservedAt] = useState(() => toLocalInputValue(new Date()))
+  const [file, setFile] = useState<File | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const onPickFile = (f: File | null) => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl)
+    setFile(f)
+    setPreviewUrl(f ? URL.createObjectURL(f) : null)
+  }
 
   const open = draft !== null
   const cm = Number(waterLevel)
@@ -51,6 +60,7 @@ export function UserFloodMarkForm({ draft, onCancel, onCreated }: Props) {
     setTambon('')
     setContactPhone('')
     setObservedAt(toLocalInputValue(new Date()))
+    onPickFile(null)
     setError(null)
   }
 
@@ -68,6 +78,20 @@ export function UserFloodMarkForm({ draft, onCancel, onCreated }: Props) {
     setSubmitting(true)
     setError(null)
     try {
+      // อัปโหลดรูปก่อน (ถ้ามี) แล้วค่อยบันทึกหมุดพร้อม imageUrl
+      let imageUrl: string | undefined
+      if (file) {
+        const fd = new FormData()
+        fd.append('file', file)
+        const up = await fetch('/api/uploads', { method: 'POST', body: fd })
+        if (!up.ok) {
+          const b = await up.json().catch(() => null)
+          setError(b?.error ?? `อัปโหลดรูปไม่สำเร็จ (${up.status})`)
+          return
+        }
+        imageUrl = ((await up.json()) as { url: string }).url
+      }
+
       const res = await fetch('/api/user-flood-marks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -82,6 +106,7 @@ export function UserFloodMarkForm({ draft, onCancel, onCreated }: Props) {
           tambon: tambon || undefined,
           contactPhone: contactPhone || undefined,
           observedAt: observedAt ? new Date(observedAt).toISOString() : undefined,
+          imageUrl,
         }),
       })
       if (!res.ok) {
@@ -172,6 +197,38 @@ export function UserFloodMarkForm({ draft, onCancel, onCreated }: Props) {
               value={observedAt}
               onChange={(e) => setObservedAt(e.target.value)}
             />
+          </Field>
+
+          <Field label="รูปถ่าย">
+            {previewUrl ? (
+              <div className="relative w-fit">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={previewUrl}
+                  alt="ตัวอย่างรูป"
+                  className="max-h-40 rounded-lg border border-[var(--border)] object-cover"
+                />
+                <button
+                  type="button"
+                  onClick={() => onPickFile(null)}
+                  aria-label="ลบรูป"
+                  className="absolute right-1.5 top-1.5 flex size-6 items-center justify-center rounded-md bg-[var(--bg)]/80 text-[var(--fg-muted)] backdrop-blur transition-colors hover:text-[var(--fg)]"
+                >
+                  <X size={13} strokeWidth={2} />
+                </button>
+              </div>
+            ) : (
+              <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-[var(--border-strong)] px-3 py-4 text-[12px] text-[var(--fg-muted)] transition-colors hover:border-[var(--accent)] hover:text-[var(--fg)]">
+                <ImagePlus size={15} strokeWidth={1.75} />
+                เลือกรูป (JPEG/PNG/WebP ≤ 5MB)
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={(e) => onPickFile(e.target.files?.[0] ?? null)}
+                />
+              </label>
+            )}
           </Field>
 
           {error && (

@@ -75,7 +75,7 @@ const DEFAULT_LAYERS: LayerState = {
 const ALERT_POLL_MS = 5 * 60 * 1000
 
 interface Props {
-  session?: { role: string; name: string } | null
+  session?: { id: string; role: string; name: string } | null
 }
 
 export function MapClient({ session }: Props) {
@@ -267,6 +267,22 @@ export function MapClient({ session }: Props) {
     setLayers((p) => ({ ...p, userFloodMarks: true }))
   }, [])
 
+  const onDeleteMark = useCallback(async (id: string) => {
+    if (!window.confirm('ลบหมุด Flood Mark นี้?')) return
+    try {
+      const res = await fetch(`/api/user-flood-marks/${id}`, { method: 'DELETE' })
+      if (res.ok) {
+        setUserFloodMarks((prev) => prev.filter((m) => m.id !== id))
+        mapRef.current?.closePopup()
+      } else {
+        const b = await res.json().catch(() => null)
+        window.alert(b?.error ?? `ลบไม่สำเร็จ (${res.status})`)
+      }
+    } catch {
+      window.alert('เครือข่ายขัดข้อง ลองอีกครั้ง')
+    }
+  }, [])
+
   const flyTo = useCallback((person: VulnerablePerson) => {
     mapRef.current?.flyTo([person.lat, person.lng], 16, { duration: 0.6 })
     setFocusPersonId(person.id)
@@ -433,6 +449,9 @@ export function MapClient({ session }: Props) {
             userFloodMarks={userFloodMarks}
             pinMode={pinMode}
             onPinPlace={onPinPlace}
+            sessionUserId={session?.id ?? null}
+            sessionRole={session?.role ?? null}
+            onDeleteMark={onDeleteMark}
             onMapReady={(m) => (mapRef.current = m)}
             onRequestRoute={drawRoute}
           />

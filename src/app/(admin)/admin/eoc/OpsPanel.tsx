@@ -11,6 +11,8 @@ import {
   Plus,
   X,
   Loader2,
+  Trash2,
+  ChevronDown,
 } from 'lucide-react'
 import {
   CASUALTY_TYPE_LABEL,
@@ -20,13 +22,17 @@ import {
 import type {
   CasualtyType,
   CasualtyCause,
+  IncidentCasualty,
   IncidentCounters,
   SurveillanceDiseaseCode,
+  SurveillanceEntry,
 } from '@/types'
 
 interface Props {
   incidentId: string
   counters: IncidentCounters
+  casualties: IncidentCasualty[]
+  surveillanceEntries: SurveillanceEntry[]
   canCommand: boolean
 }
 
@@ -36,11 +42,14 @@ const inputCls =
   'w-full rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] px-3 py-2 text-sm outline-none focus:border-[var(--accent)]'
 const labelCls = 'mb-1 block text-[11px] font-medium uppercase tracking-wide text-[var(--fg-subtle)]'
 
-export function OpsPanel({ incidentId, counters, canCommand }: Props) {
+export function OpsPanel({ incidentId, counters, casualties, surveillanceEntries, canCommand }: Props) {
   const router = useRouter()
   const [open, setOpen] = useState<FormKey>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showCasualtyList, setShowCasualtyList] = useState(false)
+  const [showSurvList, setShowSurvList] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const c = counters
 
@@ -66,6 +75,29 @@ export function OpsPanel({ incidentId, counters, canCommand }: Props) {
     }
   }
 
+  async function del(path: string, entryId: string) {
+    if (!window.confirm('ลบรายการนี้?')) return
+    setDeletingId(entryId)
+    setError(null)
+    try {
+      const res = await fetch(`/api/incidents/${incidentId}/${path}/${entryId}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const j = await res.json().catch(() => null)
+        throw new Error(j?.error ?? `ลบไม่สำเร็จ (${res.status})`)
+      }
+      router.refresh()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'เกิดข้อผิดพลาด')
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
+  const fmtDate = (iso: string | null | undefined) =>
+    iso ? new Date(iso).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }) : '—'
+  const area = (tambon?: string | null, amphoe?: string | null) =>
+    [tambon && `ต.${tambon}`, amphoe && `อ.${amphoe}`].filter(Boolean).join(' ') || '—'
+
   return (
     <div className="space-y-4">
       {/* ── Casualties ── */}
@@ -75,6 +107,58 @@ export function OpsPanel({ incidentId, counters, canCommand }: Props) {
         <Stat label="สูญหาย" value={c.casualties.missing} tone={c.casualties.missing > 0 ? 'var(--risk-flood)' : undefined} />
         <Stat label="เจ็บป่วย" value={c.casualties.ill} />
       </Group>
+
+      {casualties.length > 0 && (
+        <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)]">
+          <button
+            type="button"
+            onClick={() => setShowCasualtyList((v) => !v)}
+            className="flex w-full items-center gap-2 border-b border-[var(--border)] bg-[var(--bg-sunken)] px-4 py-2.5 text-left"
+          >
+            <ChevronDown size={15} className={`text-[var(--fg-subtle)] transition-transform ${showCasualtyList ? '' : '-rotate-90'}`} />
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-[var(--fg-subtle)]">
+              ประวัติผู้ประสบเหตุ
+            </span>
+            <span className="ml-auto font-mono text-xs text-[var(--fg-subtle)]">{casualties.length} รายการ</span>
+          </button>
+          {showCasualtyList && (
+            <ul className="divide-y divide-[var(--border)]">
+              {casualties.map((e) => (
+                <li key={e.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
+                  <span
+                    className="shrink-0 rounded px-1.5 py-0.5 text-[10.5px] font-medium"
+                    style={{
+                      color: e.casualtyType === 'dead' || e.casualtyType === 'missing' ? 'var(--risk-flood)' : 'var(--risk-near)',
+                      background: 'var(--bg-sunken)',
+                    }}
+                  >
+                    {CASUALTY_TYPE_LABEL[e.casualtyType]}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline gap-2">
+                      <span className="truncate font-medium text-[var(--fg)]">{e.personName || 'ไม่ระบุชื่อ'}</span>
+                      {e.age != null && <span className="font-mono text-xs text-[var(--fg-subtle)]">{e.age}</span>}
+                      {e.cause && <span className="truncate text-xs text-[var(--fg-subtle)]">· {CASUALTY_CAUSE_LABEL[e.cause]}</span>}
+                    </div>
+                    <p className="truncate text-xs text-[var(--fg-subtle)]">{area(e.tambon, e.amphoe)} · {fmtDate(e.observedAt)}</p>
+                  </div>
+                  {canCommand && (
+                    <button
+                      type="button"
+                      onClick={() => del('casualties', e.id)}
+                      disabled={deletingId === e.id}
+                      className="shrink-0 rounded p-1.5 text-[var(--fg-subtle)] transition-colors hover:bg-[var(--bg-sunken)] hover:text-[var(--risk-flood)] disabled:opacity-50"
+                      title="ลบ"
+                    >
+                      {deletingId === e.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {/* ── Operations (derived) ── */}
       <Group icon={<Anchor size={15} />} title="ทีม & การส่งกำลัง" tone="var(--signal-data)">
@@ -122,6 +206,50 @@ export function OpsPanel({ incidentId, counters, canCommand }: Props) {
           </ul>
         )}
       </div>
+
+      {surveillanceEntries.length > 0 && (
+        <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)]">
+          <button
+            type="button"
+            onClick={() => setShowSurvList((v) => !v)}
+            className="flex w-full items-center gap-2 border-b border-[var(--border)] bg-[var(--bg-sunken)] px-4 py-2.5 text-left"
+          >
+            <ChevronDown size={15} className={`text-[var(--fg-subtle)] transition-transform ${showSurvList ? '' : '-rotate-90'}`} />
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-[var(--fg-subtle)]">
+              บันทึกโรคเฝ้าระวังรายรายการ
+            </span>
+            <span className="ml-auto font-mono text-xs text-[var(--fg-subtle)]">{surveillanceEntries.length} รายการ</span>
+          </button>
+          {showSurvList && (
+            <ul className="divide-y divide-[var(--border)]">
+              {surveillanceEntries.map((e) => (
+                <li key={e.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline gap-2">
+                      <span className="truncate font-medium text-[var(--fg)]">
+                        {e.diseaseCode === 'other' && e.diseaseLabel ? e.diseaseLabel : SURVEILLANCE_DISEASE_LABEL[e.diseaseCode]}
+                      </span>
+                      <span className="font-mono text-xs font-semibold text-[var(--fg)]">{e.caseCount} ราย</span>
+                    </div>
+                    <p className="truncate text-xs text-[var(--fg-subtle)]">{area(e.tambon, e.amphoe)} · {fmtDate(e.reportDate)}</p>
+                  </div>
+                  {canCommand && (
+                    <button
+                      type="button"
+                      onClick={() => del('surveillance', e.id)}
+                      disabled={deletingId === e.id}
+                      className="shrink-0 rounded p-1.5 text-[var(--fg-subtle)] transition-colors hover:bg-[var(--bg-sunken)] hover:text-[var(--risk-flood)] disabled:opacity-50"
+                      title="ลบ"
+                    >
+                      {deletingId === e.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {/* ── Entry actions ── */}
       {canCommand && (

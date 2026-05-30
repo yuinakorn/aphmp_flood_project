@@ -2,11 +2,11 @@ import { auth } from '@/lib/auth'
 import { cookies } from 'next/headers'
 import { and, desc, eq, isNotNull, isNull, max, sql } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
-import { rescueTeams, helpRequests, householdMembers, healthVisits } from '@/db/schema'
+import { rescueTeams, helpRequests, householdMembers, healthVisits, incidentCasualties, diseaseSurveillance } from '@/db/schema'
 import { getActiveIncident } from '@/lib/incident-scope'
 import { getIncidentCounters } from '@/lib/incident-counters'
-import { EocDashboard } from './EocDashboard'
-import type { CoverageRow, Incident, IncidentCounters, RescueTeam, RescueTeamType, RescueTeamStatus, VulnerablePerson } from '@/types'
+import { EocDashboard, MAP_HIDDEN_COOKIE } from './EocDashboard'
+import type { CasualtyCause, CasualtySeverity, CasualtyType, CoverageRow, Incident, IncidentCasualty, IncidentCounters, RescueTeam, RescueTeamType, RescueTeamStatus, SurveillanceDiseaseCode, SurveillanceEntry, VulnerablePerson } from '@/types'
 
 export const metadata = { title: 'ศูนย์บัญชาการ EOC — GIS Health Intelligence' }
 
@@ -15,7 +15,9 @@ export default async function EocPage() {
   const role = session?.user?.role ?? 'viewer'
 
   const base = process.env.NEXTAUTH_URL ?? 'http://localhost:3003'
-  const cookie = (await cookies()).toString()
+  const cookieStore = await cookies()
+  const cookie = cookieStore.toString()
+  const mapHiddenDefault = cookieStore.get(MAP_HIDDEN_COOKIE)?.value === '1'
   const init = { cache: 'no-store' as const, headers: { cookie } }
 
   const scope = await getActiveIncident(role)
@@ -81,6 +83,49 @@ export default async function EocPage() {
   // ตัวนับปฏิบัติการ (Phase E) — เฉพาะโหมดวิกฤต (มี scope)
   const counters: IncidentCounters | null = scope ? await getIncidentCounters(scope.id) : null
 
+  // ประวัติรายการ casualties + surveillance (โหมดวิกฤต)
+  const [casualtyRaw, surveillanceRaw] = scope
+    ? await Promise.all([
+        db.select().from(incidentCasualties)
+          .where(eq(incidentCasualties.incidentId, scope.id))
+          .orderBy(desc(incidentCasualties.observedAt)),
+        db.select().from(diseaseSurveillance)
+          .where(eq(diseaseSurveillance.incidentId, scope.id))
+          .orderBy(desc(diseaseSurveillance.reportDate), desc(diseaseSurveillance.createdAt)),
+      ])
+    : [[], []]
+
+  const casualtyList: IncidentCasualty[] = casualtyRaw.map((r) => ({
+    id: r.id,
+    incidentId: r.incidentId,
+    memberId: r.memberId,
+    casualtyType: r.casualtyType as CasualtyType,
+    severity: (r.severity ?? null) as CasualtySeverity | null,
+    personName: r.personName,
+    age: r.age,
+    sex: r.sex,
+    cause: (r.cause ?? null) as CasualtyCause | null,
+    tambon: r.tambon,
+    amphoe: r.amphoe,
+    notes: r.notes,
+    observedAt: (r.observedAt as unknown as Date)?.toISOString?.() ?? '',
+    createdAt: r.createdAt?.toISOString?.() ?? null,
+  }))
+
+  const surveillanceList: SurveillanceEntry[] = surveillanceRaw.map((r) => ({
+    id: r.id,
+    incidentId: r.incidentId,
+    diseaseCode: r.diseaseCode as SurveillanceDiseaseCode,
+    diseaseLabel: r.diseaseLabel,
+    caseCount: r.caseCount,
+    reportDate: r.reportDate,
+    tambon: r.tambon,
+    amphoe: r.amphoe,
+    shelterId: r.shelterId,
+    notes: r.notes,
+    createdAt: r.createdAt?.toISOString?.() ?? null,
+  }))
+
   const teamList: RescueTeam[] = teams.map((t) => ({
     id: t.id,
     incidentId: t.incidentId,
@@ -129,7 +174,10 @@ export default async function EocPage() {
       }))}
       coverageRows={coverageRows}
       counters={counters}
+      casualties={casualtyList}
+      surveillanceEntries={surveillanceList}
       incidentId={scope?.id ?? null}
+      mapHiddenDefault={mapHiddenDefault}
       realRole={role}
     />
   )

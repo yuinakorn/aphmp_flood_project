@@ -4,9 +4,7 @@ import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import {
-  Users,
   LifeBuoy,
-  AlertTriangle,
   Search,
   Stethoscope,
   Anchor,
@@ -17,6 +15,8 @@ import {
   ArrowLeft,
   LayoutGrid,
   Table as TableIcon,
+  PanelRightClose,
+  PanelRightOpen,
 } from 'lucide-react'
 import { useRoleView } from '@/components/shell/RoleViewProvider'
 import { FieldActionSheet, type FieldActionMode } from '@/components/forms/FieldActionSheet'
@@ -24,10 +24,12 @@ import { OpsPanel } from './OpsPanel'
 import type {
   CoverageRow,
   Incident,
+  IncidentCasualty,
   IncidentCounters,
   RescueTeam,
   RescueTeamType,
   RiskLevel,
+  SurveillanceEntry,
   VulnerablePerson,
 } from '@/types'
 
@@ -59,11 +61,16 @@ interface Props {
   requests: TriageRequest[]
   coverageRows: CoverageRow[]
   counters: IncidentCounters | null
+  casualties: IncidentCasualty[]
+  surveillanceEntries: SurveillanceEntry[]
   incidentId: string | null
+  mapHiddenDefault: boolean
   realRole: string
 }
 
 type Segment = 'roster' | 'requests' | 'teams' | 'ops'
+
+export const MAP_HIDDEN_COOKIE = 'gx-eoc-map-hidden'
 
 interface GeoRow {
   name: string
@@ -101,13 +108,24 @@ const priorityMeta = (p: string): { tone: string; label: string } =>
         ? { tone: 'var(--risk-near)', label: 'เฝ้าระวัง' }
         : { tone: 'var(--risk-safe)', label: 'เตรียมแผน' }
 
-export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, coverageRows, counters, incidentId, realRole }: Props) {
+export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, coverageRows, counters, casualties, surveillanceEntries, incidentId, mapHiddenDefault, realRole }: Props) {
   const router = useRouter()
   const { viewRole } = useRoleView()
   const canCommand = viewRole === 'officer' || viewRole === 'admin'
 
   const [seg, setSeg] = useState<Segment>('roster')
+  const [mapHidden, setMapHidden] = useState(mapHiddenDefault)
   const [viewMode, setViewMode] = useState<'cards' | 'table-risk' | 'table-type'>('cards')
+
+  // จำสถานะซ่อนแผนที่ผ่าน cookie (อ่านฝั่ง server ใน page.tsx — ไม่มี hydration mismatch)
+  const toggleMap = () =>
+    setMapHidden((v) => {
+      const next = !v
+      document.cookie = `${MAP_HIDDEN_COOKIE}=${next ? '1' : '0'}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax`
+      return next
+    })
+  // แท็บ Sit Rep ไม่ใช้แผนที่ → กว้างเต็มเสมอ; แท็บอื่นตามปุ่มสลับ
+  const showSidebar = seg !== 'ops' && !mapHidden
   const [search, setSearch] = useState('')
   const [drill, setDrill] = useState<{ amphoe?: string; tambon?: string; vil?: string }>({})
   const [selected, setSelected] = useState<VulnerablePerson | null>(null)
@@ -287,7 +305,8 @@ export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, 
         { label: 'กลุ่มเปราะบาง', value: counts.total, tone: 'var(--fg)' },
         { label: 'ในเขตน้ำท่วม', value: counts.flood, tone: 'var(--risk-flood)' },
         { label: 'เฝ้าระวัง', value: counts.near, tone: 'var(--risk-near)' },
-        { label: 'ปลอดภัย', value: counts.safe, tone: 'var(--risk-safe)' },
+        { label: 'เสียชีวิต', value: counters?.casualties.dead ?? 0, tone: (counters?.casualties.dead ?? 0) > 0 ? 'var(--risk-flood)' : 'var(--fg)' },
+        { label: 'บาดเจ็บ', value: counters?.casualties.injured ?? 0, tone: (counters?.casualties.injured ?? 0) > 0 ? 'var(--risk-near)' : 'var(--fg)' },
         { label: 'คำร้องเปิด', value: counts.open, tone: counts.open ? 'var(--risk-flood)' : 'var(--fg)' },
         { label: 'ทีมกู้ภัย', value: counts.teams, tone: 'var(--signal-data)' },
       ]
@@ -352,7 +371,7 @@ export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, 
       {/* working area */}
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-12">
         {/* MAIN — worklist */}
-        <section className="lg:col-span-8">
+        <section className={showSidebar ? 'lg:col-span-8' : 'lg:col-span-12'}>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <div className="inline-flex rounded-lg bg-[var(--bg-sunken)] p-1 text-sm">
               <SegBtn active={seg === 'roster'} onClick={() => { setSeg('roster') }} count={counts.total}>พื้นที่</SegBtn>
@@ -362,34 +381,47 @@ export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, 
                 <SegBtn active={seg === 'ops'} onClick={() => setSeg('ops')}>ปฏิบัติการ / Sit Rep</SegBtn>
               )}
             </div>
-            {seg === 'roster' && activeIncidents.length > 0 && (
+            {seg !== 'ops' && (
               <div className="flex items-center gap-2">
-                <div className="inline-flex rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] p-0.5 text-xs">
-                  {[
-                    { v: 'cards', icon: <LayoutGrid size={13} />, label: 'การ์ด', title: 'มุมมองการ์ด (drill ทีละชั้น)' },
-                    { v: 'table-risk', icon: <TableIcon size={13} />, label: 'ตาราง · เร่งด่วน', title: 'ตารางนับตามระดับความเร่งด่วน' },
-                    { v: 'table-type', icon: <TableIcon size={13} />, label: 'ตาราง · ประเภท', title: 'ตารางนับตามประเภทกลุ่มเปราะบาง' },
-                  ].map((b) => (
-                    <button
-                      key={b.v}
-                      type="button"
-                      onClick={() => setViewMode(b.v as typeof viewMode)}
-                      title={b.title}
-                      className={`inline-flex items-center gap-1 rounded-md px-2 py-1.5 transition-colors ${viewMode === b.v ? 'bg-[var(--bg-sunken)] font-semibold text-[var(--fg)]' : 'text-[var(--fg-muted)] hover:text-[var(--fg)]'}`}
-                    >
-                      {b.icon} {b.label}
-                    </button>
-                  ))}
-                </div>
-                <div className="relative">
-                  <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--fg-subtle)]" />
-                  <input
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="ค้นชื่อทันที (ข้ามการ drill)"
-                    className="w-64 rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] py-2 pl-9 pr-3 text-sm outline-none focus:border-[var(--accent)]"
-                  />
-                </div>
+                {seg === 'roster' && activeIncidents.length > 0 && (
+                  <>
+                    <div className="inline-flex rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] p-0.5 text-xs">
+                      {[
+                        { v: 'cards', icon: <LayoutGrid size={13} />, label: 'การ์ด', title: 'มุมมองการ์ด (drill ทีละชั้น)' },
+                        { v: 'table-risk', icon: <TableIcon size={13} />, label: 'ตาราง · เร่งด่วน', title: 'ตารางนับตามระดับความเร่งด่วน' },
+                        { v: 'table-type', icon: <TableIcon size={13} />, label: 'ตาราง · ประเภท', title: 'ตารางนับตามประเภทกลุ่มเปราะบาง' },
+                      ].map((b) => (
+                        <button
+                          key={b.v}
+                          type="button"
+                          onClick={() => setViewMode(b.v as typeof viewMode)}
+                          title={b.title}
+                          className={`inline-flex items-center gap-1 rounded-md px-2 py-1.5 transition-colors ${viewMode === b.v ? 'bg-[var(--bg-sunken)] font-semibold text-[var(--fg)]' : 'text-[var(--fg-muted)] hover:text-[var(--fg)]'}`}
+                        >
+                          {b.icon} {b.label}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="relative">
+                      <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--fg-subtle)]" />
+                      <input
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        placeholder="ค้นชื่อทันที (ข้ามการ drill)"
+                        className="w-64 rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] py-2 pl-9 pr-3 text-sm outline-none focus:border-[var(--accent)]"
+                      />
+                    </div>
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={toggleMap}
+                  title={mapHidden ? 'แสดงแผนที่' : 'ซ่อนแผนที่เพื่อขยายพื้นที่ทำงาน'}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] px-3 py-2 text-xs font-medium text-[var(--fg-muted)] transition-colors hover:text-[var(--fg)]"
+                >
+                  {mapHidden ? <PanelRightOpen size={14} /> : <PanelRightClose size={14} />}
+                  {mapHidden ? 'แสดงแผนที่' : 'ซ่อนแผนที่'}
+                </button>
               </div>
             )}
           </div>
@@ -760,11 +792,18 @@ export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, 
           {seg === 'teams' && <TeamsSegment teams={rescueTeams} canRegister={canCommand} onChange={() => router.refresh()} />}
 
           {seg === 'ops' && counters && incidentId && (
-            <OpsPanel incidentId={incidentId} counters={counters} canCommand={canCommand} />
+            <OpsPanel
+              incidentId={incidentId}
+              counters={counters}
+              casualties={casualties}
+              surveillanceEntries={surveillanceEntries}
+              canCommand={canCommand}
+            />
           )}
         </section>
 
         {/* SIDE — map + selected context */}
+        {showSidebar && (
         <aside className="lg:col-span-4">
           <div className="lg:sticky lg:top-20 space-y-3">
             <div className="overflow-hidden rounded-xl border border-[var(--border)]">
@@ -803,6 +842,7 @@ export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, 
             )}
           </div>
         </aside>
+        )}
       </div>
 
       {action && (

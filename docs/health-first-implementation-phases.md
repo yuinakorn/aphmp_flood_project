@@ -100,9 +100,20 @@ Definition of done:
 
 ---
 
-## Phase E: Operations Counters + Surveillance (รอดำเนินการ)
+## Phase E: Operations Counters + Surveillance ✅ (2026-05-31)
 
 เป้าหมาย: นับ dispatch ทีม, ผู้บาดเจ็บ/เสียชีวิต, โรคเฝ้าระวัง, จำนวนบริการ — สำหรับ Sit Rep อัตโนมัติ
+
+**เสร็จแล้ว:**
+- Schema 2 ตารางใหม่ (incident-scoped): `incident_casualties` (บาดเจ็บ/เสียชีวิต/สูญหาย/ป่วย ราย event) + `disease_surveillance` (ยอดผู้ป่วยกลุ่มอาการรายวัน)
+- Migration 0019: 2 ตาราง + index `idx_*_incident_id`
+- `getIncidentCounters(incidentId)` ใน `src/lib/incident-counters.ts` — รวมตัวนับ:
+  - กลุ่ม A (derive): teams by status, dispatches (case_assignments), services (health_visits), help_requests, shelter_admissions
+  - กลุ่ม B (บันทึกตรง): casualties by type, surveillance sum by disease
+- API: `GET /api/incidents/[id]/counters`, `GET|POST .../casualties`, `GET|POST .../surveillance` (POST = canTriage)
+- EOC โหมดวิกฤต: segment ใหม่ "ปฏิบัติการ / Sit Rep" → `OpsPanel` แสดงตัวนับทุกกลุ่ม + ฟอร์มกรอก casualty/surveillance (officer/admin)
+
+**หมายเหตุ:** ตัวนับชุดนี้คือ input ตรงให้ Phase F (Sit Rep) นำไป auto-aggregate
 
 ## Phase F: Situation Report (รอดำเนินการ)
 

@@ -134,6 +134,13 @@
       "when": 1780163039143,
       "tag": "0018_regular_steel_serpent",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1780168999902,
+      "tag": "0019_cute_madame_masque",
+      "breakpoints": true
     }
   ]
 }

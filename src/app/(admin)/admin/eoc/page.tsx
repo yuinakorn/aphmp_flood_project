@@ -1,11 +1,12 @@
 import { auth } from '@/lib/auth'
 import { cookies } from 'next/headers'
-import { and, desc, eq, gte, isNotNull, isNull, max, sql } from 'drizzle-orm'
+import { and, desc, eq, isNotNull, isNull, max, sql } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { rescueTeams, helpRequests, householdMembers, healthVisits } from '@/db/schema'
 import { getActiveIncident } from '@/lib/incident-scope'
+import { getIncidentCounters } from '@/lib/incident-counters'
 import { EocDashboard } from './EocDashboard'
-import type { CoverageRow, Incident, RescueTeam, RescueTeamType, RescueTeamStatus, VulnerablePerson } from '@/types'
+import type { CoverageRow, Incident, IncidentCounters, RescueTeam, RescueTeamType, RescueTeamStatus, VulnerablePerson } from '@/types'
 
 export const metadata = { title: 'ศูนย์บัญชาการ EOC — GIS Health Intelligence' }
 
@@ -77,6 +78,9 @@ export default async function EocPage() {
 
   const activeIncidents: Incident[] = scope ? [scope] : []
 
+  // ตัวนับปฏิบัติการ (Phase E) — เฉพาะโหมดวิกฤต (มี scope)
+  const counters: IncidentCounters | null = scope ? await getIncidentCounters(scope.id) : null
+
   const teamList: RescueTeam[] = teams.map((t) => ({
     id: t.id,
     incidentId: t.incidentId,
@@ -124,6 +128,8 @@ export default async function EocPage() {
         memberName: [r.memberFirst, r.memberLast].filter(Boolean).join(' ') || 'ไม่ระบุชื่อ',
       }))}
       coverageRows={coverageRows}
+      counters={counters}
+      incidentId={scope?.id ?? null}
       realRole={role}
     />
   )

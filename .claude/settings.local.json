@@ -116,7 +116,10 @@
       "Bash(python3 -c \"import sys,json; j=json.load\\(sys.stdin\\); print\\(j['entries'][-1]\\)\")",
       "Bash(awk -F: '{print $1}')",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(node -e \"console.log\\(JSON.stringify\\(require\\('./package.json'\\).scripts,null,2\\)\\)\")",
+      "Bash(sed 's|src/app/\\(admin\\)/admin/||')",
+      "Bash(node -e \"const{Client}=require\\('pg'\\);const fs=require\\('fs'\\);let u=process.env.DATABASE_URL;if\\(!u&&fs.existsSync\\('.env'\\)\\){for\\(const l of fs.readFileSync\\('.env','utf8'\\).split\\(/\\\\r?\\\\n/\\)\\){if\\(l.startsWith\\('DATABASE_URL='\\)\\){u=l.slice\\(13\\);}}}const c=new Client\\({connectionString:u}\\);c.connect\\(\\).then\\(\\(\\)=>c.query\\('select id,name,status from incidents order by started_at desc limit 5'\\)\\).then\\(r=>{console.table\\(r.rows\\);return c.end\\(\\)}\\).catch\\(e=>{console.log\\('db err:',e.message\\);process.exit\\(0\\)}\\)\")"
     ],
     "additionalDirectories": [
       "/private/tmp/s2c_extract",

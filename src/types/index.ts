@@ -77,6 +77,96 @@ export interface FloodPoint {
   intensity: number
 }
 
+// ───────── Phase E: Operations counters + surveillance ─────────
+export type CasualtyType = 'injured' | 'dead' | 'missing' | 'ill'
+export type CasualtySeverity = 'minor' | 'moderate' | 'severe'
+export type CasualtyCause = 'drowning' | 'electrocution' | 'trauma' | 'disease' | 'other'
+
+export const CASUALTY_TYPE_LABEL: Record<CasualtyType, string> = {
+  injured: 'บาดเจ็บ',
+  dead: 'เสียชีวิต',
+  missing: 'สูญหาย',
+  ill: 'เจ็บป่วย',
+}
+export const CASUALTY_CAUSE_LABEL: Record<CasualtyCause, string> = {
+  drowning: 'จมน้ำ',
+  electrocution: 'ไฟดูด',
+  trauma: 'บาดเจ็บ/อุบัติเหตุ',
+  disease: 'โรค/ภาวะสุขภาพ',
+  other: 'อื่นๆ',
+}
+
+export interface IncidentCasualty {
+  id: string
+  incidentId: string
+  memberId?: string | null
+  casualtyType: CasualtyType
+  severity?: CasualtySeverity | null
+  personName?: string | null
+  age?: number | null
+  sex?: string | null
+  cause?: CasualtyCause | null
+  tambon?: string | null
+  amphoe?: string | null
+  notes?: string | null
+  observedAt: string
+  createdAt?: string | null
+}
+
+export type SurveillanceDiseaseCode =
+  | 'foot_immersion'
+  | 'diarrhea'
+  | 'fever'
+  | 'conjunctivitis'
+  | 'respiratory'
+  | 'stress'
+  | 'leptospirosis'
+  | 'other'
+
+export const SURVEILLANCE_DISEASE_LABEL: Record<SurveillanceDiseaseCode, string> = {
+  foot_immersion: 'น้ำกัดเท้า',
+  diarrhea: 'อุจจาระร่วง',
+  fever: 'ไข้/ไข้หวัด',
+  conjunctivitis: 'ตาแดง',
+  respiratory: 'ระบบทางเดินหายใจ',
+  stress: 'ความเครียด/สุขภาพจิต',
+  leptospirosis: 'ฉี่หนู (เลปโตสไปโรซิส)',
+  other: 'อื่นๆ',
+}
+
+export interface SurveillanceEntry {
+  id: string
+  incidentId: string
+  diseaseCode: SurveillanceDiseaseCode
+  diseaseLabel?: string | null
+  caseCount: number
+  reportDate: string
+  tambon?: string | null
+  amphoe?: string | null
+  shelterId?: string | null
+  notes?: string | null
+  createdAt?: string | null
+}
+
+export interface IncidentCounters {
+  teams: { total: number; active: number; standby: number; offline: number }
+  dispatches: { total: number; open: number; closed: number }
+  services: { visits: number; completed: number; needsHelp: number }
+  requests: { total: number; open: number; resolved: number; critical: number }
+  shelters: {
+    sheltersUsed: number
+    current: number
+    cumulative: number
+    discharged: number
+    toHospital: number
+  }
+  casualties: { injured: number; dead: number; missing: number; ill: number }
+  surveillance: {
+    totalCases: number
+    byDisease: { code: SurveillanceDiseaseCode; label: string; cases: number }[]
+  }
+}
+
 export interface VulnerablePerson {
   id: number
   name: string

@@ -397,6 +397,43 @@ export const shelterAdmissions = pgTable('shelter_admissions', {
   dischargedAt: timestamp('discharged_at', { withTimezone: true }),
 }, (t) => [index('idx_shelter_admissions_incident_id').on(t.incidentId)])
 
+// ───────── Phase E: Operations counters + surveillance (input ให้ Sit Rep) ─────────
+
+// บันทึกผู้บาดเจ็บ/เสียชีวิต/สูญหาย/ป่วย ระหว่างเหตุการณ์ — log ราย event (นับยอด + list ได้)
+export const incidentCasualties = pgTable('incident_casualties', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  incidentId: uuid('incident_id').notNull().references(() => incidents.id),
+  memberId: uuid('member_id').references(() => householdMembers.id), // ถ้าเป็นคนในทะเบียน
+  casualtyType: text('casualty_type').notNull(), // injured | dead | missing | ill
+  severity: text('severity'),        // minor | moderate | severe (เฉพาะ injured/ill)
+  personName: text('person_name'),   // กรณีไม่อยู่ในทะเบียน
+  age: smallint('age'),
+  sex: text('sex'),
+  cause: text('cause'),              // drowning | electrocution | trauma | disease | other
+  tambon: text('tambon'),
+  amphoe: text('amphoe'),
+  notes: text('notes'),
+  reportedBy: uuid('reported_by'),
+  observedAt: timestamp('observed_at', { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+}, (t) => [index('idx_incident_casualties_incident_id').on(t.incidentId)])
+
+// โรคเฝ้าระวังในศูนย์/พื้นที่ — ยอดรวมรายวันต่อกลุ่มอาการ (สำหรับ Sit Rep)
+export const diseaseSurveillance = pgTable('disease_surveillance', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  incidentId: uuid('incident_id').notNull().references(() => incidents.id),
+  diseaseCode: text('disease_code').notNull(), // foot_immersion | diarrhea | fever | conjunctivitis | respiratory | stress | leptospirosis | other
+  diseaseLabel: text('disease_label'),         // ชื่ออิสระเมื่อ code = other
+  caseCount: integer('case_count').notNull().default(0),
+  reportDate: date('report_date').notNull(),
+  tambon: text('tambon'),
+  amphoe: text('amphoe'),
+  shelterId: uuid('shelter_id').references(() => infrastructures.id),
+  notes: text('notes'),
+  reportedBy: uuid('reported_by'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+}, (t) => [index('idx_disease_surveillance_incident_id').on(t.incidentId)])
+
 // Audit log (PDPA)
 export const accessLog = pgTable('access_log', {
   id: bigserial('id', { mode: 'number' }).primaryKey(),

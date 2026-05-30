@@ -20,9 +20,11 @@ import {
 } from 'lucide-react'
 import { useRoleView } from '@/components/shell/RoleViewProvider'
 import { FieldActionSheet, type FieldActionMode } from '@/components/forms/FieldActionSheet'
+import { OpsPanel } from './OpsPanel'
 import type {
   CoverageRow,
   Incident,
+  IncidentCounters,
   RescueTeam,
   RescueTeamType,
   RiskLevel,
@@ -56,10 +58,12 @@ interface Props {
   rescueTeams: RescueTeam[]
   requests: TriageRequest[]
   coverageRows: CoverageRow[]
+  counters: IncidentCounters | null
+  incidentId: string | null
   realRole: string
 }
 
-type Segment = 'roster' | 'requests' | 'teams'
+type Segment = 'roster' | 'requests' | 'teams' | 'ops'
 
 interface GeoRow {
   name: string
@@ -97,12 +101,11 @@ const priorityMeta = (p: string): { tone: string; label: string } =>
         ? { tone: 'var(--risk-near)', label: 'เฝ้าระวัง' }
         : { tone: 'var(--risk-safe)', label: 'เตรียมแผน' }
 
-export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, coverageRows, realRole }: Props) {
+export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, coverageRows, counters, incidentId, realRole }: Props) {
   const router = useRouter()
   const { viewRole } = useRoleView()
   const canCommand = viewRole === 'officer' || viewRole === 'admin'
 
-  const [mode, setMode] = useState<'normal' | 'crisis'>(activeIncidents.length > 0 ? 'crisis' : 'normal')
   const [seg, setSeg] = useState<Segment>('roster')
   const [viewMode, setViewMode] = useState<'cards' | 'table-risk' | 'table-type'>('cards')
   const [search, setSearch] = useState('')
@@ -297,23 +300,22 @@ export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, 
           <p className="gx-eyebrow">ศูนย์บัญชาการ · {realRole}</p>
           <h1 className="gx-title mt-1">ศูนย์ตอบโต้ภัยพิบัติสุขภาพ</h1>
         </div>
-        <div className="inline-flex rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] p-1">
-          {(['normal', 'crisis'] as const).map((m) => (
-            <button
-              key={m}
-              type="button"
-              onClick={() => setMode(m)}
-              className={`rounded-md px-3.5 py-1.5 text-sm font-medium transition-colors ${
-                mode === m
-                  ? m === 'crisis'
-                    ? 'bg-[var(--risk-flood)] text-white'
-                    : 'bg-[var(--accent)] text-[var(--accent-fg)]'
-                  : 'text-[var(--fg-muted)] hover:text-[var(--fg)]'
-              }`}
-            >
-              {m === 'normal' ? 'โหมดปกติ' : 'โหมดวิกฤต'}
-            </button>
-          ))}
+        {/* ป้ายสถานะโหมด — read-only, สะท้อนจาก incident scope (เปลี่ยนโหมดที่ IncidentSwitcher บน Masthead) */}
+        <div
+          className={`inline-flex items-center gap-2 rounded-lg border px-3.5 py-1.5 text-sm font-medium ${
+            isNormalMode
+              ? 'border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--fg-muted)]'
+              : 'border-[var(--risk-flood)] bg-[var(--risk-flood)] text-white'
+          }`}
+          title={isNormalMode ? 'โหมดเฝ้าระวังปกติ — เลือกเหตุการณ์ที่แถบบนเพื่อเข้าโหมดวิกฤต' : 'กำลังจัดการเหตุการณ์ — ออกโหมดวิกฤตได้ที่แถบเหตุการณ์'}
+        >
+          {!isNormalMode && (
+            <span className="relative flex size-2">
+              <span className="absolute inline-flex size-full animate-ping rounded-full bg-white opacity-60" />
+              <span className="relative inline-flex size-2 rounded-full bg-white" />
+            </span>
+          )}
+          {isNormalMode ? 'โหมดปกติ' : 'โหมดวิกฤต'}
         </div>
       </div>
 
@@ -356,6 +358,9 @@ export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, 
               <SegBtn active={seg === 'roster'} onClick={() => { setSeg('roster') }} count={counts.total}>พื้นที่</SegBtn>
               <SegBtn active={seg === 'requests'} onClick={() => setSeg('requests')} count={counts.open} urgent={counts.open > 0}>คำร้อง / Triage</SegBtn>
               <SegBtn active={seg === 'teams'} onClick={() => setSeg('teams')} count={counts.teams}>ทีมกู้ภัย</SegBtn>
+              {counters && incidentId && (
+                <SegBtn active={seg === 'ops'} onClick={() => setSeg('ops')}>ปฏิบัติการ / Sit Rep</SegBtn>
+              )}
             </div>
             {seg === 'roster' && activeIncidents.length > 0 && (
               <div className="flex items-center gap-2">
@@ -753,6 +758,10 @@ export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, 
           )}
 
           {seg === 'teams' && <TeamsSegment teams={rescueTeams} canRegister={canCommand} onChange={() => router.refresh()} />}
+
+          {seg === 'ops' && counters && incidentId && (
+            <OpsPanel incidentId={incidentId} counters={counters} canCommand={canCommand} />
+          )}
         </section>
 
         {/* SIDE — map + selected context */}

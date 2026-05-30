@@ -26,7 +26,7 @@ export async function GET() {
   const occupancy = await db
     .select({
       shelterId: shelterAdmissions.shelterId,
-      current: sql<number>`count(*) filter (where ${shelterAdmissions.status} = 'admitted')`,
+      current: sql<number>`coalesce(sum(case when ${shelterAdmissions.status} = 'admitted' then 1 else 0 end), 0)`,
       total: sql<number>`count(*)`,
     })
     .from(shelterAdmissions)

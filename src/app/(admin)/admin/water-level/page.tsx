@@ -90,18 +90,16 @@ export default async function WaterLevelPage({
   return (
     <div className="mx-auto max-w-6xl">
       {/* ── Header ── */}
-      <div className="flex items-end justify-between gap-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--fg-subtle)]">
-            {config.river} · {config.s1} → {config.s2}
-          </p>
-          <h1 className="mt-2 flex items-center gap-2 text-[22px] font-semibold tracking-tight">
-            <Droplets size={20} strokeWidth={1.75} className="text-sky-400" />
+          <p className="gx-eyebrow">{config.river} · {config.s1} → {config.s2}</p>
+          <h1 className="gx-title mt-1.5 flex items-center gap-2.5">
+            <Droplets size={26} strokeWidth={1.75} className="text-[var(--signal-data)]" />
             ระดับน้ำรายชั่วโมง
           </h1>
-          <p className="mt-1 text-[13px] text-[var(--fg-muted)]">
-            <span className="font-mono">{rows.length}</span> ชั่วโมงล่าสุด · อัปเดต{' '}
-            <span className="font-mono">{last?.date} {last?.time}</span>
+          <p className="mt-1.5 text-sm text-[var(--fg-muted)]">
+            <span className="font-mono text-[var(--fg)]">{rows.length}</span> ชั่วโมงล่าสุด · อัปเดต{' '}
+            <span className="font-mono text-[var(--fg)]">{last?.date} {last?.time}</span>
           </p>
         </div>
         <ProvinceSelector current={provinceId} />
@@ -139,37 +137,33 @@ export default async function WaterLevelPage({
       </div>
 
       {/* ── Data table ── */}
-      <div className="mt-4 overflow-hidden rounded-md border border-[var(--border)]">
-        <table className="w-full text-[12px]">
-          <thead className="bg-[var(--bg-elevated)] text-[var(--fg-subtle)]">
-            <tr className="text-left">
-              <th className="px-3 py-2 font-medium">วัน-เวลา</th>
-              <th className="px-3 py-2 text-right font-mono font-medium">{config.s1} (m)</th>
-              <th className="px-3 py-2 text-right font-mono font-medium">{config.s1} Q</th>
-              <th className="px-3 py-2 text-right font-mono font-medium">{config.s2} (m)</th>
-              <th className="px-3 py-2 text-right font-mono font-medium">{config.s2} Q</th>
-              <th className="px-3 py-2 text-right font-mono font-medium">ส่วนต่าง</th>
+      <div className="gx-card mt-5 overflow-hidden">
+        <div className="flex items-baseline justify-between border-b border-[var(--border)] bg-[var(--bg-sunken)] px-4 py-3">
+          <h2 className="text-sm font-semibold text-[var(--fg)]">ตารางย้อนหลัง 24 ชั่วโมง</h2>
+          <span className="font-mono text-xs text-[var(--fg-subtle)]">{Math.min(rows.length, 24)} แถว</span>
+        </div>
+        <table className="gx-table">
+          <thead>
+            <tr>
+              <th>วัน-เวลา</th>
+              <th className="font-mono !text-right">{config.s1} (m)</th>
+              <th className="font-mono !text-right">{config.s1} Q</th>
+              <th className="font-mono !text-right">{config.s2} (m)</th>
+              <th className="font-mono !text-right">{config.s2} Q</th>
+              <th className="font-mono !text-right">ส่วนต่าง</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[var(--border)]">
+          <tbody>
             {[...rows].reverse().slice(0, 24).map((r, i) => {
               const diff = r.s1 != null && r.s2 != null ? r.s1 - r.s2 : null
               return (
-                <tr key={i} className="hover:bg-[var(--bg-elevated)]">
-                  <td className="px-3 py-1.5 font-mono text-[11.5px] text-[var(--fg-muted)]">
-                    {r.date} {r.time}
-                  </td>
-                  <td className="px-3 py-1.5 text-right font-mono">{r.s1?.toFixed(2) ?? '—'}</td>
-                  <td className="px-3 py-1.5 text-right font-mono text-[var(--fg-muted)]">
-                    {r.s1_discharge?.toFixed(1) ?? '—'}
-                  </td>
-                  <td className="px-3 py-1.5 text-right font-mono">{r.s2?.toFixed(2) ?? '—'}</td>
-                  <td className="px-3 py-1.5 text-right font-mono text-[var(--fg-muted)]">
-                    {r.s2_discharge?.toFixed(1) ?? '—'}
-                  </td>
-                  <td className="px-3 py-1.5 text-right font-mono text-[var(--fg-muted)]">
-                    {diff == null ? '—' : `${diff > 0 ? '+' : ''}${diff.toFixed(2)}`}
-                  </td>
+                <tr key={i}>
+                  <td className="font-mono">{r.date} {r.time}</td>
+                  <td className="text-right font-mono gx-cell-strong">{r.s1?.toFixed(2) ?? '—'}</td>
+                  <td className="text-right font-mono">{r.s1_discharge?.toFixed(1) ?? '—'}</td>
+                  <td className="text-right font-mono gx-cell-strong">{r.s2?.toFixed(2) ?? '—'}</td>
+                  <td className="text-right font-mono">{r.s2_discharge?.toFixed(1) ?? '—'}</td>
+                  <td className="text-right font-mono">{diff == null ? '—' : `${diff > 0 ? '+' : ''}${diff.toFixed(2)}`}</td>
                 </tr>
               )
             })}
@@ -178,7 +172,7 @@ export default async function WaterLevelPage({
       </div>
 
       {/* ── Data source ── */}
-      <p className="mt-4 text-[11px] text-[var(--fg-subtle)]">
+      <p className="mt-4 text-xs text-[var(--fg-subtle)]">
         แหล่งข้อมูลจาก{' '}
         <a
           href="https://hydro-1.net/Data/HD-04/houly/hourly_level.php"

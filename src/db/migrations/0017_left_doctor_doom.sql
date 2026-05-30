@@ -1,0 +1,2 @@
+ALTER TABLE "shelter_admissions" ADD COLUMN "incident_id" uuid;--> statement-breakpoint
+ALTER TABLE "shelter_admissions" ADD CONSTRAINT "shelter_admissions_incident_id_incidents_id_fk" FOREIGN KEY ("incident_id") REFERENCES "public"."incidents"("id") ON DELETE no action ON UPDATE no action;

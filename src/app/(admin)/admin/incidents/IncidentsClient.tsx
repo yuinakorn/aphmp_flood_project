@@ -1,8 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AlertTriangle, Plus, CircleDot, Archive } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { AlertTriangle, Plus, CircleDot, Archive, Siren, Crosshair, Check } from 'lucide-react'
 import type { Incident, IncidentType } from '@/types'
+import { useIncidentScope } from '@/components/shell/IncidentScopeProvider'
 
 const TYPE_LABEL: Record<IncidentType, string> = {
   flood: 'น้ำท่วม',
@@ -22,6 +24,8 @@ function fmt(iso?: string | null) {
 }
 
 export function IncidentsClient() {
+  const router = useRouter()
+  const scope = useIncidentScope()
   const [incidents, setIncidents] = useState<Incident[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -96,35 +100,48 @@ export function IncidentsClient() {
   }
 
   const activeCount = incidents.filter((i) => i.status === 'active').length
+  const monitoringCount = incidents.filter((i) => i.status === 'monitoring').length
 
   const inputCls =
-    'h-9 rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 text-[13px] outline-none focus:border-[var(--accent)]'
+    'h-10 rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 text-sm outline-none transition-colors focus:border-[var(--accent)]'
+
+  const statusBadge = (s: string) =>
+    s === 'active' ? 'gx-badge gx-badge-flood' : s === 'monitoring' ? 'gx-badge gx-badge-near' : 'gx-badge'
 
   return (
-    <div className="mx-auto max-w-4xl">
-      <div>
-        <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--fg-subtle)]">
-          โหมดวิกฤต · เหตุการณ์ภัยพิบัติ
-        </p>
-        <h1 className="mt-2 text-[22px] font-semibold tracking-tight">เหตุการณ์ (Incidents)</h1>
-        <p className="mt-1 text-[13px] text-[var(--fg-muted)]">
-          เปิดเหตุการณ์เพื่อเข้าสู่โหมดวิกฤต — ข้อมูลภาคสนามใหม่จะถูกผูกกับเหตุการณ์ที่กำลังเกิด
-          {activeCount > 0 && (
-            <span className="ml-1 font-medium text-[var(--risk-flood)]">
-              · กำลังเกิด {activeCount} เหตุการณ์
-            </span>
-          )}
-        </p>
+    <div className="mx-auto max-w-5xl">
+      {activeCount > 0 && (
+        <div className="gx-banner-crisis mb-5">
+          <AlertTriangle size={18} className="shrink-0" />
+          <span>
+            ระบบอยู่ใน <strong>โหมดวิกฤต</strong> · กำลังเกิด {activeCount} เหตุการณ์ ข้อมูลภาคสนามใหม่จะถูกผูกกับเหตุการณ์ที่ active โดยอัตโนมัติ
+          </span>
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="gx-eyebrow">โหมดวิกฤต · เหตุการณ์ภัยพิบัติ</p>
+          <h1 className="gx-title mt-1.5">เหตุการณ์ (Incidents)</h1>
+          <p className="mt-1.5 text-sm text-[var(--fg-muted)]">
+            เปิดเหตุการณ์เพื่อเข้าสู่โหมดวิกฤต — ข้อมูลภาคสนามใหม่จะถูกผูกกับเหตุการณ์ที่กำลังเกิด
+          </p>
+        </div>
+        <div className="flex gap-2 text-xs">
+          <span className="gx-badge gx-badge-flood"><span className="gx-badge-dot" />active {activeCount}</span>
+          {monitoringCount > 0 && <span className="gx-badge gx-badge-near"><span className="gx-badge-dot" />monitoring {monitoringCount}</span>}
+        </div>
       </div>
 
-      <form
-        onSubmit={create}
-        className="mt-6 rounded-lg border border-[var(--border)] p-4"
-      >
-        <h2 className="flex items-center gap-2 text-[12px] font-medium">
-          <Plus size={14} strokeWidth={2} /> เปิดเหตุการณ์ใหม่
-        </h2>
-        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <form onSubmit={create} className="gx-card mt-6 p-5" style={{ ['--tile' as string]: 'var(--risk-flood)' }}>
+        <div className="mb-4 flex items-center gap-3">
+          <span className="gx-icon-tile size-10"><Siren size={18} strokeWidth={1.75} /></span>
+          <div>
+            <p className="text-sm font-semibold text-[var(--fg)]">เปิดเหตุการณ์ใหม่</p>
+            <p className="text-xs text-[var(--fg-muted)]">การเปิดเหตุการณ์จะกระตุ้นโหมดวิกฤตทันที ทุกระบบที่เกี่ยวข้องจะตอบสนอง</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <input
             className={`${inputCls} sm:col-span-2`}
             placeholder="ชื่อเหตุการณ์ เช่น น้ำท่วม ต.สันทราย ต.ค. 2568"
@@ -132,11 +149,7 @@ export function IncidentsClient() {
             onChange={(e) => setName(e.target.value)}
             required
           />
-          <select
-            className={inputCls}
-            value={type}
-            onChange={(e) => setType(e.target.value as IncidentType)}
-          >
+          <select className={inputCls} value={type} onChange={(e) => setType(e.target.value as IncidentType)}>
             <option value="flood">น้ำท่วม</option>
             <option value="storm">พายุ</option>
             <option value="other">อื่นๆ</option>
@@ -146,57 +159,75 @@ export function IncidentsClient() {
           <input className={inputCls} placeholder="ตำบล" value={tambon} onChange={(e) => setTambon(e.target.value)} />
           <input className={`${inputCls} sm:col-span-2`} placeholder="รายละเอียด (ไม่บังคับ)" value={description} onChange={(e) => setDescription(e.target.value)} />
         </div>
-        <div className="mt-3 flex items-center gap-3">
-          <button
-            type="submit"
-            disabled={busy || !name.trim()}
-            className="inline-flex h-9 items-center gap-2 rounded-md bg-[var(--accent)] px-4 text-[12.5px] font-medium text-[var(--accent-fg)] transition-opacity hover:opacity-90 disabled:opacity-50"
-          >
-            <AlertTriangle size={14} strokeWidth={2} /> เปิดเหตุการณ์
+        <div className="mt-4 flex items-center gap-3">
+          <button type="submit" disabled={busy || !name.trim()} className="gx-btn gx-btn-primary disabled:opacity-50">
+            <AlertTriangle size={16} strokeWidth={2} /> {busy ? 'กำลังเปิด...' : 'เปิดเหตุการณ์'}
           </button>
-          {error && <span className="text-[12px] text-[var(--risk-flood)]">{error}</span>}
+          {error && <span className="text-sm text-[var(--risk-flood)]">{error}</span>}
         </div>
       </form>
 
-      <ul className="mt-6 divide-y divide-[var(--border)] overflow-hidden rounded-lg border border-[var(--border)]">
-        {loading && <li className="px-4 py-6 text-center text-[13px] text-[var(--fg-subtle)]">กำลังโหลด…</li>}
+      <div className="mt-7 flex items-baseline justify-between">
+        <h2 className="text-sm font-semibold text-[var(--fg)]">เหตุการณ์ทั้งหมด <span className="ml-1.5 font-mono text-[var(--fg-subtle)]">{incidents.length}</span></h2>
+      </div>
+
+      <ul className="mt-3 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)]">
+        {loading && <li className="px-4 py-8 text-center text-sm text-[var(--fg-subtle)]">กำลังโหลด…</li>}
         {!loading && incidents.length === 0 && (
-          <li className="px-4 py-6 text-center text-[13px] text-[var(--fg-subtle)]">ยังไม่มีเหตุการณ์</li>
+          <li className="px-4 py-10 text-center text-sm text-[var(--fg-subtle)]">ยังไม่มีเหตุการณ์ — เปิดเหตุการณ์แรกด้านบนเพื่อเริ่ม</li>
         )}
         {incidents.map((inc) => {
           const isActive = inc.status === 'active'
+          const place = [inc.tambon, inc.amphoe, inc.province].filter(Boolean).join(' · ')
           return (
-            <li key={inc.id} className="flex items-center gap-4 px-4 py-3">
+            <li key={inc.id} className="flex items-center gap-4 border-b border-[var(--border)] px-4 py-3.5 last:border-b-0">
               <span
                 aria-hidden
-                className="flex size-9 shrink-0 items-center justify-center rounded-md"
+                className="flex size-10 shrink-0 items-center justify-center rounded-lg"
                 style={{
-                  background: isActive
-                    ? 'color-mix(in oklch, var(--risk-flood) 14%, transparent)'
-                    : 'var(--bg-elevated)',
+                  background: isActive ? 'color-mix(in oklch, var(--risk-flood) 14%, transparent)' : 'var(--bg-sunken)',
                   color: isActive ? 'var(--risk-flood)' : 'var(--fg-subtle)',
                 }}
               >
-                {isActive ? <CircleDot size={15} strokeWidth={1.75} /> : <Archive size={15} strokeWidth={1.75} />}
+                {isActive ? <CircleDot size={18} strokeWidth={1.75} /> : <Archive size={18} strokeWidth={1.75} />}
               </span>
-              <div className="flex-1">
-                <div className="text-[14px] font-medium">{inc.name}</div>
-                <div className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-[var(--fg-subtle)]">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2.5">
+                  <span className="truncate text-sm font-semibold text-[var(--fg)]">{inc.name}</span>
+                  <span className={statusBadge(inc.status)}><span className="gx-badge-dot" />{STATUS_LABEL[inc.status] ?? inc.status}</span>
+                </div>
+                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-[var(--fg-subtle)]">
                   <span>{TYPE_LABEL[inc.type] ?? inc.type}</span>
-                  <span>{STATUS_LABEL[inc.status] ?? inc.status}</span>
-                  {[inc.tambon, inc.amphoe, inc.province].filter(Boolean).length > 0 && (
-                    <span>{[inc.tambon, inc.amphoe, inc.province].filter(Boolean).join(' · ')}</span>
-                  )}
-                  <span>เริ่ม {fmt(inc.startedAt)}</span>
-                  {inc.endedAt && <span>สิ้นสุด {fmt(inc.endedAt)}</span>}
+                  {place && <span>{place}</span>}
+                  <span className="font-mono">เริ่ม {fmt(inc.startedAt)}</span>
+                  {inc.endedAt && <span className="font-mono">สิ้นสุด {fmt(inc.endedAt)}</span>}
                 </div>
               </div>
+              {(() => {
+                const isScoped = scope.active?.id === inc.id
+                return (
+                  <button
+                    type="button"
+                    disabled={scope.isSwitching || inc.status === 'closed'}
+                    onClick={async () => { await scope.setScope(inc.id); router.push('/admin/eoc') }}
+                    title={isScoped ? 'เหตุการณ์ปัจจุบัน — เปิด EOC' : 'ตั้งเป็นเหตุการณ์ที่กำลังจัดการ + เปิด EOC'}
+                    className={
+                      isScoped
+                        ? 'gx-btn gx-btn-primary gx-btn-sm'
+                        : 'gx-btn gx-btn-ghost gx-btn-sm hover:!border-[var(--risk-flood)] hover:!text-[var(--risk-flood)] disabled:opacity-50'
+                    }
+                  >
+                    {isScoped ? <Check size={13} /> : <Crosshair size={13} />}
+                    {isScoped ? 'กำลังจัดการ' : 'จัดการเหตุการณ์นี้'}
+                  </button>
+                )
+              })()}
               {isActive ? (
                 <button
                   type="button"
                   disabled={busy}
                   onClick={() => setStatus(inc.id, 'closed')}
-                  className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[var(--border)] px-3 text-[12px] text-[var(--fg-muted)] transition-colors hover:border-[var(--risk-flood)] hover:text-[var(--risk-flood)] disabled:opacity-50"
+                  className="gx-btn gx-btn-ghost gx-btn-sm hover:!border-[var(--risk-flood)] hover:!text-[var(--risk-flood)] disabled:opacity-50"
                 >
                   ปิดเหตุการณ์
                 </button>
@@ -205,7 +236,7 @@ export function IncidentsClient() {
                   type="button"
                   disabled={busy}
                   onClick={() => setStatus(inc.id, 'active')}
-                  className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[var(--border)] px-3 text-[12px] text-[var(--fg-muted)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:opacity-50"
+                  className="gx-btn gx-btn-ghost gx-btn-sm disabled:opacity-50"
                 >
                   เปิดอีกครั้ง
                 </button>

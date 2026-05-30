@@ -138,6 +138,9 @@ export interface Infrastructure {
   healthResources?: Record<string, unknown>
 }
 
+export type VitalStatus = 'normal' | 'monitoring' | 'unstable'
+export type MentalStatus = 'good' | 'anxiety'
+
 export interface HealthVisit {
   id: string
   incidentId?: string | null
@@ -147,11 +150,40 @@ export interface HealthVisit {
   personStatus?: PersonFieldStatus
   needsHelp: boolean
   helpType?: string
+  vitalStatus?: VitalStatus
+  mentalStatus?: MentalStatus
+  needsMcat: boolean
+  medSufficient?: boolean
+  oxygenReady?: boolean
   notes?: string
   lat?: number
   lng?: number
   observedAt: string
   syncedAt?: string
+}
+
+export type RescueTeamType =
+  | 'rescue_boat'
+  | 'gmc_truck'
+  | 'ems_medical'
+  | 'mcat_psych'
+  | 'volunteer_kitchen'
+  | 'other'
+export type RescueTeamStatus = 'active' | 'standby' | 'offline'
+
+export interface RescueTeam {
+  id: string
+  incidentId?: string | null
+  name: string
+  teamType: RescueTeamType
+  contact?: string
+  zone?: string
+  status: RescueTeamStatus
+  lat?: number
+  lng?: number
+  registeredBy?: string
+  createdAt?: string
+  updatedAt?: string
 }
 
 export interface HelpRequest {
@@ -175,6 +207,7 @@ export interface CaseAssignment {
   id: string
   helpRequestId: string
   assignedTo?: string
+  rescueTeamId?: string
   assignedTeam?: string
   assignedBy?: string
   status: 'assigned' | 'accepted' | 'en_route' | 'arrived' | 'transferred' | 'closed'
@@ -195,17 +228,53 @@ export interface ShelterStatusSnapshot {
   syncedAt?: string
 }
 
+export type AdmissionStatus = 'admitted' | 'transferred' | 'discharged' | 'cancelled'
+export type AdmissionExitReason =
+  | 'moved_home'
+  | 'admitted_hospital'
+  | 'transferred_shelter'
+  | 'other'
+
+export interface ShelterZone {
+  id: string
+  shelterId: string
+  name: string
+  description?: string | null
+  sortOrder: number
+}
+
 export interface ShelterAdmission {
   id: string
   shelterId: string
+  zoneId?: string | null
   memberId?: string
   helpRequestId?: string
   admittedBy?: string
-  status: 'admitted' | 'transferred' | 'discharged' | 'cancelled'
+  status: AdmissionStatus
   needsFollowUp: boolean
+  intakePoint?: string | null
+  broughtByTeamId?: string | null
+  broughtByText?: string | null
+  exitReason?: AdmissionExitReason | null
+  exitDestination?: string | null
   notes?: string
   admittedAt: string
   dischargedAt?: string
+}
+
+/** Person summary attached to a shelter admission for display (joined from householdMembers) */
+export interface AdmissionPerson {
+  id?: string | null
+  name: string
+  nationalIdMasked?: string | null   // มาจาก server เสมอ — masked แล้ว
+  age?: number | null
+  sex?: string | null
+  nationality?: string | null
+  phone?: string | null
+  conditions?: string | null
+  foodAllergy?: string | null
+  drugAllergy?: string | null
+  isVulnerable?: boolean
 }
 
 export interface FloodStats {

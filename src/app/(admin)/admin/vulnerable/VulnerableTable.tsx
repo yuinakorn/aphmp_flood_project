@@ -1,13 +1,10 @@
 'use client'
 
-import { Pencil, Trash2 } from 'lucide-react'
-import type { RiskLevel, VulnerablePerson } from '@/types'
-
-const riskTone: Record<RiskLevel, string> = {
-  flood: 'var(--risk-flood)',
-  near: 'var(--risk-near)',
-  safe: 'var(--risk-safe)',
-}
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { Stethoscope, LifeBuoy, AlertTriangle } from 'lucide-react'
+import { FieldActionSheet, type FieldActionMode } from '@/components/forms/FieldActionSheet'
+import type { Incident, RiskLevel, VulnerablePerson } from '@/types'
 
 const riskLabel: Record<RiskLevel, string> = {
   flood: 'ในเขตน้ำท่วม',
@@ -25,74 +22,83 @@ const typeColor: Record<string, string> = {
 interface Props {
   persons: VulnerablePerson[]
   canEdit: boolean
+  activeIncidents: Incident[]
 }
 
-export function VulnerableTable({ persons, canEdit }: Props) {
+export function VulnerableTable({ persons, canEdit, activeIncidents }: Props) {
+  const router = useRouter()
+  const [action, setAction] = useState<{ id: string; name: string; mode: FieldActionMode } | null>(null)
+
+  const riskClass: Record<RiskLevel, string> = {
+    flood: 'gx-badge gx-badge-flood',
+    near: 'gx-badge gx-badge-near',
+    safe: 'gx-badge gx-badge-safe',
+  }
+
   return (
-    <div className="overflow-hidden rounded-lg border border-[var(--border)]">
-      <table className="w-full text-[13px]">
+    <div className="gx-card overflow-hidden">
+      {activeIncidents.length > 0 && (
+        <div className="gx-banner-crisis rounded-none border-x-0 border-t-0">
+          <AlertTriangle size={16} className="shrink-0" />
+          โหมดวิกฤต — การบันทึกจะผูกกับ{' '}
+          {activeIncidents.length === 1 ? activeIncidents[0].name : `${activeIncidents.length} เหตุการณ์ที่กำลังเกิด`}
+        </div>
+      )}
+      <table className="gx-table">
         <thead>
-          <tr className="border-b border-[var(--border)] bg-[var(--bg-elevated)] text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--fg-subtle)]">
-            <th className="px-4 py-3 text-left">ชื่อ</th>
-            <th className="px-4 py-3 text-left">ประเภท</th>
-            <th className="px-4 py-3 text-left font-mono">อายุ</th>
-            <th className="px-4 py-3 text-left">ภาวะ</th>
-            <th className="px-4 py-3 text-left">หมู่บ้าน</th>
-            <th className="px-4 py-3 text-left">ความเสี่ยง</th>
-            {canEdit && <th className="px-4 py-3 text-right">จัดการ</th>}
+          <tr>
+            <th>ชื่อ</th>
+            <th>ประเภท</th>
+            <th className="font-mono">อายุ</th>
+            <th>ภาวะ</th>
+            <th>หมู่บ้าน</th>
+            <th>ความเสี่ยง</th>
+            {canEdit && <th className="text-right">จัดการ</th>}
           </tr>
         </thead>
         <tbody>
           {persons.map((p) => {
             const risk = (p.risk ?? 'safe') as RiskLevel
             return (
-              <tr
-                key={p.id}
-                className="border-b border-[var(--border)] transition-colors last:border-b-0 hover:bg-[var(--bg-elevated)]"
-              >
-                <td className="px-4 py-3 font-medium">
+              <tr key={p.id}>
+                <td className="gx-cell-strong">
                   <div className="flex items-center gap-2.5">
                     <span
                       aria-hidden
-                      className="size-1.5 shrink-0 rounded-full"
+                      className="size-2 shrink-0 rounded-full"
                       style={{ background: typeColor[p.type] }}
                     />
                     {p.name}
                   </div>
                 </td>
-                <td className="px-4 py-3 text-[var(--fg-muted)]">{p.label}</td>
-                <td className="px-4 py-3 font-mono text-[var(--fg-muted)]">
-                  {p.age}
-                </td>
-                <td className="px-4 py-3 text-[var(--fg-muted)]">{p.cond}</td>
-                <td className="px-4 py-3 text-[var(--fg-muted)]">{p.vil}</td>
-                <td className="px-4 py-3">
-                  <span
-                    className="inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.06em]"
-                    style={{ color: riskTone[risk] }}
-                  >
-                    <span
-                      aria-hidden
-                      className="size-1.5 rounded-full"
-                      style={{ background: riskTone[risk] }}
-                    />
+                <td>{p.label}</td>
+                <td className="font-mono">{p.age}</td>
+                <td>{p.cond}</td>
+                <td>{p.vil}</td>
+                <td>
+                  <span className={riskClass[risk]}>
+                    <span aria-hidden className="gx-badge-dot" />
                     {riskLabel[risk]}
                   </span>
                 </td>
                 {canEdit && (
-                  <td className="px-4 py-3">
-                    <div className="flex justify-end gap-1">
+                  <td>
+                    <div className="flex justify-end gap-2">
                       <button
-                        aria-label="แก้ไข"
-                        className="flex size-7 items-center justify-center rounded-md text-[var(--fg-muted)] transition-colors hover:bg-[var(--bg)] hover:text-[var(--accent)]"
+                        type="button"
+                        onClick={() => setAction({ id: String(p.id), name: p.name, mode: 'visit' })}
+                        className="gx-btn gx-btn-ghost gx-btn-sm hover:!border-[var(--accent)] hover:!text-[var(--accent)]"
                       >
-                        <Pencil size={13} strokeWidth={1.75} />
+                        <Stethoscope size={14} strokeWidth={1.75} />
+                        เยี่ยม
                       </button>
                       <button
-                        aria-label="ลบ"
-                        className="flex size-7 items-center justify-center rounded-md text-[var(--fg-muted)] transition-colors hover:bg-[var(--bg)] hover:text-[var(--risk-flood)]"
+                        type="button"
+                        onClick={() => setAction({ id: String(p.id), name: p.name, mode: 'help' })}
+                        className="gx-btn gx-btn-ghost gx-btn-sm hover:!border-[var(--risk-flood)] hover:!text-[var(--risk-flood)]"
                       >
-                        <Trash2 size={13} strokeWidth={1.75} />
+                        <LifeBuoy size={14} strokeWidth={1.75} />
+                        ขอช่วยเหลือ
                       </button>
                     </div>
                   </td>
@@ -102,6 +108,19 @@ export function VulnerableTable({ persons, canEdit }: Props) {
           })}
         </tbody>
       </table>
+
+      {action && (
+        <FieldActionSheet
+          target={{ id: action.id, name: action.name }}
+          mode={action.mode}
+          activeIncidents={activeIncidents}
+          onClose={() => setAction(null)}
+          onDone={() => {
+            setAction(null)
+            router.refresh()
+          }}
+        />
+      )}
     </div>
   )
 }

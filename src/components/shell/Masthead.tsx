@@ -2,7 +2,7 @@
 
 import {
   Waves,
-  MapPinned,
+  Activity,
   ChevronDown,
   LayoutDashboard,
   FolderHeart,
@@ -10,10 +10,19 @@ import {
   Building2,
   Droplets,
   AlertTriangle,
+  Tent,
+  Eye,
+  Check,
 } from 'lucide-react'
+import {
+  useRoleView,
+  ROLE_LABELS,
+  type ViewRole,
+} from '@/components/shell/RoleViewProvider'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { ThemeToggle } from '@/components/ThemeToggle'
+import { IncidentSwitcher } from '@/components/shell/IncidentSwitcher'
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -24,6 +33,57 @@ import {
 
 interface Props {
   session?: { role: string; name: string } | null
+}
+
+const ROLE_ORDER: ViewRole[] = ['vhv', 'officer', 'admin']
+
+function RoleSwitcher({ name }: { name: string }) {
+  const { realRole, viewRole, setViewRole, isPreview } = useRoleView()
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <button
+            type="button"
+            className="flex cursor-pointer items-center gap-2 rounded-md border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-[12px] text-white outline-none transition-colors hover:bg-slate-700"
+          />
+        }
+      >
+        <Eye className="size-3.5 text-slate-400" strokeWidth={1.75} />
+        <span className="hidden font-medium sm:inline">{ROLE_LABELS[viewRole]}</span>
+        {isPreview && (
+          <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-300">
+            preview
+          </span>
+        )}
+        <ChevronDown className="size-3 opacity-60" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="end"
+        className="w-64 border border-[var(--border)] bg-[var(--bg-elevated)] p-1 text-[var(--fg)] shadow-md"
+      >
+        <div className="px-2.5 py-2 text-[11px] text-[var(--fg-subtle)]">
+          ดูในมุมมองบทบาท · <span className="text-[var(--fg-muted)]">{name}</span>
+        </div>
+        {ROLE_ORDER.map((r) => (
+          <DropdownMenuItem
+            key={r}
+            onClick={() => setViewRole(r)}
+            className="flex items-center justify-between gap-2 px-2.5 py-2 text-[12.5px] cursor-pointer"
+          >
+            <span>{ROLE_LABELS[r]}</span>
+            {r === viewRole && <Check className="size-4 shrink-0 text-[var(--accent)]" />}
+          </DropdownMenuItem>
+        ))}
+        {isPreview && (
+          <p className="border-t border-[var(--border)] px-2.5 py-2 text-[10.5px] leading-relaxed text-[var(--risk-near)]">
+            * แสดงผลเท่านั้น — สิทธิ์จริงของคุณคือ {ROLE_LABELS[realRole]} ระบบยังตัดสินสิทธิ์จากบัญชีจริงเสมอ
+          </p>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
 }
 
 function NavLink({
@@ -41,8 +101,8 @@ function NavLink({
       aria-current={active ? 'page' : undefined}
       className={
         active
-          ? 'inline-flex items-center gap-1.5 rounded-md bg-[var(--bg-elevated)] px-3 py-1.5 font-medium text-[var(--fg)] shadow-[inset_0_-1px_0_var(--accent)]'
-          : 'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[var(--fg-muted)] transition-colors hover:bg-[var(--bg-elevated)] hover:text-[var(--fg)]'
+          ? 'inline-flex items-center gap-1.5 rounded-md bg-slate-800 px-3 py-1.5 font-medium text-white shadow-[inset_0_-2px_0_var(--color-risk-safe)]'
+          : 'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-slate-300 transition-colors hover:bg-slate-800 hover:text-white'
       }
     >
       {children}
@@ -56,24 +116,27 @@ export function Masthead({ session }: Props) {
     href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(href + '/')
 
   return (
-    <header className="flex h-14 shrink-0 items-center gap-3 border-b border-[var(--border)] bg-[var(--bg)] px-3 md:gap-6 md:px-6">
+    <header className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-3 border-b border-slate-800 bg-slate-900 px-4 text-white md:gap-6">
       <Link
         href="/map"
-        className="flex items-center gap-2 transition-opacity hover:opacity-80 md:gap-3"
+        className="flex items-center gap-2.5 transition-opacity hover:opacity-90 md:gap-3"
       >
-        <MapPinned
-          aria-hidden
-          strokeWidth={1.75}
-          className="size-5 text-[var(--accent)]"
-        />
-        <span className="text-[14px] font-semibold tracking-tight">
-          GIS Health Intelligence
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[var(--color-risk-safe)] text-white shadow-sm">
+          <Activity aria-hidden strokeWidth={2} className="size-5" />
+        </span>
+        <span className="leading-tight">
+          <span className="block text-[15px] font-bold tracking-tight">
+            ระบบภูมิสารสนเทศสุขภาพระดับหน้าด่าน
+          </span>
+          <span className="block text-[10.5px] text-slate-400">
+            Spatial Health Registry &amp; Disaster Response Dashboard
+          </span>
         </span>
       </Link>
 
-      <span className="hidden h-5 w-px bg-[var(--border)] sm:block" aria-hidden />
+      <span className="hidden h-6 w-px bg-slate-700 lg:block" aria-hidden />
 
-      <nav className="flex items-center gap-1 text-[12.5px]">
+      <nav className="hidden items-center gap-1 text-[13px] lg:flex">
         <NavLink href="/map" active={isActive('/map')}>
           <Waves aria-hidden strokeWidth={1.75} className="size-4" />
           Flood Map
@@ -86,8 +149,8 @@ export function Masthead({ session }: Props) {
                   type="button"
                   className={
                     isActive('/admin')
-                      ? 'flex items-center gap-1.5 rounded-md bg-[var(--bg-elevated)] px-3 py-1.5 font-medium text-[var(--fg)] shadow-[inset_0_-1px_0_var(--accent)] cursor-pointer outline-none'
-                      : 'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[var(--fg-muted)] transition-colors hover:bg-[var(--bg-elevated)] hover:text-[var(--fg)] cursor-pointer outline-none'
+                      ? 'flex items-center gap-1.5 rounded-md bg-slate-800 px-3 py-1.5 font-medium text-white shadow-[inset_0_-2px_0_var(--color-risk-safe)] cursor-pointer outline-none'
+                      : 'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-slate-300 transition-colors hover:bg-slate-800 hover:text-white cursor-pointer outline-none'
                   }
                 />
               }
@@ -131,11 +194,19 @@ export function Masthead({ session }: Props) {
               </DropdownMenuItem>
 
               <DropdownMenuItem
+                render={<Link href="/admin/shelters" />}
+                className="gap-2 px-2.5 py-2 text-[12.5px] cursor-pointer"
+              >
+                <Tent className="size-4 shrink-0 opacity-70" />
+                <span>ศูนย์พักพิง — รับเข้า/ย้ายออก</span>
+              </DropdownMenuItem>
+
+              <DropdownMenuItem
                 render={<Link href="/admin/infra" />}
                 className="gap-2 px-2.5 py-2 text-[12.5px] cursor-pointer"
               >
                 <Building2 className="size-4 shrink-0 opacity-70" />
-                <span>สถานที่สำคัญ</span>
+                <span>สถานพยาบาล</span>
               </DropdownMenuItem>
 
               <DropdownMenuItem
@@ -150,24 +221,22 @@ export function Masthead({ session }: Props) {
         )}
       </nav>
 
-      <div className="ml-auto flex items-center gap-3 text-[11px] text-[var(--fg-subtle)] md:gap-4">
-        <span className="hidden font-mono uppercase tracking-[0.12em] lg:inline">
+      <div className="ml-auto flex items-center gap-3 text-[11px] text-slate-400 md:gap-4">
+        <span className="hidden font-mono uppercase tracking-[0.12em] xl:inline">
           Sentinel-1 · GISTDA
         </span>
-        <ThemeToggle />
+        <div className="[&_button]:text-slate-300 [&_button:hover]:bg-slate-800 [&_button:hover]:text-white">
+          <ThemeToggle />
+        </div>
         {session ? (
-          <div className="flex items-center gap-2 md:gap-3">
-            <span className="font-mono text-[10.5px] uppercase tracking-[0.12em] text-[var(--accent)]">
-              {session.role}
-            </span>
-            <span className="hidden text-[12.5px] text-[var(--fg-muted)] sm:inline">
-              {session.name}
-            </span>
-          </div>
+          <>
+            <IncidentSwitcher />
+            <RoleSwitcher name={session.name} />
+          </>
         ) : (
           <Link
             href="/login"
-            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[var(--border)] bg-[var(--bg-elevated)] px-3.5 text-[12px] font-medium text-[var(--fg)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]"
+            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-700 bg-slate-800 px-3.5 text-[12px] font-medium text-white transition-colors hover:border-[var(--color-risk-safe)] hover:text-[var(--color-risk-safe)]"
           >
             เข้าสู่ระบบ
           </Link>

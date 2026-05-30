@@ -87,52 +87,35 @@ function HouseDrawer({
       />
       <div className="flex h-full w-full max-w-md flex-col border-l border-[var(--border)] bg-[var(--bg)] shadow-2xl">
         {/* Header */}
-        <div className="flex items-center gap-3 border-b border-[var(--border)] px-5 py-4">
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[var(--bg-elevated)]">
-            <Home size={16} strokeWidth={1.75} className="text-[var(--accent)]" />
-          </div>
+        <div className="flex items-center gap-3 border-b border-[var(--border)] px-5 py-4" style={{ ['--tile' as string]: 'var(--cat-folder)' }}>
+          <span className="gx-icon-tile size-10"><Home size={18} strokeWidth={1.75} /></span>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-[15px] font-semibold">
-              บ้านเลขที่ {house.hno}
-            </p>
-            <p className="text-[12px] text-[var(--fg-muted)]">
+            <p className="truncate text-base font-semibold text-[var(--fg)]">บ้านเลขที่ {house.hno}</p>
+            <p className="text-xs text-[var(--fg-muted)]">
               {house.villno ? `ม.${house.villno} ` : ''}{house.village}
-              <span className="ml-2 font-mono text-[11px] text-[var(--fg-subtle)]">
-                #{house.hcode}
-              </span>
+              <span className="ml-2 font-mono text-[10.5px] text-[var(--fg-subtle)]">#{house.hcode}</span>
             </p>
           </div>
           <button
             aria-label="ปิด"
             onClick={onClose}
-            className="flex size-8 items-center justify-center rounded-md text-[var(--fg-muted)] hover:bg-[var(--bg-elevated)] hover:text-[var(--fg)]"
+            className="flex size-8 items-center justify-center rounded-md text-[var(--fg-muted)] transition-colors hover:bg-[var(--bg-elevated)] hover:text-[var(--fg)]"
           >
-            <X size={15} strokeWidth={2} />
+            <X size={16} strokeWidth={2} />
           </button>
         </div>
 
-        {/* Stats bar */}
-        <div className="grid grid-cols-4 divide-x divide-[var(--border)] border-b border-[var(--border)] bg-[var(--bg-elevated)]">
+        {/* Stats ribbon */}
+        <div className="grid grid-cols-4 divide-x divide-[var(--border)] border-b border-[var(--border)] bg-[var(--bg-sunken)]">
           {[
             { label: 'สมาชิก', value: house.members.length },
-            { label: 'เปราะบาง', value: house.vulnerableCount, accent: true },
-            {
-              label: 'สูงอายุ',
-              value: house.members.filter((m) => m.group === 'ผู้สูงอายุ').length,
-            },
-            {
-              label: 'เด็กเล็ก',
-              value: house.members.filter((m) => m.group === 'เด็กเล็ก').length,
-            },
+            { label: 'เปราะบาง', value: house.vulnerableCount, tone: 'var(--risk-flood)' },
+            { label: 'สูงอายุ', value: house.members.filter((m) => m.group === 'ผู้สูงอายุ').length, tone: 'var(--risk-near)' },
+            { label: 'เด็กเล็ก', value: house.members.filter((m) => m.group === 'เด็กเล็ก').length },
           ].map((s) => (
             <div key={s.label} className="py-3 text-center">
-              <p
-                className="text-[18px] font-semibold font-mono leading-tight"
-                style={{ color: s.accent ? 'var(--risk-flood)' : undefined }}
-              >
-                {s.value}
-              </p>
-              <p className="text-[10px] text-[var(--fg-subtle)]">{s.label}</p>
+              <p className="font-mono text-[22px] font-semibold leading-tight" style={{ color: s.tone ?? 'var(--fg)' }}>{s.value}</p>
+              <p className="text-[10.5px] uppercase tracking-wide text-[var(--fg-subtle)]">{s.label}</p>
             </div>
           ))}
         </div>
@@ -193,51 +176,47 @@ export function FamilyFolderClient({ summary, initialHouseholds, total }: Props)
 
   const totalVulnerable = summary.reduce((s, v) => s + v.elderly + v.children + v.disabled, 0)
 
+  const ribbon = [
+    { label: 'บ้านกลุ่มเปราะบาง', value: total, sub: 'หลัง', tone: 'var(--fg)' },
+    { label: 'ผู้สูงอายุ', value: summary.reduce((s, v) => s + v.elderly, 0), sub: 'คน', tone: 'var(--risk-near)' },
+    { label: 'เด็ก 0-5 ปี', value: summary.reduce((s, v) => s + v.children, 0), sub: 'คน', tone: 'oklch(0.65 0.14 350)' },
+    { label: 'พิการ + เรื้อรัง', value: summary.reduce((s, v) => s + v.disabled + v.chronic, 0), sub: 'คน', tone: 'var(--risk-flood)' },
+  ]
+
   return (
     <>
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {[
-          { label: 'บ้านกลุ่มเปราะบาง', value: total, sub: 'หลัง' },
-          { label: 'ผู้สูงอายุ', value: summary.reduce((s, v) => s + v.elderly, 0), sub: 'คน' },
-          { label: 'เด็ก 0-5 ปี', value: summary.reduce((s, v) => s + v.children, 0), sub: 'คน' },
-          { label: 'ผู้พิการ + โรคเรื้อรัง', value: summary.reduce((s, v) => s + v.disabled + v.chronic, 0), sub: 'คน' },
-        ].map((c) => (
-          <div
-            key={c.label}
-            className="rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] px-4 py-3"
-          >
-            <p className="text-[11px] text-[var(--fg-subtle)]">{c.label}</p>
-            <p className="mt-1 text-[24px] font-semibold font-mono leading-tight">
-              {c.value.toLocaleString()}
-              <span className="ml-1 text-[12px] font-normal text-[var(--fg-muted)]">{c.sub}</span>
-            </p>
+      {/* Status ribbon — numbers as typography */}
+      <div className="flex flex-wrap items-stretch overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)]">
+        {ribbon.map((s, i) => (
+          <div key={s.label} className={`flex flex-col px-5 py-3 ${i > 0 ? 'border-l border-[var(--border)]' : ''}`}>
+            <span className="text-[10.5px] font-medium uppercase tracking-[0.08em] text-[var(--fg-subtle)]">{s.label}</span>
+            <span className="font-mono text-[26px] font-semibold leading-tight" style={{ color: s.tone }}>
+              {s.value.toLocaleString()}
+              <span className="ml-1 text-xs font-normal text-[var(--fg-subtle)]">{s.sub}</span>
+            </span>
           </div>
         ))}
       </div>
 
       {/* Village filter + search */}
       <div className="mt-5 flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search
-            size={13}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--fg-subtle)]"
-          />
+        <div className="relative min-w-[220px] flex-1">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--fg-subtle)]" />
           <input
             type="search"
             placeholder="ค้นหาชื่อ, เลขที่บ้าน, หมู่บ้าน..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="h-9 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] pl-8 pr-3 text-[13px] placeholder:text-[var(--fg-subtle)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+            className="h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] py-2 pl-9 pr-3 text-sm outline-none focus:border-[var(--accent)]"
           />
         </div>
         <div className="flex flex-wrap gap-1.5">
           <button
             onClick={() => setSelectedVillcode(null)}
-            className={`rounded-md border px-3 py-1.5 text-[12px] transition-colors ${
+            className={`rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
               selectedVillcode === null
                 ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-fg)]'
-                : 'border-[var(--border)] text-[var(--fg-muted)] hover:border-[var(--accent)] hover:text-[var(--accent)]'
+                : 'border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--fg-muted)] hover:border-[var(--accent)] hover:text-[var(--accent)]'
             }`}
           >
             ทั้งหมด
@@ -246,10 +225,10 @@ export function FamilyFolderClient({ summary, initialHouseholds, total }: Props)
             <button
               key={v.vcode}
               onClick={() => setSelectedVillcode(v.vcode)}
-              className={`rounded-md border px-3 py-1.5 text-[12px] transition-colors ${
+              className={`rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
                 selectedVillcode === v.vcode
                   ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-fg)]'
-                  : 'border-[var(--border)] text-[var(--fg-muted)] hover:border-[var(--accent)] hover:text-[var(--accent)]'
+                  : 'border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--fg-muted)] hover:border-[var(--accent)] hover:text-[var(--accent)]'
               }`}
             >
               {v.villno ? `ม.${v.villno}` : v.vname ?? v.vcode}
@@ -259,48 +238,38 @@ export function FamilyFolderClient({ summary, initialHouseholds, total }: Props)
       </div>
 
       {/* Village summary table */}
-      <div className="mt-4 overflow-hidden rounded-lg border border-[var(--border)]">
-        <table className="w-full text-[13px]">
+      <div className="gx-card mt-4 overflow-hidden">
+        <table className="gx-table">
           <thead>
-            <tr className="border-b border-[var(--border)] bg-[var(--bg-elevated)] text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--fg-subtle)]">
-              <th className="px-4 py-3 text-left">หมู่บ้าน</th>
-              <th className="px-4 py-3 text-right font-mono">บ้านทั้งหมด</th>
-              <th className="px-4 py-3 text-right font-mono">บ้านเปราะบาง</th>
-              <th className="px-4 py-3 text-right font-mono">สูงอายุ</th>
-              <th className="px-4 py-3 text-right font-mono">เด็กเล็ก</th>
-              <th className="px-4 py-3 text-right font-mono">พิการ</th>
-              <th className="px-4 py-3 text-right font-mono">โรคเรื้อรัง</th>
+            <tr>
+              <th>หมู่บ้าน</th>
+              <th className="font-mono !text-right">บ้านทั้งหมด</th>
+              <th className="font-mono !text-right">บ้านเปราะบาง</th>
+              <th className="font-mono !text-right">สูงอายุ</th>
+              <th className="font-mono !text-right">เด็กเล็ก</th>
+              <th className="font-mono !text-right">พิการ</th>
+              <th className="font-mono !text-right">โรคเรื้อรัง</th>
             </tr>
           </thead>
           <tbody>
             {summary.map((v) => (
               <tr
                 key={v.vcode}
-                onClick={() =>
-                  setSelectedVillcode(selectedVillcode === v.vcode ? null : v.vcode)
-                }
-                className={`cursor-pointer border-b border-[var(--border)] transition-colors last:border-b-0 hover:bg-[var(--bg-elevated)] ${
-                  selectedVillcode === v.vcode ? 'bg-[var(--bg-elevated)]' : ''
-                }`}
+                onClick={() => setSelectedVillcode(selectedVillcode === v.vcode ? null : v.vcode)}
+                className={`cursor-pointer ${selectedVillcode === v.vcode ? '[&>td]:!bg-[color-mix(in_oklch,var(--accent)_8%,transparent)]' : ''}`}
               >
-                <td className="px-4 py-3 font-medium">
+                <td className="gx-cell-strong">
                   <div className="flex items-center gap-2">
-                    {selectedVillcode === v.vcode && (
-                      <ChevronRight size={12} className="text-[var(--accent)]" />
-                    )}
+                    {selectedVillcode === v.vcode && <ChevronRight size={14} className="text-[var(--accent)]" />}
                     {v.villno ? `ม.${v.villno} ` : ''}{v.vname ?? '-'}
                   </div>
                 </td>
-                <td className="px-4 py-3 text-right font-mono text-[var(--fg-muted)]">
-                  {v.totalHouses}
-                </td>
-                <td className="px-4 py-3 text-right font-mono font-medium" style={{ color: 'var(--risk-flood)' }}>
-                  {v.vulnerableHouses}
-                </td>
-                <td className="px-4 py-3 text-right font-mono text-[var(--fg-muted)]">{v.elderly}</td>
-                <td className="px-4 py-3 text-right font-mono text-[var(--fg-muted)]">{v.children}</td>
-                <td className="px-4 py-3 text-right font-mono text-[var(--fg-muted)]">{v.disabled}</td>
-                <td className="px-4 py-3 text-right font-mono text-[var(--fg-muted)]">{v.chronic}</td>
+                <td className="text-right font-mono">{v.totalHouses}</td>
+                <td className="text-right font-mono font-semibold" style={{ color: 'var(--risk-flood)' }}>{v.vulnerableHouses}</td>
+                <td className="text-right font-mono">{v.elderly}</td>
+                <td className="text-right font-mono">{v.children}</td>
+                <td className="text-right font-mono">{v.disabled}</td>
+                <td className="text-right font-mono">{v.chronic}</td>
               </tr>
             ))}
           </tbody>
@@ -308,34 +277,27 @@ export function FamilyFolderClient({ summary, initialHouseholds, total }: Props)
       </div>
 
       {/* Household list */}
-      <div className="mt-6">
-        <p className="mb-3 text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--fg-subtle)]">
-          รายการบ้าน ({filtered.length} หลัง)
-        </p>
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mt-7">
+        <div className="mb-3 flex items-baseline justify-between">
+          <h2 className="text-sm font-semibold text-[var(--fg)]">รายการบ้าน <span className="ml-1.5 font-mono text-[var(--fg-subtle)]">{filtered.length}</span></h2>
+        </div>
+        <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map((house) => {
-            const vulGroups = [...new Set(
-              house.members.filter((m) => m.group !== 'ทั่วไป').map((m) => m.group),
-            )]
+            const vulGroups = [...new Set(house.members.filter((m) => m.group !== 'ทั่วไป').map((m) => m.group))]
             return (
               <button
                 key={house.hcode}
                 onClick={() => setSelectedHouse(house)}
-                className="group flex items-start gap-3 rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3.5 py-3 text-left transition-colors hover:border-[var(--accent)] hover:bg-[var(--bg-elevated)]"
+                style={{ ['--tile' as string]: 'var(--cat-folder)' }}
+                className="gx-card gx-card-interactive group flex items-start gap-3 p-3.5 text-left"
               >
-                <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md bg-[var(--bg-elevated)] group-hover:bg-[var(--bg)]">
-                  <Home size={14} strokeWidth={1.75} className="text-[var(--fg-muted)]" />
-                </div>
+                <span className="gx-icon-tile size-9"><Home size={16} strokeWidth={1.75} /></span>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="truncate text-[13px] font-medium">บ้านเลขที่ {house.hno}</p>
-                    <span className="shrink-0 text-[11px] font-mono text-[var(--fg-subtle)]">
-                      {house.members.length} คน
-                    </span>
+                    <p className="truncate text-sm font-semibold text-[var(--fg)]">บ้านเลขที่ {house.hno}</p>
+                    <span className="shrink-0 font-mono text-xs text-[var(--fg-subtle)]">{house.members.length} คน</span>
                   </div>
-                  <p className="text-[11.5px] text-[var(--fg-muted)]">
-                    {house.villno ? `ม.${house.villno} ` : ''}{house.village}
-                  </p>
+                  <p className="truncate text-xs text-[var(--fg-muted)]">{house.villno ? `ม.${house.villno} ` : ''}{house.village}</p>
                   {vulGroups.length > 0 && (
                     <div className="mt-1.5 flex flex-wrap gap-1">
                       {vulGroups.map((g) => (
@@ -355,9 +317,9 @@ export function FamilyFolderClient({ summary, initialHouseholds, total }: Props)
           })}
         </div>
         {filtered.length === 0 && (
-          <div className="rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] py-12 text-center">
-            <Users size={24} className="mx-auto mb-2 text-[var(--fg-subtle)]" />
-            <p className="text-[13px] text-[var(--fg-muted)]">ไม่พบข้อมูล</p>
+          <div className="rounded-xl border border-dashed border-[var(--border)] bg-[var(--bg-elevated)] py-12 text-center">
+            <Users size={28} className="mx-auto mb-2 text-[var(--fg-subtle)]" />
+            <p className="text-sm text-[var(--fg-muted)]">ไม่พบข้อมูล</p>
           </div>
         )}
       </div>

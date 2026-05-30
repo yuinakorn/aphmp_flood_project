@@ -58,6 +58,14 @@ export function isoOrNow(value: unknown) {
   return Number.isNaN(date.getTime()) ? new Date() : date
 }
 
+// แสดงเลขบัตรประชาชนแบบ mask: เก็บเฉพาะ 4 หลักท้าย — เพื่อ PDPA
+export function maskNationalId(id?: string | null) {
+  if (!id) return null
+  const digits = id.replace(/\D/g, '')
+  if (digits.length < 4) return '•'.repeat(digits.length)
+  return '•'.repeat(digits.length - 4) + digits.slice(-4)
+}
+
 export function parseBbox(value: string | null) {
   if (!value) return null
   const parts = value.split(',').map(Number)

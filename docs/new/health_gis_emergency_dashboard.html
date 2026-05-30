@@ -1,0 +1,1418 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Health GIS & Emergency Response Dashboard</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Custom Noto Sans Thai Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans Thai', sans-serif;
+        }
+        /* Custom Scrollbar for modern feel */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col transition-colors duration-300">
+
+    <!-- HEADER / NAVIGATION BAR -->
+    <header class="bg-slate-900 text-white shadow-md border-b border-slate-700 sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-3">
+            <div class="flex items-center space-x-3">
+                <div class="bg-emerald-500 text-slate-900 p-2 rounded-lg font-bold flex items-center justify-center">
+                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold leading-tight">ระบบภูมิสารสนเทศสุขภาพระดับหน้าด่าน</h1>
+                    <p class="text-xs text-slate-400">Spatial Health Registry & Disaster Response Dashboard</p>
+                </div>
+            </div>
+
+            <!-- CONTROLS & MODULE SWITCHES -->
+            <div class="flex flex-wrap items-center gap-3">
+                <!-- User Role Switcher -->
+                <div class="flex items-center space-x-2 bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700 text-xs">
+                    <span class="text-slate-400">สิทธิ์ใช้งาน:</span>
+                    <select id="role-select" onchange="changeRole(this.value)" class="bg-transparent text-emerald-400 font-medium focus:outline-none cursor-pointer">
+                        <option value="vhv" class="bg-slate-800 text-white">อสม. (บันทึกข้อมูลภาคสนาม)</option>
+                        <option value="officer" class="bg-slate-800 text-white">รพ.สต. / โรงพยาบาล (สั่งการ)</option>
+                        <option value="admin" class="bg-slate-800 text-white" selected>ผู้บัญชาการ EOC (ผู้บริหาร)</option>
+                    </select>
+                </div>
+
+                <!-- Emergency State Switcher (Toggle Incident Mode) -->
+                <div class="flex items-center bg-slate-800 p-1 rounded-lg border border-slate-700">
+                    <button id="mode-normal-btn" onclick="setDashboardMode('normal')" class="px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-200 bg-slate-700 text-white">
+                        ☀️ โหมดปกติ (ดูแลสุขภาพ)
+                    </button>
+                    <button id="mode-crisis-btn" onclick="setDashboardMode('crisis')" class="px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-200 text-slate-400 hover:text-white">
+                        ⚠️ โหมดวิกฤต (น้ำท่วม)
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- CRISIS BANNER -->
+    <div id="crisis-banner" class="hidden bg-gradient-to-r from-red-600 via-orange-600 to-red-600 text-white py-2 px-4 shadow-inner text-center font-medium flex justify-center items-center gap-2 text-sm animate-pulse">
+        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+        </svg>
+        <span>
+            <strong>ประกาศสถานะภัยพิบัติ:</strong> อุทกภัยลุ่มน้ำน่านและน้ำแม่สาย ต.ในเวียง-ต.เวียงสา และ อ.แม่สาย (ระดับน้ำเฝ้าระวังสูงสุด)
+        </span>
+    </div>
+
+    <!-- MAIN DASHBOARD WRAPPER -->
+    <main class="flex-grow max-w-7xl w-full mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-4">
+
+        <!-- LEFT PANEL: MAP & TELEMETRY CONTROLS (6 COLS) -->
+        <section class="lg:col-span-6 flex flex-col space-y-4">
+            
+            <!-- MAP CONTAINER CARD -->
+            <div class="bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden flex flex-col flex-grow min-h-[450px]">
+                <!-- Map Header -->
+                <div class="bg-slate-100 px-4 py-3 border-b border-slate-200 flex justify-between items-center flex-wrap gap-2">
+                    <div class="flex items-center space-x-2">
+                        <span class="inline-block w-3 h-3 rounded-full bg-blue-500"></span>
+                        <h2 class="font-semibold text-sm text-slate-800">แผนที่ภูมิสารสนเทศสุขภาพกลุ่มเปราะบาง (Health GIS Map)</h2>
+                    </div>
+                    <!-- Legend Indicators -->
+                    <div class="flex space-x-2 text-xs">
+                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-red-500"></span>วิกฤต</span>
+                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-orange-500"></span>เฝ้าระวัง</span>
+                        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-green-500"></span>ปลอดภัย</span>
+                    </div>
+                </div>
+
+                <!-- GIS Map Canvas Mockup -->
+                <div class="relative bg-slate-900 flex-grow overflow-hidden flex items-center justify-center p-4 select-none" id="map-area">
+                    <!-- Grid Background Effect -->
+                    <div class="absolute inset-0 opacity-10 pointer-events-none" style="background-image: radial-gradient(circle, white 1px, transparent 1px); background-size: 20px 20px;"></div>
+                    
+                    <!-- Simulated Vector River -->
+                    <svg class="absolute inset-0 w-full h-full pointer-events-none" xmlns="http://www.w3.org/2000/svg">
+                        <!-- Main Nan River (Meanders through city) -->
+                        <path d="M 100 -20 Q 180 150, 150 250 T 450 350 T 500 550" fill="none" stroke="#2563eb" stroke-width="28" stroke-linecap="round" class="opacity-80 transition-all duration-500" id="river-body" />
+                        <path d="M 100 -20 Q 180 150, 150 250 T 450 350 T 500 550" fill="none" stroke="#60a5fa" stroke-width="20" stroke-linecap="round" class="opacity-90" />
+                        
+                        <!-- Tributary / Flood overflow zones -->
+                        <path d="M 150 150 Q 250 120, 320 200" fill="none" stroke="#3b82f6" stroke-width="8" stroke-dasharray="5 5" class="opacity-50" />
+                    </svg>
+
+                    <!-- DYNAMIC FLOOD ZONES (SVGs dynamically opacity controlled based on slider) -->
+                    <div id="flood-zone-1" class="absolute inset-0 bg-blue-500/20 mix-blend-multiply pointer-events-none transition-opacity duration-500 opacity-0"></div>
+                    <div id="flood-zone-2" class="absolute inset-0 bg-cyan-500/20 mix-blend-multiply pointer-events-none transition-opacity duration-500 opacity-0"></div>
+                    <div id="flood-zone-3" class="absolute inset-0 bg-orange-500/20 mix-blend-multiply pointer-events-none transition-opacity duration-500 opacity-0"></div>
+                    <div id="flood-zone-4" class="absolute inset-0 bg-red-500/30 mix-blend-multiply pointer-events-none transition-opacity duration-500 opacity-0"></div>
+                    <div id="flood-zone-5" class="absolute inset-0 bg-purple-700/40 mix-blend-multiply pointer-events-none transition-opacity duration-500 opacity-0"></div>
+
+                    <!-- GIS Topographic Overlay Label -->
+                    <span class="absolute top-2 left-3 bg-slate-800/80 text-slate-300 text-[10px] px-2 py-1 rounded border border-slate-700 uppercase tracking-wider">Topographic Scale: 1:5,000</span>
+                    
+                    <!-- Flood Warning Overlays on map -->
+                    <div id="map-warning-overlay" class="hidden absolute top-12 left-3 right-3 bg-red-950/90 border border-red-700 text-red-200 text-xs px-3 py-2 rounded-lg flex items-center justify-between z-10 transition-all duration-300">
+                        <div class="flex items-center gap-2">
+                            <span class="relative flex h-2 w-2">
+                              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                              <span class="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                            </span>
+                            <span id="warning-text">ระดับน้ำบ้านผาขวาง (N64) เกินระดับตลิ่ง (+1.2 ม.)</span>
+                        </div>
+                        <div class="bg-red-800 text-white font-bold px-1.5 py-0.5 rounded text-[10px]" id="countdown-badge">
+                            เหลือเวลาอพยพ 7 ชม.
+                        </div>
+                    </div>
+
+                    <!-- MAP PINS & MARKS (Rendered dynamically using Tailwind absolute positioning) -->
+                    <div id="map-pins-container" class="absolute inset-0 w-full h-full">
+                        <!-- Pins are injected via Javascript -->
+                    </div>
+
+                    <!-- MAP DETAILS MODAL POPUP (Triggered on Pin Click) -->
+                    <div id="map-popup" class="hidden absolute bottom-4 left-4 right-4 bg-slate-900/95 text-white p-4 rounded-xl border border-slate-700 shadow-2xl z-20 transition-all duration-300">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <div class="flex items-center space-x-2">
+                                    <h3 class="font-bold text-base" id="popup-name">นายสุขสันต์ มั่นคง</h3>
+                                    <span id="popup-badge" class="px-2 py-0.5 rounded text-[10px] font-bold uppercase"></span>
+                                </div>
+                                <p class="text-xs text-slate-400 mt-0.5" id="popup-address">บ้านเลขที่ 124 ม.3 ต.ในเวียง อ.เมือง จ.น่าน</p>
+                            </div>
+                            <button onclick="closeMapPopup()" class="text-slate-400 hover:text-white p-1 rounded-full hover:bg-slate-800">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                            </button>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-3 mt-3 text-xs border-t border-slate-800 pt-3">
+                            <div>
+                                <span class="text-slate-400 block">ข้อมูลสุขภาพ/ความเปราะบาง:</span>
+                                <strong class="text-slate-200" id="popup-health">ติดเตียง (ADL = 2), ผู้ป่วยไตเรื้อรัง</strong>
+                            </div>
+                            <div>
+                                <span class="text-slate-400 block">อุปกรณ์ที่ต้องนำติดตัวไปด้วย:</span>
+                                <strong class="text-rose-400" id="popup-equipment">น้ำยาล้างไตช่องท้อง, แผงยารักษาโรค</strong>
+                            </div>
+                            <div>
+                                <span class="text-slate-400 block">อสม. รับผิดชอบ (ผู้จัดการรายเคส):</span>
+                                <strong class="text-slate-200" id="popup-vhv">นางสุภา สุขดี (089-1234567)</strong>
+                            </div>
+                            <div>
+                                <span class="text-slate-400 block">สถานะอพยพปัจจุบัน:</span>
+                                <strong class="text-slate-200" id="popup-evacuation">อยู่ในที่ปลอดภัย (บ้านญาติ อ.ภูเพียง)</strong>
+                            </div>
+                        </div>
+
+                        <div class="flex gap-2 mt-3" id="popup-actions-wrapper">
+                            <!-- Injected Actions based on Roles -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Map Layers Panel -->
+                <div class="bg-slate-100 px-4 py-2 border-t border-slate-200 flex flex-wrap gap-2 text-xs text-slate-600 justify-between items-center">
+                    <span class="font-medium">แสดงเลเยอร์แผนที่:</span>
+                    <div class="flex gap-3 flex-wrap">
+                        <label class="flex items-center gap-1.5 cursor-pointer">
+                            <input type="checkbox" id="layer-vulnerable" checked onchange="toggleMapLayer('vulnerable')" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+                            กลุ่มเปราะบาง
+                        </label>
+                        <label class="flex items-center gap-1.5 cursor-pointer">
+                            <input type="checkbox" id="layer-shelter" checked onchange="toggleMapLayer('shelter')" class="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500">
+                            ศูนย์อพยพ / ครัวสนาม
+                        </label>
+                        <label class="flex items-center gap-1.5 cursor-pointer">
+                            <input type="checkbox" id="layer-flood" checked onchange="toggleMapLayer('flood')" class="rounded border-slate-300 text-rose-600 focus:ring-rose-500">
+                            ขอบเขตโซนน้ำท่วม
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- WATER LEVEL SIMULATOR (TELEMETRY) -->
+            <div class="bg-white p-4 rounded-xl shadow-md border border-slate-200 flex flex-col space-y-3">
+                <div class="flex justify-between items-center">
+                    <h3 class="font-bold text-sm text-slate-800 flex items-center gap-1.5">
+                        <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                        สถานีโทรมาตร/จุดวัดระดับน้ำแบบจำลอง (Water Level Simulation)
+                    </h3>
+                    <span id="telemetry-status-badge" class="bg-emerald-100 text-emerald-800 text-xs px-2 py-0.5 rounded font-medium">สัญญาณปกติ</span>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Telemetry 1: Nan River (N64 Ban Pha Khwang) -->
+                    <div class="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <h4 class="text-xs font-bold text-slate-700">น่าน (N64 - บ.ผาขวาง)</h4>
+                                <p class="text-[10px] text-slate-400">ห่างจากตัวเมืองน่าน 7 ชม. น้ำไหลหลาก</p>
+                            </div>
+                            <span id="telemetry-n64-alert" class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-green-100 text-green-800">ปกติ</span>
+                        </div>
+                        <div class="flex items-center space-x-3">
+                            <input type="range" id="slider-n64" min="0" max="6" step="0.1" value="1.2" oninput="onWaterLevelChange('n64', this.value)" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600">
+                            <span class="text-sm font-bold text-slate-800 min-w-[50px] text-right" id="val-n64">1.2 ม.</span>
+                        </div>
+                        <p class="text-[10px] text-slate-500 mt-2 text-center" id="desc-n64">ความเร็วน้ำ 1.4 ม./วินาที (ปริมาณน้ำปานกลางยังไม่ล้นตลิ่ง)</p>
+                    </div>
+
+                    <!-- Telemetry 2: Tachileik Myanmar - Mae Sai River -->
+                    <div class="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <h4 class="text-xs font-bold text-slate-700">แม่สาย (ด่านโจตาดา พม่า)</h4>
+                                <p class="text-[10px] text-slate-400">ต้นน้ำเหนือสะพานแม่สาย แจ้งล่วงหน้า 3-4 ชม.</p>
+                            </div>
+                            <span id="telemetry-maesai-alert" class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-green-100 text-green-800">ปกติ</span>
+                        </div>
+                        <div class="flex items-center space-x-3">
+                            <input type="range" id="slider-maesai" min="0" max="5" step="0.1" value="0.8" oninput="onWaterLevelChange('maesai', this.value)" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-cyan-600">
+                            <span class="text-sm font-bold text-slate-800 min-w-[50px] text-right" id="val-maesai">0.8 ม.</span>
+                        </div>
+                        <p class="text-[10px] text-slate-500 mt-2 text-center" id="desc-maesai">ระดับสัญญานผ่านพึ่งพาปกติ (ปริมาณกระแสน้ำหนุนทรงตัว)</p>
+                    </div>
+                </div>
+                <div class="bg-blue-50 p-2.5 rounded-lg border border-blue-100 text-xs text-blue-800 flex items-start gap-2">
+                    <svg class="w-4 h-4 text-blue-600 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <p class="leading-relaxed"><strong>คำแนะนำการจำลอง:</strong> ทดลองสไลด์ระดับน้ำที่ <strong>น่าน (N64) เกิน 4.0 เมตร</strong> หรือ <strong>แม่สาย เกิน 3.5 เมตร</strong> เพื่อกระตุ้นโหมดวิกฤตโดยอัตโนมัติ สังเกตระดับความรุนแรงและสีของโซนอุทกภัยบนแผนที่ GIS ด้านบน</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- RIGHT PANEL: MODULE TABS & FUNCTIONAL VIEWS (6 COLS) -->
+        <section class="lg:col-span-6 flex flex-col space-y-4">
+            
+            <!-- STATS COUNTER BAR (DYNAMICS ACCORDING TO STATE) -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex flex-col">
+                    <span class="text-[11px] text-slate-400 font-medium">กลุ่มเปราะบางทั้งหมด</span>
+                    <strong class="text-xl text-slate-800 mt-0.5" id="stat-total">5 ราย</strong>
+                    <span class="text-[9px] text-slate-400 mt-1">ทะเบียนในความรับผิดชอบ</span>
+                </div>
+                <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex flex-col">
+                    <span class="text-[11px] text-slate-400 font-medium">ต้องการความช่วยเหลือ</span>
+                    <strong class="text-xl text-amber-600 mt-0.5" id="stat-help">0 ราย</strong>
+                    <span class="text-[9px] text-amber-500 mt-1 font-medium" id="stat-help-desc">อยู่ในการเฝ้าระวัง</span>
+                </div>
+                <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex flex-col">
+                    <span class="text-[11px] text-slate-400 font-medium">อพยพพำนักปลอดภัย</span>
+                    <strong class="text-xl text-emerald-600 mt-0.5" id="stat-safe">2 ราย</strong>
+                    <span class="text-[9px] text-emerald-600 mt-1 font-medium">ศูนย์อพยพ/บ้านญาติ</span>
+                </div>
+                <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex flex-col">
+                    <span class="text-[11px] text-slate-400 font-medium">หน่วยกู้ภัย & ทีมแพทย์</span>
+                    <strong class="text-xl text-blue-600 mt-0.5" id="stat-rescue">3 ทีม</strong>
+                    <span class="text-[9px] text-blue-500 mt-1 font-medium">ขึ้นทะเบียนประสานงาน</span>
+                </div>
+            </div>
+
+            <!-- MAIN PANEL FUNCTION TABS -->
+            <div class="bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden flex flex-col flex-grow">
+                <!-- Navigation Tabs -->
+                <div class="bg-slate-100 border-b border-slate-200 flex overflow-x-auto">
+                    <button onclick="setActiveTab('vulnerable-tab')" id="tab-vulnerable-tab" class="px-4 py-3 text-xs font-semibold border-b-2 border-slate-900 text-slate-900 whitespace-nowrap focus:outline-none">
+                        📁 ทะเบียนผู้ป่วยเปราะบาง
+                    </button>
+                    <button onclick="setActiveTab('command-tab')" id="tab-command-tab" class="px-4 py-3 text-xs font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-800 whitespace-nowrap focus:outline-none flex items-center gap-1">
+                        🚨 ศูนย์กู้ภัย / จัดการคำร้อง
+                        <span id="badge-alert-count" class="hidden bg-amber-500 text-slate-900 text-[10px] px-1.5 py-0.2 rounded-full font-bold"></span>
+                    </button>
+                    <button onclick="setActiveTab('rescue-tab')" id="tab-rescue-tab" class="px-4 py-3 text-xs font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-800 whitespace-nowrap focus:outline-none">
+                        ⚓ กู้ภัยและหน่วยเคลื่อนที่เร็ว
+                    </button>
+                </div>
+
+                <!-- TAB CONTENT 1: VULNERABLE REGISTRY (ทะเบียนผู้ป่วยเปราะบาง) -->
+                <div id="content-vulnerable-tab" class="p-4 space-y-4">
+                    <!-- Search & Filters -->
+                    <div class="flex flex-wrap gap-2 justify-between items-center">
+                        <div class="relative w-full md:w-64">
+                            <input type="text" id="search-input" oninput="filterMembers()" placeholder="ค้นชื่อ, บ้านเลขที่ หรือโรค..." class="w-full bg-slate-50 border border-slate-300 rounded-lg pl-3 pr-8 py-1.5 text-xs focus:ring-slate-500 focus:border-slate-500">
+                        </div>
+                        <div class="flex gap-2">
+                            <select id="filter-status" onchange="filterMembers()" class="bg-slate-50 border border-slate-300 text-xs rounded-lg px-2 py-1.5">
+                                <option value="all">ทุกสถานะความปลอดภัย</option>
+                                <option value="normal">ปกติ / เฝ้าระวังที่บ้าน</option>
+                                <option value="needs_help">ต้องการความช่วยเหลือ</option>
+                                <option value="evacuated">อพยพแล้ว</option>
+                                <option value="safe">ปลอดภัยแล้ว</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Vulnerable list container -->
+                    <div class="divide-y divide-slate-100 overflow-y-auto max-h-[350px]" id="members-list">
+                        <!-- Injected by JavaScript -->
+                    </div>
+                </div>
+
+                <!-- TAB CONTENT 2: COMMAND HUB (ศูนย์กู้ภัย / จัดการคำร้อง) -->
+                <div id="content-command-tab" class="hidden p-4 space-y-4">
+                    <div class="flex justify-between items-center flex-wrap gap-2 border-b border-slate-100 pb-2">
+                        <div>
+                            <h3 class="font-bold text-sm text-slate-800">คำร้องขอความช่วยเหลือเชิงบูรณาการ</h3>
+                            <p class="text-[11px] text-slate-400">คัดกรองจัดลำดับความช่วยเหลือตามความเร่งด่วนทางคลินิก (Triage)</p>
+                        </div>
+                        <span id="incident-status-banner" class="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-1 rounded">
+                            ไม่มีภัยพิบัติสะสม
+                        </span>
+                    </div>
+
+                    <!-- Help requests tracking container -->
+                    <div class="divide-y divide-slate-100 overflow-y-auto max-h-[350px] space-y-3" id="requests-list">
+                        <!-- Injected by JavaScript -->
+                    </div>
+                </div>
+
+                <!-- TAB CONTENT 3: RESCUE REGISTRY (ระบบลงทะเบียนกู้ภัยและแพทย์สนาม) -->
+                <div id="content-rescue-tab" class="hidden p-4 space-y-4">
+                    <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 text-xs">
+                        <h3 class="font-bold text-slate-700 flex items-center gap-1.5 mb-1.5">
+                            <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                            ลงทะเบียนหน่วยรับมือเหตุการณ์ (ป้องกันสับสนและเยี่ยมซ้ำซ้อน)
+                        </h3>
+                        <p class="text-slate-500 leading-relaxed">บทเรียนเชิงพื้นที่ระบุว่า การไม่มีศูนย์ทะเบียนกู้ภัยส่วนกลางทำให้หลายหน่วยเข้าช่วยเหลือบ้านเดียวกันในขณะที่บางส่วนถูกทิ้งร้าง ระบบสารสนเทศชุดนี้จึงเปิดการจัดสรรแบ่งโซนแก่ผู้ช่วยเหลือ (MCAT, ทหาร, กู้ภัยก้นครัว)</p>
+                    </div>
+
+                    <!-- Input form to Register Rescue Team (Hidden dynamically based on permission) -->
+                    <div id="rescue-reg-form-wrapper" class="bg-white p-3 rounded-lg border border-slate-200">
+                        <h4 class="text-xs font-bold text-slate-800 mb-2">ลงทะเบียนกองกำลังช่วยเหลือ / ทีมเคลื่อนที่เร็วรายใหม่</h4>
+                        <div class="grid grid-cols-2 gap-3 text-xs">
+                            <div>
+                                <label class="block text-slate-500 mb-1">ชื่อหน่วยงาน/องค์กร:</label>
+                                <input type="text" id="reg-rescue-name" placeholder="เช่น กู้ภัยน่านร่วมใจ" class="w-full bg-slate-50 border border-slate-300 rounded p-1.5">
+                            </div>
+                            <div>
+                                <label class="block text-slate-500 mb-1">ประเภทภารกิจ:</label>
+                                <select id="reg-rescue-type" class="w-full bg-slate-50 border border-slate-300 rounded p-1.5">
+                                    <option value="Rescue Boat">เรือกู้ภัยน้ำหลาก</option>
+                                    <option value="GMC Truck">รถบรรทุกลุยน้ำ GMC</option>
+                                    <option value="EMS Medical">หน่วยแพทย์สนามฉุกเฉิน</option>
+                                    <option value="MCAT Psych">หน่วยสุขภาพจิต MCAT</option>
+                                    <option value="Volunteer Kitchen">ครัวพระราชทาน/อาหาร</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-slate-500 mb-1">เบอร์ผู้ติดต่อศูนย์วิทยุ:</label>
+                                <input type="text" id="reg-rescue-contact" placeholder="08x-xxxxxxx" class="w-full bg-slate-50 border border-slate-300 rounded p-1.5">
+                            </div>
+                            <div>
+                                <label class="block text-slate-500 mb-1">มอบหมายพื้นที่ปฏิบัติงาน (โซน):</label>
+                                <select id="reg-rescue-zone" class="w-full bg-slate-50 border border-slate-300 rounded p-1.5">
+                                    <option value="โซนที่ 1 (สะพานนวรัตน/ตลาดเทศบาล)">โซนที่ 1 (สะพานเทศบาล/ตลิ่งต่ำ)</option>
+                                    <option value="โซนที่ 2 (บ.ท่าลี / บ.พญาภู)">โซนที่ 2 (บ.ท่าลี / บ.พญาภู)</option>
+                                    <option value="โซนที่ 3 (ต.ในเวียง ชุมชนรอบนอก)">โซนที่ 3 (ต.ในเวียง ชุมชนรอบนอก)</option>
+                                    <option value="โซนที่ 4 (เขตโรงเรียน/โรงพยาบาลสนาม)">โซนที่ 4 (เขตโรงเรียน/โรงพยาบาลสนาม)</option>
+                                    <option value="โซนที่ 5 (พื้นที่ขอบเขตแม่สาย)">โซนที่ 5 (พื้นที่ขอบเขตแม่สาย)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <button onclick="registerNewRescueTeam()" class="mt-3 w-full bg-slate-900 text-white font-medium py-1.5 rounded text-xs hover:bg-slate-800 transition duration-150">
+                            บันทึกขึ้นทะเบียนหน่วยงานและพิกัดแผนที่
+                        </button>
+                    </div>
+
+                    <!-- Registered Rescue Teams List -->
+                    <div class="space-y-2 max-h-[220px] overflow-y-auto" id="rescue-list">
+                        <!-- Injected dynamically by JavaScript -->
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- ACTION DRAWERS / SLIDE SHEETS (MODALS) -->
+    <!-- Drawer Modal 1: FIELD VISIT LOG SHEET (บันทึกการเยี่ยมบ้านระดับหน้างาน) -->
+    <div id="sheet-visit" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 transition-all duration-300">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-md border border-slate-200 overflow-hidden">
+            <!-- Modal Header -->
+            <div class="bg-slate-900 text-white p-4 flex justify-between items-center">
+                <div class="flex items-center space-x-2">
+                    <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                    <h3 class="font-bold text-sm">แบบบันทึกประเมินสุขภาพภาคสนาม (อสม.)</h3>
+                </div>
+                <button onclick="closeSheet('sheet-visit')" class="text-slate-400 hover:text-white p-1 rounded-full hover:bg-slate-800">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            
+            <!-- Modal Body -->
+            <div class="p-4 space-y-3.5 text-xs">
+                <div class="bg-emerald-50 p-3 rounded-lg border border-emerald-100">
+                    <span class="text-[10px] text-emerald-600 uppercase font-bold tracking-wide">ผู้รับประเมิน</span>
+                    <strong class="block text-sm text-slate-800 mt-0.5" id="visit-member-name">ชื่อผู้ป่วย</strong>
+                    <p class="text-slate-500" id="visit-member-detail">ประวัติ: - </p>
+                </div>
+
+                <div id="visit-incident-alert" class="hidden bg-orange-50 p-2.5 rounded-lg border border-orange-100 text-orange-800 font-medium">
+                    ⚠️ ข้อมูลจะถูกจัดเก็บเข้าสู่สารบบประวัติเหตุการณ์ "อุทกภัย ต.ในเวียง" โดยอัตโนมัติ
+                </div>
+
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">ผลการประเมินชีพจร/อาการเบื้องต้น:</label>
+                    <select id="visit-field-status" class="w-full bg-slate-50 border border-slate-300 rounded p-2">
+                        <option value="Normal">ปกติดี สัญญาณชีพคงที่ (เขียว)</option>
+                        <option value="Monitoring">เริ่มอ่อนแรง / ตื่นตระหนก (เหลือง)</option>
+                        <option value="Unstable">ระดับวิกฤตทางคลินิก (แดง) - ต้องการเคลื่อนย้ายด่วน</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">สถานะทางอารมณ์และจิตใจ (VHV Screen):</label>
+                    <select id="visit-mental" class="w-full bg-slate-50 border border-slate-300 rounded p-2">
+                        <option value="Good">ปานกลาง ยอมรับสถานการณ์ได้</option>
+                        <option value="Anxiety">วิตกกังวลสูง / ซึมเศร้า (ต้องการทีม MCAT สนับสนุน)</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">แผนการจัดการยาและอุปกรณ์พยุงชีพ:</label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <label class="flex items-center gap-1.5 p-1.5 bg-slate-50 rounded cursor-pointer border border-slate-200">
+                            <input type="checkbox" id="visit-med-check" checked class="rounded text-blue-600">
+                            ยามีใช้พอเกิน 7 วัน
+                        </label>
+                        <label class="flex items-center gap-1.5 p-1.5 bg-slate-50 rounded cursor-pointer border border-slate-200">
+                            <input type="checkbox" id="visit-oxy-check" class="rounded text-blue-600">
+                            เครื่องผลิตออกซิเจนพร้อม
+                        </label>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">บันทึกช่วยจำภาคสนาม (Notes):</label>
+                    <textarea id="visit-notes" rows="2" placeholder="อธิบายสภาพบ้าน ระดับความสูงของน้ำรอบรั้ว หรือสภาพอารมณ์ปัจจุบัน..." class="w-full bg-slate-50 border border-slate-300 rounded p-2"></textarea>
+                </div>
+
+                <div class="pt-2">
+                    <button id="btn-save-visit" onclick="submitVisitLog()" class="w-full bg-emerald-600 text-white font-bold py-2 rounded text-sm hover:bg-emerald-700 transition">
+                        บันทึกผลการเยี่ยมและข้อมูลพิกัด GIS
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Drawer Modal 2: ASSISTANCE REQUEST FORM (คำร้องขอความช่วยเหลือส่วนประสานงาน) -->
+    <div id="sheet-help" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 transition-all duration-300">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-md border border-slate-200 overflow-hidden">
+            <!-- Modal Header -->
+            <div class="bg-slate-900 text-white p-4 flex justify-between items-center">
+                <div class="flex items-center space-x-2">
+                    <span class="inline-block w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse"></span>
+                    <h3 class="font-bold text-sm">บันทึกรับเรื่องขอความช่วยเหลือฉุกเฉิน</h3>
+                </div>
+                <button onclick="closeSheet('sheet-help')" class="text-slate-400 hover:text-white p-1 rounded-full hover:bg-slate-800">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            
+            <!-- Modal Body -->
+            <div class="p-4 space-y-3.5 text-xs">
+                <div class="bg-amber-50 p-3 rounded-lg border border-amber-100">
+                    <span class="text-[10px] text-amber-700 uppercase font-bold tracking-wide">ผู้ร้องขอความช่วยเหลือ</span>
+                    <strong class="block text-sm text-slate-800 mt-0.5" id="help-member-name">ชื่อผู้ป่วย</strong>
+                    <p class="text-slate-500" id="help-member-detail">พิกัดปัจจุบัน: บ.ผาขวาง น่าน</p>
+                </div>
+
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">ประเภทความต้องการเร่งด่วน:</label>
+                    <select id="help-req-type" class="w-full bg-slate-50 border border-slate-300 rounded p-2">
+                        <option value="Evacuation">อพยพด่วนเนื่องจากน้ำทะลักเข้าห้องนอน</option>
+                        <option value="Dialysis Water">น้ำยาล้างไตช่องท้องค้างส่ง / ขาดสารเคมี</option>
+                        <option value="Oxygen Cylinder">เปลี่ยนถังออกซิเจน/ไฟฟ้าดับขาดเครื่องสำรอง</option>
+                        <option value="Medicine Shortage">จัดส่งยาโรคเรื้อรังควบคุมพฤติกรรม (ขาดเกิน 3 วัน)</option>
+                        <option value="Emergency Medical">การเจ็บป่วยเฉียบพลัน/ส่งหน่วยเคลื่อนที่เร็วทางเรือ</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">ระดับความเร่งด่วนทางคลินิก (Clinical Priority):</label>
+                    <select id="help-priority" class="w-full bg-slate-50 border border-slate-300 rounded p-2">
+                        <option value="Urgent">สีแดง (เสี่ยงต่อชีวิตทันทีใน 1-2 ชั่วโมง)</option>
+                        <option value="Monitor">สีเหลือง (เริ่มมีผลกระทบร่างกาย เฝ้าระวังน้ำสูงขึ้น)</option>
+                        <option value="Routine">สีเขียว (เตรียมแผนล่วงหน้าเพื่อเตรียมพร้อม)</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">รายละเอียดและช่องทางการติดต่อเพิ่มเติม:</label>
+                    <textarea id="help-desc" rows="2" placeholder="ระบุระดับน้ำรอบบ้าน, เบอร์โทรสำรอง หรือระบุพฤติกรรมความเครียดวิกฤต..." class="w-full bg-slate-50 border border-slate-300 rounded p-2"></textarea>
+                </div>
+
+                <div class="pt-2">
+                    <button id="btn-save-help" onclick="submitHelpRequest()" class="w-full bg-amber-600 text-white font-bold py-2 rounded text-sm hover:bg-amber-700 transition">
+                        ส่งคำขอเข้าศูนย์วิทยุกู้ภัย (EOC Dispatch)
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- POPUP NOTIFICATION BOX (REPLACES ALERTS) -->
+    <div id="custom-toast" class="hidden fixed bottom-5 right-5 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-2xl border border-slate-700 z-50 flex items-center space-x-2 text-xs transition-opacity duration-300">
+        <span class="text-amber-400">💡</span>
+        <span id="toast-text">อัปเดตสถานะสำเร็จ</span>
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="bg-slate-900 text-slate-400 py-4 px-4 text-center text-xs border-t border-slate-800 mt-auto">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-2">
+            <span>© 2026 ระบบแผนที่สุขภาพและตอบโต้ฉุกเฉินระดับหน้างาน (Health GIS) พัฒนาขึ้นโดยความร่วมมือระหว่างทีมโปรแกรมเมอร์และกลุ่มงานวิชาการสาธารณสุขลุ่มน้ำตอนบน</span>
+            <span class="text-slate-500">เวอร์ชันจำลองอัจฉริยะ (Sandbox 2.0) • มาตรฐานความปลอดภัยข้อมูลสุขภาพ PDPA มอก. 2568</span>
+        </div>
+    </footer>
+
+    <!-- INTERACTIVE APP LOGIC & STATE MANAGEMENT JS -->
+    <script>
+        // --- 1. GLOBAL STATE DATA MODEL ---
+        let currentMode = 'normal'; // 'normal' | 'crisis'
+        let currentRole = 'admin'; // 'vhv' | 'officer' | 'admin'
+        let activeIncident = null; // Stores details of emergency event if active
+        
+        // Members database (Synchronized Households -> Persons model)
+        let members = [
+            {
+                id: 'mem-101',
+                name: 'นายแก้ว พงษ์สิทธิ์',
+                age: 82,
+                district: 'น่าน บ.ผาขวาง',
+                address: 'บ้านเลขที่ 14 ม.2 บ.ผาขวาง ต.ในเวียง อ.เมือง จ.น่าน',
+                lat: 40, lng: 35, // map positioning coordinate percentages
+                conditions: 'ติดเตียง (ADL = 0), ขาดคนดูแล',
+                equipment: 'เครื่องผลิตออกซิเจนแบบเสียบปลั๊ก',
+                vhv: 'นางสุภา สุขดี (089-1234567)',
+                safetyStatus: 'normal', // 'normal' | 'needs_help' | 'evacuated' | 'safe'
+                assignedRescue: null,
+                phone: '081-3456789'
+            },
+            {
+                id: 'mem-102',
+                name: 'นางดี ใจสว่าง',
+                age: 64,
+                district: 'น่าน บ.ท่าลี',
+                address: 'บ้านเลขที่ 92 ม.4 บ.ท่าลี ต.ในเวียง อ.เมือง จ.น่าน',
+                lat: 68, lng: 42,
+                conditions: 'ผู้ป่วยไตวายเรื้อรัง (CKD Stage 5) ต้องล้างไตทางช่องท้อง',
+                equipment: 'น้ำยาล้างไต (PD) สำรองค้างส่ง',
+                vhv: 'นายประพันธ์ คำใส (086-7654321)',
+                safetyStatus: 'normal',
+                assignedRescue: null,
+                phone: '084-5551212'
+            },
+            {
+                id: 'mem-103',
+                name: 'นางสาวนารี ศรีดา',
+                age: 28,
+                district: 'น่าน บ.พญาภู',
+                address: 'บ้านเลขที่ 115 ม.1 บ.พญาภู ต.ในเวียง อ.เมือง จ.น่าน',
+                lat: 55, lng: 65,
+                conditions: 'หญิงตั้งครรภ์ ครรภ์แก่ (37 สัปดาห์)',
+                equipment: 'สมุดฝากครรภ์สีชมพู, กระเป๋าเตรียมคลอด',
+                vhv: 'นางสุภา สุขดี (089-1234567)',
+                safetyStatus: 'safe',
+                assignedRescue: null,
+                phone: '085-8889900'
+            },
+            {
+                id: 'mem-104',
+                name: 'นายจันทร์ ตาลอง',
+                age: 75,
+                district: 'เชียงราย แม่สาย ซอยสายลมจอย',
+                address: 'บ้านเลขที่ 42 ซอยสายลมจอย ต.เวียงพางคำ อ.แม่สาย จ.เชียงราย',
+                lat: 25, lng: 70,
+                conditions: 'ติดเตียง (ADL = 1), โรคถุงลมโป่งพองต้องการพ่นยา',
+                equipment: 'ถังออกซิเจนสำรอง, เครื่องพ่นละอองยา',
+                vhv: 'พตท. อรุณ เลิศฤทธิ์ (081-9998887)',
+                safetyStatus: 'needs_help',
+                assignedRescue: 'กู้ภัยแม่สายสวมเสื้อชูชีพ',
+                phone: '082-1112223'
+            },
+            {
+                id: 'mem-105',
+                name: 'ด.ช.พอเพียง รักไทย',
+                age: 5,
+                district: 'เชียงราย เกาะทราย',
+                address: 'บ้านเลขที่ 108 ชุมชนเกาะทราย ต.แม่สาย อ.แม่สาย จ.เชียงราย',
+                lat: 80, lng: 18,
+                conditions: 'ผู้พิการพัฒนาการช้าทางสติปัญญา, สื่อสารยากเมื่อตกใจกลัว',
+                equipment: 'บัตรประจำตัวคนพิการ, สมุดยาต้านชัก',
+                vhv: 'นส.พิมพ์ชนก แสงแก้ว (084-1212121)',
+                safetyStatus: 'evacuated',
+                assignedRescue: null,
+                phone: '083-4445556'
+            }
+        ];
+
+        // Incident Log Data Mockup
+        let incidentLogs = [
+            { id: 'inc-1', name: 'น้ำท่วม บ.ผาขวาง-ตัวเมืองน่าน 69', area: 'ต.ในเวียง', status: 'monitoring', date: '2026-05-21' }
+        ];
+
+        // Rescue Teams database
+        let rescueTeams = [
+            { id: 'res-1', name: 'ทีม GMC มณฑลทหารบกที่ 38', type: 'GMC Truck', contact: '054-711123', zone: 'โซนที่ 2 (บ.ท่าลี / บ.พญาภู)', status: 'Active' },
+            { id: 'res-2', name: 'กู้ภัยแม่สายร่วมกตัญญู (ทีมเรือยาง)', type: 'Rescue Boat', contact: '086-4545454', zone: 'โซนที่ 5 (พื้นที่ขอบเขตแม่สาย)', status: 'Active' },
+            { id: 'res-3', name: 'หน่วยสุขภาพจิต MCAT รพ.น่าน', type: 'MCAT Psych', contact: '054-719500', zone: 'โซนที่ 4 (เขตโรงเรียน/โรงพยาบาลสนาม)', status: 'Active' }
+        ];
+
+        // Live list of emergency requests dispatch logs
+        let helpRequests = [
+            {
+                id: 'req-201',
+                memberId: 'mem-104',
+                requestType: 'Evacuation',
+                priority: 'Urgent',
+                description: 'น้ำป่าแม่น้ำสายทะลักล้นตลิ่งเกือบ 1 เมตร ทะลุเข้ามาบริเวณชั้น 1 ต้องการนำติดเตียงไปที่ปลอดภัยด่วน',
+                status: 'Processing', // 'Pending' | 'Processing' | 'Completed'
+                assignedTo: 'res-2',
+                timestamp: '30 นาทีที่แล้ว'
+            }
+        ];
+
+        // Live visits records list
+        let visitLogs = [
+            { id: 'v-1', memberId: 'mem-101', status: 'Normal', notes: 'เยี่ยมบ้านสัปดาห์นี้ปกติดี สัญญาณชีพคงที่ ยาหัวใจมียังพอใช้เกิน 15 วัน', timestamp: '1 วันที่แล้ว', vhv: 'นางสุภา สุขดี' }
+        ];
+
+        // Active State of UI
+        let activeMemberForVisit = null;
+        let activeMemberForHelp = null;
+
+        // --- 2. DYNAMIC MAP SYSTEM RENDERING ---
+        function renderMapPins() {
+            const container = document.getElementById('map-pins-container');
+            container.innerHTML = ''; // clear pins
+
+            // Determine active layers to see if show pins
+            const showVulnerable = document.getElementById('layer-vulnerable').checked;
+            const showShelters = document.getElementById('layer-shelter').checked;
+
+            // Render Vulnerable Pins
+            if (showVulnerable) {
+                members.forEach(member => {
+                    // Color code based on safety status
+                    let colorClass = 'bg-green-500';
+                    let ringColor = 'ring-green-400';
+                    
+                    if (member.safetyStatus === 'needs_help') {
+                        colorClass = 'bg-red-500 animate-bounce';
+                        ringColor = 'ring-red-400';
+                    } else if (member.safetyStatus === 'evacuated') {
+                        colorClass = 'bg-blue-500';
+                        ringColor = 'ring-blue-400';
+                    } else if (member.safetyStatus === 'safe') {
+                        colorClass = 'bg-emerald-600';
+                        ringColor = 'ring-emerald-400';
+                    }
+
+                    const pin = document.createElement('div');
+                    pin.className = `absolute cursor-pointer transition-all duration-300 hover:scale-125 z-10`;
+                    pin.style.top = `${member.lat}%`;
+                    pin.style.left = `${member.lng}%`;
+                    
+                    // Pin template (Pulse red on risk)
+                    pin.innerHTML = `
+                        <div onclick="showMapPopup('${member.id}')" class="relative group">
+                            <span class="flex h-6 w-6 items-center justify-center rounded-full ${colorClass} text-white font-bold text-[9px] shadow-lg ring-4 ${ringColor} ring-opacity-50">
+                                🏠
+                            </span>
+                            <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 hidden group-hover:block bg-slate-950 text-white text-[9px] px-2 py-1 rounded whitespace-nowrap shadow-md z-30">
+                                ${member.name}
+                            </div>
+                        </div>
+                    `;
+                    container.appendChild(pin);
+                });
+            }
+
+            // Render Shelters & Support Point Pins
+            if (showShelters) {
+                // Static coordinates for shelters (simulating community landmark GIS coords)
+                const supportPoints = [
+                    { name: 'โรงพยาบาลสนามน่าน (มทร.ล้านนา)', lat: 48, lng: 55, type: 'shelter', icon: '⛺' },
+                    { name: 'โรงครัวพระราชทาน (วัดพระธาตุแช่แห้ง)', lat: 75, lng: 75, type: 'kitchen', icon: '🍳' },
+                    { name: 'จุดจอดเรือกู้ภัยส่วนหน้า ด่านสะพานที่ 1 แม่สาย', lat: 18, lng: 80, type: 'ems', icon: '⚓' }
+                ];
+
+                supportPoints.forEach(point => {
+                    const pin = document.createElement('div');
+                    pin.className = `absolute cursor-pointer z-10`;
+                    pin.style.top = `${point.lat}%`;
+                    pin.style.left = `${point.lng}%`;
+                    
+                    pin.innerHTML = `
+                        <div onclick="showSupportPopup('${point.name}', '${point.icon}', '${point.type}')" class="relative group">
+                            <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-700 text-white shadow-lg ring-4 ring-indigo-400 ring-opacity-40">
+                                ${point.icon}
+                            </span>
+                            <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 hidden group-hover:block bg-indigo-950 text-white text-[9px] px-2 py-1 rounded whitespace-nowrap shadow-md z-30">
+                                ${point.name}
+                            </div>
+                        </div>
+                    `;
+                    container.appendChild(pin);
+                });
+            }
+        }
+
+        function toggleMapLayer(layerName) {
+            renderMapPins();
+            showToast(`ปรับปรุงการแสดงเลเยอร์แผนที่ ${layerName} แล้ว`);
+        }
+
+        // --- 3. DYNAMIC WATER TELEMETRY TRIGGER SYSTEM ---
+        function onWaterLevelChange(station, value) {
+            const numVal = parseFloat(value);
+            
+            if (station === 'n64') {
+                document.getElementById('val-n64').innerText = `${numVal.toFixed(1)} ม.`;
+                const label = document.getElementById('telemetry-n64-alert');
+                const desc = document.getElementById('desc-n64');
+
+                // State logic for water height levels
+                if (numVal < 3.0) {
+                    label.className = "px-1.5 py-0.5 rounded text-[9px] font-bold bg-green-100 text-green-800";
+                    label.innerText = "ปกติ";
+                    desc.innerText = "ความเร็วน้ำ 1.4 ม./วินาที (ยังไม่ล้นตลิ่ง)";
+                    updateFloodOverlayOpacity(0);
+                } else if (numVal >= 3.0 && numVal < 4.0) {
+                    label.className = "px-1.5 py-0.5 rounded text-[9px] font-bold bg-yellow-100 text-yellow-800 animate-pulse";
+                    label.innerText = "เฝ้าระวังภัย";
+                    desc.innerText = "ระดับน้ำปริ่มตลิ่ง มีเวลาเตรียมอพยพ 12 ชม.";
+                    updateFloodOverlayOpacity(1);
+                } else if (numVal >= 4.0 && numVal < 5.0) {
+                    label.className = "px-1.5 py-0.5 rounded text-[9px] font-bold bg-orange-100 text-orange-800";
+                    label.innerText = "วิกฤต (แจ้งอพยพ)";
+                    desc.innerText = "ล้นตลิ่งแล้ว 50 ซม. อีก 7 ชม. ถึงเขตเศรษฐกิจตัวเมือง!";
+                    updateFloodOverlayOpacity(2);
+                    // Auto-trigger Crisis Mode
+                    if (currentMode !== 'crisis') setDashboardMode('crisis');
+                } else {
+                    label.className = "px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-100 text-red-800";
+                    label.innerText = "วิกฤตสูงสุด!";
+                    desc.innerText = "มวลน้ำทะลักล้นตลิ่งท่วมสูงกว่า 1.2 เมตร ทะลักแนวคันกั้นน้ำเทศบาล";
+                    updateFloodOverlayOpacity(3);
+                }
+            } else if (station === 'maesai') {
+                document.getElementById('val-maesai').innerText = `${numVal.toFixed(1)} ม.`;
+                const label = document.getElementById('telemetry-maesai-alert');
+                const desc = document.getElementById('desc-maesai');
+
+                if (numVal < 2.5) {
+                    label.className = "px-1.5 py-0.5 rounded text-[9px] font-bold bg-green-100 text-green-800";
+                    label.innerText = "ปกติ";
+                    desc.innerText = "ระดับสัญญานพม่า-ไทย ทรงตัว";
+                    updateFloodOverlayOpacity(0);
+                } else if (numVal >= 2.5 && numVal < 3.5) {
+                    label.className = "px-1.5 py-0.5 rounded text-[9px] font-bold bg-yellow-100 text-yellow-800 animate-pulse";
+                    label.innerText = "เตือนภัยล่วงหน้า";
+                    desc.innerText = "น้ำป่าจากพม่าเทหลาก อีก 4 ชม. ล้นสะพานมิตรภาพ";
+                    updateFloodOverlayOpacity(1);
+                } else {
+                    label.className = "px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-100 text-red-800";
+                    label.innerText = "น้ำหลากสูงสุด!";
+                    desc.innerText = "น้ำทะลักตลาดสายลมจอยและเกาะทรายเรียบร้อย!";
+                    updateFloodOverlayOpacity(4);
+                    if (currentMode !== 'crisis') setDashboardMode('crisis');
+                }
+            }
+            updateWarningBanner();
+        }
+
+        // Adjust visible GIS overlay opacity on custom map to simulate real-world inundation maps
+        function updateFloodOverlayOpacity(level) {
+            // reset all
+            for (let i = 1; i <= 5; i++) {
+                document.getElementById(`flood-zone-${i}`).style.opacity = '0';
+            }
+            
+            if (level >= 1) document.getElementById('flood-zone-1').style.opacity = '0.7';
+            if (level >= 2) {
+                document.getElementById('flood-zone-2').style.opacity = '0.6';
+                document.getElementById('flood-zone-3').style.opacity = '0.5';
+            }
+            if (level >= 3) {
+                document.getElementById('flood-zone-4').style.opacity = '0.6';
+            }
+            if (level >= 4) {
+                document.getElementById('flood-zone-5').style.opacity = '0.7';
+            }
+        }
+
+        function updateWarningBanner() {
+            const warningOverlay = document.getElementById('map-warning-overlay');
+            const sliderN64 = parseFloat(document.getElementById('slider-n64').value);
+            const sliderMaeSai = parseFloat(document.getElementById('slider-maesai').value);
+
+            if (sliderN64 >= 4.0) {
+                warningOverlay.classList.remove('hidden');
+                document.getElementById('warning-text').innerText = `ระดับน้ำ N64 ผาขวาง สูง ${sliderN64} ม. เริ่มล้นสปิลเวย์แล้ว`;
+                document.getElementById('countdown-badge').innerText = `อพยพเมืองน่านใน 7 ชม.`;
+            } else if (sliderMaeSai >= 3.5) {
+                warningOverlay.classList.remove('hidden');
+                document.getElementById('warning-text').innerText = `แม่น้ำสายสูง ${sliderMaeSai} ม. ท่วมทะลักซอยสายลมจอย`;
+                document.getElementById('countdown-badge').innerText = `อพยพด่วนใน 3 ชม.`;
+            } else {
+                warningOverlay.classList.add('hidden');
+            }
+        }
+
+        // --- 4. POPUP CARD TRIGGER ON GIS MAP ---
+        function showMapPopup(memberId) {
+            const member = members.find(m => m.id === memberId);
+            if (!member) return;
+
+            document.getElementById('popup-name').innerText = member.name;
+            document.getElementById('popup-address').innerText = member.address;
+            document.getElementById('popup-health').innerText = member.conditions;
+            document.getElementById('popup-equipment').innerText = member.equipment;
+            document.getElementById('popup-vhv').innerText = member.vhv;
+
+            const badge = document.getElementById('popup-badge');
+            let safetyText = "เฝ้าระวังที่บ้าน";
+            let badgeClass = "bg-green-100 text-green-800";
+            
+            if (member.safetyStatus === 'needs_help') {
+                safetyText = "ต้องการความช่วยเหลือเร่งด่วน";
+                badgeClass = "bg-red-100 text-red-800 animate-pulse";
+            } else if (member.safetyStatus === 'evacuated') {
+                safetyText = "อพยพพำนักชั่วคราว";
+                badgeClass = "bg-blue-100 text-blue-800";
+            } else if (member.safetyStatus === 'safe') {
+                safetyText = "ปลอดภัยแล้ว";
+                badgeClass = "bg-emerald-100 text-emerald-800";
+            }
+
+            badge.innerText = safetyText;
+            badge.className = `px-2 py-0.5 rounded text-[10px] font-bold uppercase ${badgeClass}`;
+
+            let evacStatusText = "พำนักที่บ้าน (ประเมินระดับความปลอดภัยแล้ว)";
+            if (member.safetyStatus === 'evacuated') evacStatusText = `ย้ายไปที่ศูนย์อพยพ มทร.ล้านนา แล้ว`;
+            if (member.safetyStatus === 'safe') evacStatusText = "ปลอดภัย (อยู่กับญาติ นอกเขตน้ำท่วม)";
+            document.getElementById('popup-evacuation').innerText = evacStatusText;
+
+            // Render Dynamic Action buttons in Map Popup depending on User Permissions
+            const actionsWrapper = document.getElementById('popup-actions-wrapper');
+            actionsWrapper.innerHTML = '';
+
+            if (currentRole === 'vhv' || currentRole === 'officer' || currentRole === 'admin') {
+                actionsWrapper.innerHTML += `
+                    <button onclick="openVisitSheet('${member.id}')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1 px-3 rounded text-xs transition duration-150 flex items-center gap-1">
+                        🩺 อสม. เยี่ยมบ้าน
+                    </button>
+                    <button onclick="openHelpSheet('${member.id}')" class="bg-amber-600 hover:bg-amber-700 text-white font-bold py-1 px-3 rounded text-xs transition duration-150 flex items-center gap-1">
+                        🚨 สป. ประสานกู้ภัย
+                    </button>
+                `;
+            }
+
+            if (currentRole === 'admin' || currentRole === 'officer') {
+                actionsWrapper.innerHTML += `
+                    <button onclick="changeMemberSafetyStatus('${member.id}', 'safe')" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-1 px-3 rounded text-xs transition duration-150">
+                        ✔️ มาร์คปลอดภัย
+                    </button>
+                `;
+            }
+
+            document.getElementById('map-popup').classList.remove('hidden');
+        }
+
+        function showSupportPopup(name, icon, type) {
+            document.getElementById('popup-name').innerText = `${icon} ${name}`;
+            document.getElementById('popup-address').innerText = "พิกัดจุดอำนวยการและช่วยเหลือส่วนหน้า";
+            document.getElementById('popup-health').innerText = `ประเภทสถานปฏิบัติการ: ${type === 'shelter' ? 'ศูนย์อพยพพักพิงใหญ่' : type === 'kitchen' ? 'ศูนย์สนับสนุนอาหารสนาม' : 'หน่วยดูแลการแพทย์สนามพิเศษ'}`;
+            document.getElementById('popup-equipment').innerText = "ไฟฟ้าพยุงชีพ, เครื่องสำรองไฟฉุกเฉิน, ยาจำเป็นพร้อม";
+            document.getElementById('popup-vhv').innerText = "EOC กรมป้องกันและบรรเทาสาธารณภัย (ปพ.)";
+            document.getElementById('popup-evacuation').innerText = "เปิดใช้งานตลอด 24 ชั่วโมง";
+
+            const badge = document.getElementById('popup-badge');
+            badge.innerText = "เปิดปฏิบัติการกู้ภัย";
+            badge.className = "px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-indigo-100 text-indigo-800";
+
+            // Support points action
+            const actionsWrapper = document.getElementById('popup-actions-wrapper');
+            actionsWrapper.innerHTML = `
+                <div class="text-xs text-indigo-300 italic">ประสานโรงครัวพระราชทานเพื่อขอรับส่งสเบียงแก่จุดกลุ่มเป้าหมายผู้ป่วยเปราะบางในพิกัดใกล้เคียง</div>
+            `;
+
+            document.getElementById('map-popup').classList.remove('hidden');
+        }
+
+        function closeMapPopup() {
+            document.getElementById('map-popup').classList.add('hidden');
+        }
+
+        // --- 5. NORMAL / CRISIS MODE CONTROL ---
+        function setDashboardMode(mode) {
+            currentMode = mode;
+            const normalBtn = document.getElementById('mode-normal-btn');
+            const crisisBtn = document.getElementById('mode-crisis-btn');
+            const banner = document.getElementById('crisis-banner');
+            const rootStyle = document.body;
+
+            if (mode === 'crisis') {
+                normalBtn.className = "px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-200 text-slate-400 hover:text-white";
+                crisisBtn.className = "px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-200 bg-red-600 text-white shadow";
+                banner.classList.remove('hidden');
+                
+                // Light alert on screen background or elements
+                document.getElementById('incident-status-banner').className = "bg-red-100 text-red-800 text-[10px] font-bold px-2 py-1 rounded animate-pulse";
+                document.getElementById('incident-status-banner').innerText = "🛑 โหมดตอบโต้ภัยพิบัติ ACTIVE";
+
+                // Pre-set Water sliders to simulated high values
+                document.getElementById('slider-n64').value = "4.2";
+                document.getElementById('val-n64').innerText = "4.2 ม.";
+                document.getElementById('slider-maesai').value = "3.8";
+                document.getElementById('val-maesai').innerText = "3.8 ม.";
+                
+                // Show dynamic areas
+                updateFloodOverlayOpacity(3);
+                updateWarningBanner();
+
+                showToast("ระบบสลับสู่ [โหมดวิกฤตอุทกภัย] เปิดใช้งานระบบจัดลำดับคำร้องขอช่วยเหลือ");
+            } else {
+                normalBtn.className = "px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-200 bg-slate-700 text-white shadow";
+                crisisBtn.className = "px-3 py-1.5 rounded-md text-xs font-medium transition-all duration-200 text-slate-400 hover:text-white";
+                banner.classList.add('hidden');
+
+                document.getElementById('incident-status-banner').className = "bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-1 rounded";
+                document.getElementById('incident-status-banner').innerText = "ไม่มีภัยพิบัติสะสม";
+
+                // Restore level telemetry simulation
+                document.getElementById('slider-n64').value = "1.2";
+                document.getElementById('val-n64').innerText = "1.2 ม.";
+                document.getElementById('slider-maesai').value = "0.8";
+                document.getElementById('val-maesai').innerText = "0.8 ม.";
+                
+                updateFloodOverlayOpacity(0);
+                updateWarningBanner();
+
+                showToast("ระบบสลับสู่ [โหมดปกติ] มุ่งเน้นการตรวจเยี่ยมประเมินสุขภาพสะสม");
+            }
+
+            renderAll();
+        }
+
+        // --- 6. USER ROLE CONTROLLER ---
+        function changeRole(role) {
+            currentRole = role;
+            
+            // Adjust forms & buttons visibility depending on role simulation
+            const rescueForm = document.getElementById('rescue-reg-form-wrapper');
+            if (role === 'vhv') {
+                rescueForm.classList.add('hidden'); // VHV has no access to register units
+            } else {
+                rescueForm.classList.remove('hidden');
+            }
+
+            showToast(`สิทธิ์ใช้งานเปลี่ยนเป็น: ${role === 'admin' ? 'ผู้บัญชาการ EOC' : role === 'officer' ? 'เจ้าหน้าที่ รพ.สต.' : 'อสม. หน้างาน'}`);
+            renderAll();
+        }
+
+        // --- 7. REGISTRY TAB MANAGEMENT ---
+        function setActiveTab(tabId) {
+            const tabs = ['vulnerable-tab', 'command-tab', 'rescue-tab'];
+            tabs.forEach(t => {
+                document.getElementById(`content-${t}`).classList.add('hidden');
+                document.getElementById(`tab-${t}`).className = "px-4 py-3 text-xs font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-800 whitespace-nowrap focus:outline-none";
+            });
+
+            document.getElementById(`content-${tabId}`).classList.remove('hidden');
+            document.getElementById(`tab-${tabId}`).className = "px-4 py-3 text-xs font-semibold border-b-2 border-slate-900 text-slate-900 whitespace-nowrap focus:outline-none";
+        }
+
+        // --- 8. BUSINESS LOGIC & LIST RENDERING ---
+        function renderAll() {
+            renderVulnerableList();
+            renderHelpRequestsList();
+            renderRescueList();
+            renderMapPins();
+            updateStats();
+        }
+
+        function updateStats() {
+            document.getElementById('stat-total').innerText = `${members.length} ราย`;
+            
+            const needsHelpCount = members.filter(m => m.safetyStatus === 'needs_help').length;
+            document.getElementById('stat-help').innerText = `${needsHelpCount} ราย`;
+            
+            const helpDesc = document.getElementById('stat-help-desc');
+            if (needsHelpCount > 0) {
+                helpDesc.innerText = "ต้องการความช่วยเหลือเร่งด่วน!";
+                helpDesc.className = "text-[9px] text-red-500 mt-1 font-bold animate-pulse";
+                document.getElementById('badge-alert-count').innerText = needsHelpCount;
+                document.getElementById('badge-alert-count').classList.remove('hidden');
+            } else {
+                helpDesc.innerText = "อยู่ในการเฝ้าระวังปกติ";
+                helpDesc.className = "text-[9px] text-slate-400 mt-1";
+                document.getElementById('badge-alert-count').classList.add('hidden');
+            }
+
+            const safeCount = members.filter(m => m.safetyStatus === 'safe' || m.safetyStatus === 'evacuated').length;
+            document.getElementById('stat-safe').innerText = `${safeCount} ราย`;
+
+            document.getElementById('stat-rescue').innerText = `${rescueTeams.length} ทีม`;
+        }
+
+        // Render Vulnerable Members Directory (A-Z with Search & Filter)
+        function renderVulnerableList() {
+            const container = document.getElementById('members-list');
+            container.innerHTML = '';
+
+            const searchVal = document.getElementById('search-input').value.toLowerCase();
+            const filterStatus = document.getElementById('filter-status').value;
+
+            const filtered = members.filter(m => {
+                const matchesSearch = m.name.toLowerCase().includes(searchVal) || 
+                                      m.conditions.toLowerCase().includes(searchVal) ||
+                                      m.address.toLowerCase().includes(searchVal);
+                
+                const matchesStatus = filterStatus === 'all' || m.safetyStatus === filterStatus;
+
+                return matchesSearch && matchesStatus;
+            });
+
+            if (filtered.length === 0) {
+                container.innerHTML = `<div class="text-center py-8 text-slate-400 text-xs">ไม่พบข้อมูลรายชื่อกลุ่มเป้าหมายในเงื่อนไขดังกล่าว</div>`;
+                return;
+            }
+
+            filtered.forEach(m => {
+                let statusBadge = '';
+                if (m.safetyStatus === 'normal') {
+                    statusBadge = `<span class="bg-green-100 text-green-800 text-[10px] px-2 py-0.5 rounded-full font-medium">ปกติ / เฝ้าระวัง</span>`;
+                } else if (m.safetyStatus === 'needs_help') {
+                    statusBadge = `<span class="bg-red-100 text-red-800 text-[10px] px-2 py-0.5 rounded-full font-bold animate-pulse">🔴 ต้องการความช่วยเหลือ</span>`;
+                } else if (m.safetyStatus === 'evacuated') {
+                    statusBadge = `<span class="bg-blue-100 text-blue-800 text-[10px] px-2 py-0.5 rounded-full font-medium">⛵ อพยพแล้ว</span>`;
+                } else if (m.safetyStatus === 'safe') {
+                    statusBadge = `<span class="bg-emerald-100 text-emerald-800 text-[10px] px-2 py-0.5 rounded-full font-medium">✔️ ปลอดภัย</span>`;
+                }
+
+                // Check for chronic / critical condition
+                let conditionTag = m.conditions.includes('ไต') 
+                    ? `<span class="bg-purple-100 text-purple-800 text-[9px] px-1.5 py-0.2 rounded font-medium">ผู้ป่วยล้างไต</span>` 
+                    : m.conditions.includes('ออกซิเจน')
+                    ? `<span class="bg-amber-100 text-amber-800 text-[9px] px-1.5 py-0.2 rounded font-medium">ต้องพึ่งออกซิเจน</span>`
+                    : `<span class="bg-slate-100 text-slate-700 text-[9px] px-1.5 py-0.2 rounded font-medium">ติดเตียง ADL ต่ำ</span>`;
+
+                const div = document.createElement('div');
+                div.className = "py-3 flex flex-col md:flex-row justify-between items-start md:items-center gap-2 hover:bg-slate-50 transition px-2 rounded-lg";
+                div.innerHTML = `
+                    <div class="space-y-1 max-w-[70%]">
+                        <div class="flex items-center gap-2">
+                            <strong class="text-slate-800 text-xs">${m.name}</strong>
+                            <span class="text-slate-400 text-[10px]">(${m.age} ปี)</span>
+                            ${statusBadge}
+                        </div>
+                        <p class="text-[11px] text-slate-500">${m.address}</p>
+                        <div class="flex flex-wrap gap-1.5 items-center mt-1">
+                            ${conditionTag}
+                            <span class="text-[10px] text-slate-400">อสม: ${m.vhv.split(' ')[0]}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="flex gap-1 shrink-0">
+                        <button onclick="showMapPopup('${m.id}')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold px-2.5 py-1.5 rounded transition">
+                            📍 พิกัดแผนที่
+                        </button>
+                        ${(currentRole === 'vhv' || currentRole === 'officer' || currentRole === 'admin') ? `
+                            <button onclick="openVisitSheet('${m.id}')" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2.5 py-1.5 rounded transition">
+                                🩺 บันทึกเยี่ยม
+                            </button>
+                        ` : ''}
+                        ${(currentRole === 'officer' || currentRole === 'admin') ? `
+                            <button onclick="openHelpSheet('${m.id}')" class="bg-amber-50 hover:bg-amber-100 text-amber-800 text-[10px] font-bold px-2.5 py-1.5 rounded transition">
+                                🚨 ขอช่วยด่วน
+                            </button>
+                        ` : ''}
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function filterMembers() {
+            renderVulnerableList();
+        }
+
+        // Render Assistance Requests Command List (Triage)
+        function renderHelpRequestsList() {
+            const container = document.getElementById('requests-list');
+            container.innerHTML = '';
+
+            if (helpRequests.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-12 text-slate-400 text-xs">
+                        🎉 ขณะนี้ยังไม่มีคำร้องขอรับความช่วยเหลือฉุกเฉินสะสมในระบบ
+                    </div>
+                `;
+                return;
+            }
+
+            helpRequests.forEach(req => {
+                const member = members.find(m => m.id === req.memberId);
+                if (!member) return;
+
+                let priorityBadge = '';
+                if (req.priority === 'Urgent') {
+                    priorityBadge = `<span class="bg-red-100 text-red-800 text-[9px] px-1.5 py-0.5 rounded font-bold animate-pulse">⚠️ เร่งด่วนวิกฤต (แดง)</span>`;
+                } else if (req.priority === 'Monitor') {
+                    priorityBadge = `<span class="bg-amber-100 text-amber-800 text-[9px] px-1.5 py-0.5 rounded font-bold">เฝ้าระวังสูง (เหลือง)</span>`;
+                } else {
+                    priorityBadge = `<span class="bg-green-100 text-green-800 text-[9px] px-1.5 py-0.5 rounded font-medium">ทั่วไป (เขียว)</span>`;
+                }
+
+                let statusText = '';
+                let statusClass = '';
+                if (req.status === 'Pending') {
+                    statusText = '⏳ รอร้องขอหน่วยกู้ภัย';
+                    statusClass = 'bg-slate-100 text-slate-800';
+                } else if (req.status === 'Processing') {
+                    statusText = '⛵ กำลังเข้าพิกัดช่วย';
+                    statusClass = 'bg-blue-100 text-blue-800 font-bold';
+                } else if (req.status === 'Completed') {
+                    statusText = '✔️ อพยพสำเร็จ/ปลอดภัย';
+                    statusClass = 'bg-emerald-100 text-emerald-800';
+                }
+
+                const assignedTeam = rescueTeams.find(t => t.id === req.assignedTo);
+                const teamNameText = assignedTeam ? assignedTeam.name : 'ยังไม่มอบหมายกำลัง';
+
+                const div = document.createElement('div');
+                div.className = "p-3 rounded-lg bg-slate-50 border border-slate-200 space-y-2 hover:shadow-sm transition";
+                div.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <span class="text-[10px] text-slate-400 block">${req.timestamp}</span>
+                            <strong class="text-slate-800 text-xs">${member.name}</strong>
+                            <p class="text-[11px] text-slate-500">${member.address}</p>
+                        </div>
+                        <div class="flex flex-col items-end gap-1">
+                            ${priorityBadge}
+                            <span class="text-[10px] px-2 py-0.5 rounded-full font-medium ${statusClass}">${statusText}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="text-[11px] bg-white p-2 rounded border border-slate-200 text-slate-600 leading-relaxed">
+                        <strong>อาการ/ปัญหาหน้างาน:</strong> ${req.description}
+                    </div>
+
+                    <div class="flex justify-between items-center text-[10px] pt-1">
+                        <span class="text-slate-500"><strong>ทีมสนับสนุนปฏิบัติการ:</strong> ${teamNameText}</span>
+                        
+                        <div class="flex gap-1.5">
+                            ${(currentRole === 'officer' || currentRole === 'admin') && req.status !== 'Completed' ? `
+                                <select onchange="assignRescueTeam('${req.id}', this.value)" class="bg-white border border-slate-300 rounded text-[10px] p-1">
+                                    <option value="">เลือกหน่วยที่จะส่ง...</option>
+                                    ${rescueTeams.map(team => `<option value="${team.id}" ${req.assignedTo === team.id ? 'selected' : ''}>${team.name}</option>`).join('')}
+                                </select>
+                                <button onclick="markRequestCompleted('${req.id}')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2 py-1 rounded transition text-[10px]">
+                                    ปิดเคสสำเร็จ
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function assignRescueTeam(reqId, teamId) {
+            const req = helpRequests.find(r => r.id === reqId);
+            if (!req) return;
+            req.assignedTo = teamId;
+            req.status = 'Processing';
+
+            // Also update the target member safety status as rescue processing
+            const member = members.find(m => m.id === req.memberId);
+            if (member) {
+                member.safetyStatus = 'needs_help';
+            }
+
+            showToast("มอบหมายทีมกู้ภัยดูแลเรียบร้อย กำลังประสานงานวิทยุ...");
+            renderAll();
+        }
+
+        function markRequestCompleted(reqId) {
+            const req = helpRequests.find(r => r.id === reqId);
+            if (!req) return;
+            req.status = 'Completed';
+
+            const member = members.find(m => m.id === req.memberId);
+            if (member) {
+                member.safetyStatus = 'safe'; // set member safe
+            }
+
+            showToast("ดำเนินการปิดเคสสำเร็จ ข้อมูลถูกปรับปรุงขึ้นบอร์ดจังหวัดแล้ว");
+            renderAll();
+        }
+
+        // Render Rescue support team list
+        function renderRescueList() {
+            const container = document.getElementById('rescue-list');
+            container.innerHTML = '';
+
+            rescueTeams.forEach(team => {
+                const div = document.createElement('div');
+                div.className = "flex justify-between items-center p-2.5 bg-slate-50 rounded-lg border border-slate-200 text-xs hover:bg-slate-100 transition";
+                div.innerHTML = `
+                    <div class="space-y-0.5">
+                        <div class="flex items-center gap-1.5">
+                            <strong class="text-slate-800">${team.name}</strong>
+                            <span class="bg-indigo-100 text-indigo-800 text-[8px] font-bold px-1 rounded uppercase">${team.type}</span>
+                        </div>
+                        <p class="text-[10px] text-slate-500">พื้นที่รับผิดชอบ: ${team.zone}</p>
+                        <p class="text-[10px] text-slate-400">เบอร์สายตรง: ${team.contact}</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
+                        <span class="text-[10px] text-slate-500">${team.status}</span>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        // Register a new support rescue unit (Prevention of duplicates)
+        function registerNewRescueTeam() {
+            const name = document.getElementById('reg-rescue-name').value.trim();
+            const type = document.getElementById('reg-rescue-type').value;
+            const contact = document.getElementById('reg-rescue-contact').value.trim();
+            const zone = document.getElementById('reg-rescue-zone').value;
+
+            if (!name || !contact) {
+                showToast("⚠️ กรุณากรอกชื่อหน่วยงานและเบอร์ติดต่อวิทยุให้ครบถ้วน!");
+                return;
+            }
+
+            const newTeam = {
+                id: `res-${Date.now()}`,
+                name: name,
+                type: type,
+                contact: contact,
+                zone: zone,
+                status: 'Active'
+            };
+
+            rescueTeams.push(newTeam);
+            showToast("ขึ้นทะเบียนทีมรับมือสำเร็จและจัดแจงโซนพิกัดเรียบร้อย");
+            
+            // clear form
+            document.getElementById('reg-rescue-name').value = '';
+            document.getElementById('reg-rescue-contact').value = '';
+
+            renderAll();
+        }
+
+        // --- 9. MODALS AND FORM SUBMISSIONS ---
+        function openVisitSheet(memberId) {
+            const member = members.find(m => m.id === memberId);
+            if (!member) return;
+
+            activeMemberForVisit = member;
+            document.getElementById('visit-member-name').innerText = `${member.name} (${member.age} ปี)`;
+            document.getElementById('visit-member-detail').innerText = `โรคประจำตัว/ข้อจำกัด: ${member.conditions}`;
+
+            const crisisAlert = document.getElementById('visit-incident-alert');
+            if (currentMode === 'crisis') {
+                crisisAlert.classList.remove('hidden');
+            } else {
+                crisisAlert.classList.add('hidden');
+            }
+
+            document.getElementById('sheet-visit').classList.remove('hidden');
+        }
+
+        function submitVisitLog() {
+            if (!activeMemberForVisit) return;
+
+            const fieldStatus = document.getElementById('visit-field-status').value;
+            const notes = document.getElementById('visit-notes').value.trim() || 'เยี่ยมบ้านตามรอบประเมินสากล';
+            const vhvName = activeMemberForVisit.vhv.split(' ')[0];
+
+            // Add to visit logs
+            visitLogs.unshift({
+                id: `v-${Date.now()}`,
+                memberId: activeMemberForVisit.id,
+                status: fieldStatus,
+                notes: notes,
+                timestamp: 'เมื่อครู่',
+                vhv: vhvName
+            });
+
+            // If health is unstable during visit, escalate status
+            if (fieldStatus === 'Unstable') {
+                activeMemberForVisit.safetyStatus = 'needs_help';
+                
+                // Auto create alert help request
+                helpRequests.unshift({
+                    id: `req-${Date.now()}`,
+                    memberId: activeMemberForVisit.id,
+                    requestType: 'Emergency Medical',
+                    priority: 'Urgent',
+                    description: `ตรวจเยี่ยมโดย อสม. พบสภาพระดับอาการวิกฤตหน้างาน: ${notes}`,
+                    status: 'Pending',
+                    assignedTo: null,
+                    timestamp: 'เมื่อครู่'
+                });
+                showToast("🚨 พบบันทึกอาการวิกฤต ระบบแจ้งเตือน dispatch สู่บอร์ด EOC อัตโนมัติ!");
+            }
+
+            showToast(`บันทึกการประเมินผู้ป่วยของ อสม. สำเร็จแล้ว`);
+            closeSheet('sheet-visit');
+            renderAll();
+        }
+
+        function openHelpSheet(memberId) {
+            const member = members.find(m => m.id === memberId);
+            if (!member) return;
+
+            activeMemberForHelp = member;
+            document.getElementById('help-member-name').innerText = `${member.name}`;
+            document.getElementById('help-member-detail').innerText = `ที่อยู่พิกัด: ${member.address}`;
+
+            document.getElementById('sheet-help').classList.remove('hidden');
+        }
+
+        function submitHelpRequest() {
+            if (!activeMemberForHelp) return;
+
+            const reqType = document.getElementById('help-req-type').value;
+            const priority = document.getElementById('help-priority').value;
+            const desc = document.getElementById('help-desc').value.trim() || 'ไม่มีระบุบันทึกเพิ่มเติม';
+
+            // Add help requests
+            helpRequests.unshift({
+                id: `req-${Date.now()}`,
+                memberId: activeMemberForHelp.id,
+                requestType: reqType,
+                priority: priority,
+                description: `ร้องขอสนับสนุน [${reqType}] โดยข้อมูล: ${desc}`,
+                status: 'Pending',
+                assignedTo: null,
+                timestamp: 'เมื่อครู่'
+            });
+
+            // Update member health map pin to red
+            activeMemberForHelp.safetyStatus = 'needs_help';
+
+            showToast("ส่งคำร้องฉุกเฉินเข้าระบบวิทยุส่วนหน้าเรียบร้อย");
+            closeSheet('sheet-help');
+            renderAll();
+        }
+
+        function changeMemberSafetyStatus(memberId, status) {
+            const member = members.find(m => m.id === memberId);
+            if (!member) return;
+            member.safetyStatus = status;
+            showToast(`ปรับปรุงสถานะทางอุทกภัยของ ${member.name} เป็น ปลอดภัย`);
+            closeMapPopup();
+            renderAll();
+        }
+
+        function closeSheet(sheetId) {
+            document.getElementById(sheetId).classList.add('hidden');
+        }
+
+        // --- 10. NOTIFICATION CUSTOM TOASTS ---
+        function showToast(text) {
+            const toast = document.getElementById('custom-toast');
+            document.getElementById('toast-text').innerText = text;
+            toast.classList.remove('hidden');
+            toast.style.opacity = '1';
+
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => {
+                    toast.classList.add('hidden');
+                }, 300);
+            }, 3000);
+        }
+
+        // Run dashboard render loop on window load
+        window.onload = function() {
+            renderAll();
+        };
+    </script>
+</body>
+</html>

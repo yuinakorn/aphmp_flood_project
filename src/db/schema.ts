@@ -148,9 +148,18 @@ export const householdMembers = pgTable('household_members', {
   prefix: text('prefix'),                  // คำนำหน้า (นาย/นาง/ด.ช./ฯลฯ)
   firstName: text('first_name').notNull(), // ชื่อ
   lastName: text('last_name').notNull(),   // นามสกุล
+  nationalId: text('national_id'),         // เลขบัตรประชาชน 13 หลัก (PDPA — ทุก access ถูก log)
+  birthDate: date('birth_date'),           // วันเกิด (วัน/เดือน/ปี)
+  nationality: text('nationality'),        // ไทย / พม่า / ไร้สถานะ / ฯลฯ
   age: smallint('age'),
   sex: text('sex'),                  // 'ชาย' | 'หญิง' | '-'
   phone: text('phone'),              // เบอร์ติดต่อรายบุคคล
+  // address ส่วนเสริม (tambon/amphoe/province อยู่ด้านล่างแล้ว)
+  hno: text('hno'),                  // บ้านเลขที่
+  villno: text('villno'),            // หมู่ที่
+  // ประวัติแพ้
+  foodAllergy: text('food_allergy'), // ประวัติแพ้อาหาร
+  drugAllergy: text('drug_allergy'), // ประวัติแพ้ยา
   familyPosition: text('family_position'), // หัวหน้าครัวเรือน / คู่สมรส / บุตร ...
   isHead: boolean('is_head').notNull().default(false),
   isDisabled: boolean('is_disabled').notNull().default(false),
@@ -172,7 +181,7 @@ export const householdMembers = pgTable('household_members', {
   lng: numeric('lng', { precision: 10, scale: 6 }),
   caregiverPhone: text('caregiver_phone'),
   careUnit: text('care_unit'),       // รพ.สต./หน่วยบริการประจำ
-  assignedVhvId: uuid('assigned_vhv_id').references(() => users.id),
+  assignedVhvId: uuid('assigned_vhv_id'),
   medicalPriority: text('medical_priority'), // A | B | C
   followUpStatus: text('follow_up_status'),  // pending | contacted | needs_help | moved | referred | closed
   lastContactedAt: timestamp('last_contacted_at', { withTimezone: true }),
@@ -184,7 +193,7 @@ export const householdMembers = pgTable('household_members', {
   sourceId: text('source_id'),
   sourceSyncedAt: timestamp('source_synced_at', { withTimezone: true }),
   deletedAt: timestamp('deleted_at', { withTimezone: true }), // soft delete
-  createdBy: uuid('created_by').references(() => users.id),
+  createdBy: uuid('created_by'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 }, (t) => [
@@ -258,7 +267,24 @@ export const incidents = pgTable('incidents', {
   description: text('description'),
   startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
   endedAt: timestamp('ended_at', { withTimezone: true }),
-  createdBy: uuid('created_by').references(() => users.id),
+  // ไม่ผูก FK — ผู้เปิดเหตุการณ์อาจเป็น SSO identity ที่ไม่ได้ mirror ลงตาราง users
+  createdBy: uuid('created_by'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+})
+
+// ทีมกู้ภัย / หน่วยเคลื่อนที่เร็ว — ขึ้นทะเบียน + แบ่งโซนรับผิดชอบ (กันเข้าช่วยซ้ำซ้อน/บ้านถูกทิ้งร้าง)
+export const rescueTeams = pgTable('rescue_teams', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  incidentId: uuid('incident_id').references(() => incidents.id),
+  name: text('name').notNull(),
+  teamType: text('team_type').notNull().default('rescue_boat'), // rescue_boat | gmc_truck | ems_medical | mcat_psych | volunteer_kitchen | other
+  contact: text('contact'),       // เบอร์ศูนย์วิทยุ/ผู้ประสานงาน
+  zone: text('zone'),             // โซนรับผิดชอบ เช่น "โซนที่ 2 (บ.ท่าลี / บ.พญาภู)"
+  status: text('status').notNull().default('active'), // active | standby | offline
+  lat: numeric('lat', { precision: 10, scale: 6 }),
+  lng: numeric('lng', { precision: 10, scale: 6 }),
+  registeredBy: uuid('registered_by'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 })
@@ -268,11 +294,17 @@ export const healthVisits = pgTable('health_visits', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
   incidentId: uuid('incident_id').references(() => incidents.id),
   memberId: uuid('member_id').references(() => householdMembers.id),
-  visitedBy: uuid('visited_by').references(() => users.id),
+  visitedBy: uuid('visited_by'),
   visitStatus: text('visit_status').notNull().default('pending'), // pending | completed | unreachable | needs_follow_up
   personStatus: text('person_status'), // safe | needs_help | evacuated | referred | unknown
   needsHelp: boolean('needs_help').notNull().default(false),
   helpType: text('help_type'), // medicine | transport | evacuation | food_water | other
+  // ───── ประเมินคลินิก/จิตใจภาคสนาม (VHV screen) ─────
+  vitalStatus: text('vital_status'),   // normal | monitoring | unstable (ชีพจร/อาการเบื้องต้น)
+  mentalStatus: text('mental_status'), // good | anxiety (สภาพอารมณ์/จิตใจ)
+  needsMcat: boolean('needs_mcat').notNull().default(false), // ต้องการทีมสุขภาพจิต MCAT สนับสนุน
+  medSufficient: boolean('med_sufficient'), // ยา/เวชภัณฑ์พอใช้เกิน 7 วัน
+  oxygenReady: boolean('oxygen_ready'),     // เครื่องผลิต/ถังออกซิเจนพร้อม
   notes: text('notes'),
   lat: numeric('lat', { precision: 10, scale: 6 }),
   lng: numeric('lng', { precision: 10, scale: 6 }),
@@ -286,7 +318,7 @@ export const helpRequests = pgTable('help_requests', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
   incidentId: uuid('incident_id').references(() => incidents.id),
   memberId: uuid('member_id').references(() => householdMembers.id),
-  requestedBy: uuid('requested_by').references(() => users.id),
+  requestedBy: uuid('requested_by'),
   sourceRole: text('source_role').notNull().default('vhv'), // vhv | eoc | ems | officer | public
   requestType: text('request_type').notNull(), // medical | evacuation | supplies | rescue | shelter | other
   priority: text('priority').notNull().default('normal'), // low | normal | high | critical
@@ -305,9 +337,10 @@ export const helpRequests = pgTable('help_requests', {
 export const caseAssignments = pgTable('case_assignments', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
   helpRequestId: uuid('help_request_id').notNull().references(() => helpRequests.id),
-  assignedTo: uuid('assigned_to').references(() => users.id),
-  assignedTeam: text('assigned_team'), // EMS, rescue foundation, district team, etc.
-  assignedBy: uuid('assigned_by').references(() => users.id),
+  assignedTo: uuid('assigned_to'),
+  rescueTeamId: uuid('rescue_team_id').references(() => rescueTeams.id), // ทีมจากทะเบียน rescue_teams
+  assignedTeam: text('assigned_team'), // ข้อความอิสระ (กรณีทีมนอกทะเบียน) — EMS, มูลนิธิ, ทีมอำเภอ ฯลฯ
+  assignedBy: uuid('assigned_by'),
   status: text('status').notNull().default('assigned'), // assigned | accepted | en_route | arrived | transferred | closed
   etaMinutes: integer('eta_minutes'),
   notes: text('notes'),
@@ -323,20 +356,38 @@ export const shelterStatusSnapshots = pgTable('shelter_status_snapshots', {
   capacity: integer('capacity'),
   readinessStatus: text('readiness_status').notNull(),
   healthResources: jsonb('health_resources').$type<Record<string, unknown>>(),
-  reportedBy: uuid('reported_by').references(() => users.id),
+  reportedBy: uuid('reported_by'),
   observedAt: timestamp('observed_at', { withTimezone: true }).notNull().defaultNow(),
   syncedAt: timestamp('synced_at', { withTimezone: true }),
+})
+
+// โซนรับเข้าของศูนย์พักพิง — แต่ละศูนย์กำหนดโซนเอง (เช่น "ติดเตียง-ส่งต่อ รพ.", "ผู้พักทั่วไป", "โซนชาติพันธุ์")
+// ไม่ใช้ enum ตายตัว เพื่อให้แต่ละจังหวัด/ศูนย์ออกแบบได้เอง
+export const shelterZones = pgTable('shelter_zones', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  shelterId: uuid('shelter_id').notNull().references(() => infrastructures.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  description: text('description'),
+  sortOrder: smallint('sort_order').notNull().default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 })
 
 // Admission of vulnerable persons into shelters
 export const shelterAdmissions = pgTable('shelter_admissions', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
   shelterId: uuid('shelter_id').notNull().references(() => infrastructures.id),
+  zoneId: uuid('zone_id').references(() => shelterZones.id),
   memberId: uuid('member_id').references(() => householdMembers.id),
+  incidentId: uuid('incident_id').references(() => incidents.id),
   helpRequestId: uuid('help_request_id').references(() => helpRequests.id),
-  admittedBy: uuid('admitted_by').references(() => users.id),
+  admittedBy: uuid('admitted_by'),
   status: text('status').notNull().default('admitted'), // admitted | transferred | discharged | cancelled
   needsFollowUp: boolean('needs_follow_up').notNull().default(false),
+  intakePoint: text('intake_point'),               // จุดรับเข้า (ข้อความ — fallback ถ้าไม่ผูก zone)
+  broughtByTeamId: uuid('brought_by_team_id').references(() => rescueTeams.id),
+  broughtByText: text('brought_by_text'),          // ทีมนอกทะเบียน — ข้อความอิสระ
+  exitReason: text('exit_reason'),                 // moved_home | admitted_hospital | transferred_shelter | other
+  exitDestination: text('exit_destination'),
   notes: text('notes'),
   admittedAt: timestamp('admitted_at', { withTimezone: true }).defaultNow(),
   dischargedAt: timestamp('discharged_at', { withTimezone: true }),
@@ -345,7 +396,7 @@ export const shelterAdmissions = pgTable('shelter_admissions', {
 // Audit log (PDPA)
 export const accessLog = pgTable('access_log', {
   id: bigserial('id', { mode: 'number' }).primaryKey(),
-  userId: uuid('user_id').references(() => users.id),
+  userId: uuid('user_id'),
   action: text('action').notNull(),
   targetId: uuid('target_id'),
   ip: inet('ip'),

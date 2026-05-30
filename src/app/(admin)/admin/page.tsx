@@ -1,16 +1,25 @@
 import { auth } from '@/lib/auth'
 import Link from 'next/link'
-import { Users, Building2, Map, BarChart3, Droplets, ArrowUpRight, FolderHeart } from 'lucide-react'
+import { Users, Building2, Map, BarChart3, Droplets, ArrowUpRight, FolderHeart, Siren, Tent } from 'lucide-react'
 
 export const metadata = { title: 'Dashboard — GIS Health Intelligence' }
 
 const cards = [
+  {
+    href: '/admin/eoc',
+    icon: Siren,
+    title: 'ศูนย์บัญชาการ EOC',
+    desc: 'แดชบอร์ดรวม: แผนที่ + ระดับน้ำ + ทะเบียนเปราะบาง + คำร้อง + ทีมกู้ภัย',
+    meta: 'live',
+    tile: 'var(--risk-flood)',
+  },
   {
     href: '/admin/family-folder',
     icon: FolderHeart,
     title: 'Family Folder กลุ่มเปราะบาง',
     desc: 'บ้านที่มีสมาชิกกลุ่มเปราะบาง · สมาชิก + ความสัมพันธ์ในครอบครัว',
     meta: 'ครัวเรือน',
+    tile: 'var(--cat-folder)',
   },
   {
     href: '/admin/vulnerable',
@@ -18,13 +27,23 @@ const cards = [
     title: 'กลุ่มเปราะบาง (แผนที่)',
     desc: 'ทะเบียนผู้ป่วยติดเตียง สูงอายุ พิการ พร้อมพิกัดบนแผนที่',
     meta: 'ทะเบียน',
+    tile: 'var(--cat-roster)',
+  },
+  {
+    href: '/admin/shelters',
+    icon: Tent,
+    title: 'ศูนย์พักพิง — รับเข้า/ย้ายออก',
+    desc: 'จัดการผู้พักพิงรายคน · โซน · ส่งต่อ รพ. · ทีมนำส่ง',
+    meta: 'ops',
+    tile: 'var(--infra-shelter)',
   },
   {
     href: '/admin/infra',
     icon: Building2,
-    title: 'สถานที่สำคัญ',
-    desc: 'รพ. รพ.สต. ศูนย์อพยพ จุดรวมพล',
-    meta: '7 จุด',
+    title: 'สถานพยาบาล',
+    desc: 'ทะเบียน รพ. / รพ.สต. / หน่วยบริการด่านหน้า',
+    meta: 'catalog',
+    tile: 'var(--cat-infra)',
   },
   {
     href: '/admin/water-level',
@@ -32,6 +51,7 @@ const cards = [
     title: 'ระดับน้ำรายชั่วโมง',
     desc: 'P.67 → P.1 ลุ่มน้ำปิง · กราฟ + ตารางย้อนหลัง 72 ชม.',
     meta: 'live',
+    tile: 'var(--cat-water)',
   },
   {
     href: '/map',
@@ -39,6 +59,7 @@ const cards = [
     title: 'แผนที่ปฏิบัติการ',
     desc: 'หน้าจอแผนที่ real-time สำหรับเฝ้าระวัง',
     meta: 'live',
+    tile: 'var(--cat-map)',
   },
   {
     href: '/api/stats',
@@ -46,6 +67,7 @@ const cards = [
     title: 'API stats',
     desc: 'JSON endpoint สำหรับ dashboard ภายนอก',
     meta: 'json',
+    tile: 'var(--cat-api)',
   },
 ]
 
@@ -53,52 +75,48 @@ export default async function AdminPage() {
   const session = await auth()
 
   return (
-    <div className="mx-auto max-w-4xl">
-      <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--fg-subtle)]">
-        เจ้าหน้าที่ · {session?.user?.role}
-      </p>
-      <h1 className="mt-2 text-[26px] font-semibold tracking-tight">
+    <div className="mx-auto max-w-5xl">
+      <p className="gx-eyebrow">เจ้าหน้าที่ · {session?.user?.role}</p>
+      <h1 className="gx-title mt-2 text-[length:var(--text-3xl)] leading-[var(--text-3xl--line-height)]">
         สวัสดี {session?.user?.name}
       </h1>
-      <p className="mt-1 text-[13px] text-[var(--fg-muted)]">
+      <p className="mt-2 text-base text-[var(--fg-muted)]">
         เลือกพื้นที่ที่ต้องการจัดการ
       </p>
 
-      <ul className="mt-8 divide-y divide-[var(--border)] border-y border-[var(--border)]">
+      <div className="mt-9 grid gap-4 sm:grid-cols-2">
         {cards.map((c) => {
           const Icon = c.icon
           return (
-            <li key={c.href}>
-              <Link
-                href={c.href}
-                className="group flex items-center gap-5 py-5 transition-colors hover:bg-[var(--bg-elevated)]"
-              >
-                <span className="flex size-10 shrink-0 items-center justify-center rounded-md border border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--accent)] transition-colors group-hover:border-[var(--accent)]">
-                  <Icon size={18} strokeWidth={1.75} />
-                </span>
-                <div className="flex-1">
-                  <div className="flex items-baseline gap-3">
-                    <span className="text-[15px] font-medium tracking-tight">
-                      {c.title}
-                    </span>
-                    <span className="font-mono text-[10.5px] uppercase tracking-[0.1em] text-[var(--fg-subtle)]">
-                      {c.meta}
-                    </span>
-                  </div>
-                  <p className="mt-0.5 text-[12.5px] text-[var(--fg-muted)]">
-                    {c.desc}
-                  </p>
+            <Link
+              key={c.href}
+              href={c.href}
+              style={{ ['--tile' as string]: c.tile }}
+              className="gx-card gx-card-interactive group flex items-start gap-4 p-5"
+            >
+              <span className="gx-icon-tile">
+                <Icon size={22} strokeWidth={1.75} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2.5">
+                  <span className="truncate text-base font-semibold tracking-tight text-[var(--fg)]">
+                    {c.title}
+                  </span>
+                  <span className="font-mono text-[10.5px] uppercase tracking-[0.1em] text-[var(--fg-subtle)]">
+                    {c.meta}
+                  </span>
                 </div>
-                <ArrowUpRight
-                  size={16}
-                  strokeWidth={1.75}
-                  className="text-[var(--fg-subtle)] transition-all group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-[var(--accent)]"
-                />
-              </Link>
-            </li>
+                <p className="mt-1.5 text-sm text-[var(--fg-muted)]">{c.desc}</p>
+              </div>
+              <ArrowUpRight
+                size={18}
+                strokeWidth={1.75}
+                className="mt-0.5 shrink-0 text-[var(--fg-subtle)] transition-all group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-[var(--tile)]"
+              />
+            </Link>
           )
         })}
-      </ul>
+      </div>
     </div>
   )
 }

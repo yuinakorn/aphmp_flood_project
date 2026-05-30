@@ -17,16 +17,14 @@ export default async function FamilyFolderPage() {
 
   return (
     <div className="mx-auto max-w-6xl">
-      <div className="flex items-end justify-between gap-6">
+      <div className="flex items-end justify-between gap-4">
         <div>
-          <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-[var(--fg-subtle)]">
-            Family Folder
-          </p>
-          <h1 className="mt-2 flex items-center gap-2.5 text-[22px] font-semibold tracking-tight">
-            <FolderHeart size={20} strokeWidth={1.75} className="text-[var(--accent)]" />
+          <p className="gx-eyebrow">Family Folder</p>
+          <h1 className="gx-title mt-1.5 flex items-center gap-2.5">
+            <FolderHeart size={26} strokeWidth={1.75} className="text-[var(--cat-folder)]" />
             ครอบครัวกลุ่มเปราะบาง
           </h1>
-          <p className="mt-1 text-[13px] text-[var(--fg-muted)]">
+          <p className="mt-1.5 text-sm text-[var(--fg-muted)]">
             บ้านที่มีสมาชิกกลุ่มเปราะบาง · สมาชิก + ความสัมพันธ์ในครัวเรือน
           </p>
         </div>

@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { RoleViewProvider } from '@/components/shell/RoleViewProvider'
 import { IncidentScopeProvider } from '@/components/shell/IncidentScopeProvider'
 import { getActiveIncident, getSelectableIncidents } from '@/lib/incident-scope'
+import { redirect } from 'next/navigation'
 
 export const metadata = {
   title: 'Flood Map — GIS Health Intelligence',
@@ -15,7 +16,7 @@ export default async function MapPage() {
     ? { id: session.user.id ?? '', role: session.user.role ?? 'viewer', name: session.user.name ?? '' }
     : null
 
-  if (!mapSession) return <MapClient session={null} />
+  if (!mapSession) redirect('/login')
 
   const [activeIncident, selectableIncidents] = await Promise.all([
     getActiveIncident(mapSession.role),

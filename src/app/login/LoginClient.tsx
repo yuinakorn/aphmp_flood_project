@@ -5,6 +5,7 @@ import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Waves, ArrowLeft, Loader2, ShieldCheck } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 
 interface LoginClientProps {
   ssoEnabled: boolean
@@ -12,11 +13,9 @@ interface LoginClientProps {
 
 export function LoginClient({ ssoEnabled }: LoginClientProps) {
   const router = useRouter()
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
   const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
   const [ssoLoading, setSsoLoading] = useState(false)
+  const [simulationLoading, setSimulationLoading] = useState(false)
 
   const onSsoLogin = async () => {
     setSsoLoading(true)
@@ -25,13 +24,16 @@ export function LoginClient({ ssoEnabled }: LoginClientProps) {
     setSsoLoading(false)
   }
 
-  const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
+  const onSimulationLogin = async () => {
+    setSimulationLoading(true)
     setError('')
-    const res = await signIn('credentials', { email, password, redirect: false })
-    setLoading(false)
-    if (res?.error) setError('อีเมลหรือรหัสผ่านไม่ถูกต้อง')
+    const res = await signIn('credentials', {
+      email: 'admin@floodwatch.th',
+      password: 'admin1234',
+      redirect: false,
+    })
+    setSimulationLoading(false)
+    if (res?.error) setError('Simulation login ไม่สำเร็จ')
     else router.push('/admin')
   }
 
@@ -107,11 +109,11 @@ export function LoginClient({ ssoEnabled }: LoginClientProps) {
           </p>
 
           {ssoEnabled ? (
-            <button
+            <Button
               type="button"
               onClick={onSsoLogin}
               disabled={ssoLoading}
-              className="mt-6 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-[var(--accent)] px-4 text-[13px] font-medium text-[var(--accent-fg)] transition-opacity hover:opacity-90 disabled:opacity-60"
+              className="mt-6 h-10 w-full bg-[var(--accent)] px-4 text-[13px] text-[var(--accent-fg)] hover:opacity-90"
             >
               {ssoLoading ? (
                 <Loader2 size={15} className="animate-spin" />
@@ -119,83 +121,40 @@ export function LoginClient({ ssoEnabled }: LoginClientProps) {
                 <ShieldCheck size={15} strokeWidth={1.9} />
               )}
               {ssoLoading ? 'กำลังเชื่อมต่อ SSO' : 'เข้าสู่ระบบด้วย Provider ID SSO'}
-            </button>
+            </Button>
           ) : (
             <div className="mt-6 rounded-md border border-[var(--border)] bg-[var(--bg-elevated)] px-3 py-2.5 text-[12px] leading-relaxed text-[var(--fg-muted)]">
               ยังไม่ได้ตั้งค่า Provider ID SSO ใน environment
-              ระบบจึงแสดงเฉพาะ demo credentials สำหรับ local development
+              ใช้ Simulation login สำหรับเข้าทดสอบระบบใน local development
             </div>
           )}
 
           <div className="my-6 flex items-center gap-3">
             <div className="h-px flex-1 bg-[var(--border)]" />
             <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--fg-subtle)]">
-              Dev fallback
+              Simulation
             </span>
             <div className="h-px flex-1 bg-[var(--border)]" />
           </div>
 
-          <form onSubmit={onSubmit} className="flex flex-col gap-4">
-            <label className="flex flex-col gap-1.5">
-              <span className="text-[11px] font-medium uppercase tracking-[0.06em] text-[var(--fg-subtle)]">
-                อีเมล
-              </span>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                placeholder="officer@floodwatch.th"
-                className="h-9 rounded-md border border-[var(--border)] bg-[var(--bg-elevated)] px-3 text-[13px] text-[var(--fg)] placeholder:text-[var(--fg-subtle)] focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
-              />
-            </label>
+          <Button
+            type="button"
+            onClick={onSimulationLogin}
+            disabled={simulationLoading || ssoLoading}
+            className="h-10 w-full bg-[var(--risk-safe)] px-4 text-[13px] text-[var(--accent-fg)] hover:opacity-90"
+          >
+            {simulationLoading && <Loader2 size={15} className="animate-spin" />}
+            {simulationLoading ? 'กำลังเข้าสู่ระบบ Simulation' : 'Simulation login'}
+          </Button>
 
-            <label className="flex flex-col gap-1.5">
-              <span className="text-[11px] font-medium uppercase tracking-[0.06em] text-[var(--fg-subtle)]">
-                รหัสผ่าน
-              </span>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                placeholder="••••••••"
-                className="h-9 rounded-md border border-[var(--border)] bg-[var(--bg-elevated)] px-3 text-[13px] text-[var(--fg)] placeholder:text-[var(--fg-subtle)] focus:border-[var(--accent)] focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
-              />
-            </label>
-
-            {error && (
-              <div
-                role="alert"
-                className="rounded-md border border-[var(--risk-flood)] bg-[color-mix(in_oklch,var(--risk-flood)_12%,transparent)] px-3 py-2 text-[12px] text-[var(--risk-flood)]"
-              >
-                {error}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="mt-1 inline-flex h-9 items-center justify-center gap-2 rounded-md border border-[var(--border)] px-4 text-[13px] font-medium text-[var(--fg)] transition-colors hover:bg-[var(--bg-elevated)] disabled:opacity-60"
+          {error && (
+            <div
+              role="alert"
+              className="mt-4 rounded-md border border-[var(--risk-flood)] bg-[color-mix(in_oklch,var(--risk-flood)_12%,transparent)] px-3 py-2 text-[12px] text-[var(--risk-flood)]"
             >
-              {loading && <Loader2 size={14} className="animate-spin" />}
-              {loading ? 'กำลังเข้าสู่ระบบ' : 'เข้าสู่ระบบแบบ Demo'}
-            </button>
-          </form>
-
-          <div className="mt-8 rounded-md border border-[var(--border)] bg-[var(--bg-elevated)] p-3">
-            <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--fg-subtle)]">
-              Demo credentials
-            </p>
-            <div className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 font-mono text-[11px] text-[var(--fg-muted)]">
-              <span className="text-[var(--accent)]">admin</span>
-              <span>admin@floodwatch.th / admin1234</span>
-              <span className="text-[var(--accent)]">officer</span>
-              <span>officer@floodwatch.th / officer1234</span>
-              <span className="text-[var(--accent)]">viewer</span>
-              <span>viewer@floodwatch.th / viewer1234</span>
+              {error}
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

@@ -13,7 +13,9 @@ import {
   Tent,
   Eye,
   Check,
+  LogOut,
 } from 'lucide-react'
+import { signOut } from 'next-auth/react'
 import {
   useRoleView,
   ROLE_LABELS,
@@ -81,6 +83,14 @@ function RoleSwitcher({ name }: { name: string }) {
             * แสดงผลเท่านั้น — สิทธิ์จริงของคุณคือ {ROLE_LABELS[realRole]} ระบบยังตัดสินสิทธิ์จากบัญชีจริงเสมอ
           </p>
         )}
+        <DropdownMenuSeparator className="my-1 bg-[var(--border)]" />
+        <DropdownMenuItem
+          onClick={() => signOut({ callbackUrl: '/login' })}
+          className="gap-2 px-2.5 py-2 text-[12.5px] text-[var(--risk-flood)] cursor-pointer focus:text-[var(--risk-flood)]"
+        >
+          <LogOut className="size-4 shrink-0" strokeWidth={1.75} />
+          <span>ออกจากระบบ</span>
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )

@@ -45,17 +45,26 @@
 - [x] `/admin/incidents` — เพิ่มปุ่ม "จัดการเหตุการณ์นี้" บนแต่ละแถว → set scope + เด้งไป `/eoc`
 - [ ] `/admin/water-level` + `/map` — ยังไม่ scope (sensor data ไม่ผูก incident โดยตรง; ทำตอน G4 ถ้าจำเป็น)
 
-### G3 · Normal-mode view (ไม่มี incident)
-- [ ] `/admin/eoc` เปลี่ยนเป็น "ภาพรวมพื้นที่รับผิดชอบ":
-  - drill เดียวกัน แต่นับ "ผู้เปราะบางทั้งหมดตามอำเภอ"
-  - coverage รายหมู่บ้าน: "วันตั้งแต่ visit ล่าสุด" + "% ที่ visit ใน 90 วันล่าสุด"
-  - ไม่แสดง admissions / requests
-- [ ] Banner "โหมดปกติ — ไม่มีเหตุการณ์เปิดอยู่" (เตือนให้เลือกถ้ามีเหตุ)
+### G3 · Normal-mode view ✅
+- [x] `CoverageRow` type ใน `src/types/index.ts` (amphoe/tambon/vil/totalMembers/visitedIn90d/pct90d/lastVisitAt/daysSinceLastVisit)
+- [x] Coverage query ใน `eoc/page.tsx`: JOIN household_members + health_visits → GROUP BY amphoe/tambon/village → นับ `visited_in_90d` + MAX(observed_at)
+- [x] Ribbon โหมดปกติ: กลุ่มเปราะบาง · เยี่ยมใน 90 วัน · ครอบคลุม % · ยังไม่เคยเยี่ยม · หมู่บ้าน
+- [x] Banner "โหมดปกติ — แสดงความครอบคลุมการเยี่ยม..." ใต้ ribbon
+- [x] `coverageScoped` memo: aggregate ตาม drill level (amphoe→tambon→vil)
+- [x] Coverage card list: progress bar สี + "เยี่ยมล่าสุด X วันก่อน" + drill ลงได้
+- [x] View-mode toggle ซ่อนในโหมดปกติ (ไม่มี crisis table)
+- [x] Search ในโหมดปกติ → แสดง flat people list
 
-### G4 · Hardening
-- [ ] Cookie อายุยาว (30 วัน) + clear เมื่อ logout
-- [ ] ตรวจสิทธิ์ฝั่ง server ทุก API ที่อ่าน incident scope (ไม่เชื่อ cookie อย่างเดียว)
-- [ ] เพิ่ม index `(incident_id, observed_at desc)` บน health_visits / help_requests ถ้า query ช้า
+### G4 · Hardening ✅
+- [x] Cookie `gx-incident-id` maxAge 30 วัน, httpOnly, sameSite=lax
+- [x] `getActiveIncident()` validate ฝั่ง server (query DB + role check) ก่อน return — ถ้าไม่ผ่านล้าง cookie
+- [x] Migration `0018_regular_steel_serpent.sql`: 5 indexes ใหม่
+  - `idx_health_visits_incident_id` ON health_visits(incident_id)
+  - `idx_health_visits_member_observed` ON health_visits(member_id, observed_at)
+  - `idx_help_requests_incident_id` ON help_requests(incident_id)
+  - `idx_rescue_teams_incident_id` ON rescue_teams(incident_id)
+  - `idx_shelter_admissions_incident_id` ON shelter_admissions(incident_id)
+- [x] Audit ทุก mutating API route → ทุกตัวมี `auth()` + `canTriage()`/`unauthorized()` guard ครบ
 
 ## Out of scope (เฟสนี้)
 - ตาราง `incident_members` (assign user → incident)

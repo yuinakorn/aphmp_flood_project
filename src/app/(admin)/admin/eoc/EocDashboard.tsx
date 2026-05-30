@@ -21,6 +21,7 @@ import {
 import { useRoleView } from '@/components/shell/RoleViewProvider'
 import { FieldActionSheet, type FieldActionMode } from '@/components/forms/FieldActionSheet'
 import type {
+  CoverageRow,
   Incident,
   RescueTeam,
   RescueTeamType,
@@ -54,6 +55,7 @@ interface Props {
   activeIncidents: Incident[]
   rescueTeams: RescueTeam[]
   requests: TriageRequest[]
+  coverageRows: CoverageRow[]
   realRole: string
 }
 
@@ -95,7 +97,7 @@ const priorityMeta = (p: string): { tone: string; label: string } =>
         ? { tone: 'var(--risk-near)', label: 'เฝ้าระวัง' }
         : { tone: 'var(--risk-safe)', label: 'เตรียมแผน' }
 
-export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, realRole }: Props) {
+export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, coverageRows, realRole }: Props) {
   const router = useRouter()
   const { viewRole } = useRoleView()
   const canCommand = viewRole === 'officer' || viewRole === 'admin'
@@ -215,6 +217,40 @@ export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, 
     [flatRows],
   )
 
+  // ── coverage rows scoped by current drill (normal-mode) ──
+  const coverageScoped = useMemo(() => {
+    const rows = coverageRows.filter((r) =>
+      (!drill.amphoe || r.amphoe === drill.amphoe) &&
+      (!drill.tambon || r.tambon === drill.tambon) &&
+      (!drill.vil    || r.vil    === drill.vil),
+    )
+    // aggregate by current drill level
+    const key: 'amphoe' | 'tambon' | 'vil' =
+      !drill.amphoe ? 'amphoe' : !drill.tambon ? 'tambon' : 'vil'
+    const m = new Map<string, { total: number; visited: number; lastVisitMs: number | null; daysSince: number | null }>()
+    for (const r of rows) {
+      const k = r[key]
+      const cur = m.get(k) ?? { total: 0, visited: 0, lastVisitMs: null, daysSince: null }
+      cur.total += r.totalMembers
+      cur.visited += r.visitedIn90d
+      const ms = r.lastVisitAt ? new Date(r.lastVisitAt).getTime() : null
+      if (ms !== null && (cur.lastVisitMs === null || ms > cur.lastVisitMs)) {
+        cur.lastVisitMs = ms
+        cur.daysSince = r.daysSinceLastVisit
+      }
+      m.set(k, cur)
+    }
+    return Array.from(m.entries())
+      .map(([name, d]) => ({
+        name,
+        total: d.total,
+        visited: d.visited,
+        pct: d.total > 0 ? Math.round((d.visited / d.total) * 100) : 0,
+        daysSince: d.daysSince,
+      }))
+      .sort((a, b) => a.pct - b.pct || (b.daysSince ?? 0) - (a.daysSince ?? 0))
+  }, [coverageRows, drill])
+
   function drillInto(name: string) {
     if (!drill.amphoe) setDrill({ amphoe: name })
     else if (!drill.tambon) setDrill({ ...drill, tambon: name })
@@ -228,14 +264,30 @@ export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, 
     [requests],
   )
 
-  const ribbon = [
-    { label: 'กลุ่มเปราะบาง', value: counts.total, tone: 'var(--fg)' },
-    { label: 'ในเขตน้ำท่วม', value: counts.flood, tone: 'var(--risk-flood)' },
-    { label: 'เฝ้าระวัง', value: counts.near, tone: 'var(--risk-near)' },
-    { label: 'ปลอดภัย', value: counts.safe, tone: 'var(--risk-safe)' },
-    { label: 'คำร้องเปิด', value: counts.open, tone: counts.open ? 'var(--risk-flood)' : 'var(--fg)' },
-    { label: 'ทีมกู้ภัย', value: counts.teams, tone: 'var(--signal-data)' },
-  ]
+  const isNormalMode = activeIncidents.length === 0
+  const totalCoverage = useMemo(() => {
+    const total = coverageRows.reduce((s, r) => s + r.totalMembers, 0)
+    const visited = coverageRows.reduce((s, r) => s + r.visitedIn90d, 0)
+    const neverVisited = coverageRows.filter((r) => r.lastVisitAt === null).reduce((s, r) => s + r.totalMembers, 0)
+    return { total, visited, pct: total > 0 ? Math.round((visited / total) * 100) : 0, neverVisited }
+  }, [coverageRows])
+
+  const ribbon = isNormalMode
+    ? [
+        { label: 'กลุ่มเปราะบาง', value: counts.total, tone: 'var(--fg)' },
+        { label: 'เยี่ยมใน 90 วัน', value: totalCoverage.visited, tone: 'var(--risk-safe)' },
+        { label: 'ครอบคลุม %', value: totalCoverage.pct, tone: totalCoverage.pct < 50 ? 'var(--risk-flood)' : totalCoverage.pct < 80 ? 'var(--risk-near)' : 'var(--risk-safe)' },
+        { label: 'ยังไม่เคยเยี่ยม', value: totalCoverage.neverVisited, tone: totalCoverage.neverVisited > 0 ? 'var(--risk-flood)' : 'var(--fg)' },
+        { label: 'หมู่บ้าน', value: coverageRows.length, tone: 'var(--signal-data)' },
+      ]
+    : [
+        { label: 'กลุ่มเปราะบาง', value: counts.total, tone: 'var(--fg)' },
+        { label: 'ในเขตน้ำท่วม', value: counts.flood, tone: 'var(--risk-flood)' },
+        { label: 'เฝ้าระวัง', value: counts.near, tone: 'var(--risk-near)' },
+        { label: 'ปลอดภัย', value: counts.safe, tone: 'var(--risk-safe)' },
+        { label: 'คำร้องเปิด', value: counts.open, tone: counts.open ? 'var(--risk-flood)' : 'var(--fg)' },
+        { label: 'ทีมกู้ภัย', value: counts.teams, tone: 'var(--signal-data)' },
+      ]
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -288,6 +340,13 @@ export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, 
         </div>
       </div>
 
+      {isNormalMode && (
+        <div className="mt-3 flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] px-4 py-2.5 text-sm text-[var(--fg-muted)]">
+          <Activity size={15} className="shrink-0 text-[var(--signal-data)]" />
+          <span>โหมดปกติ — แสดง<span className="font-medium text-[var(--fg)]">ความครอบคลุมการเยี่ยมผู้เปราะบาง</span>รายพื้นที่ เพื่อเตรียมพร้อมรับมือ · เลือกเหตุการณ์ที่มุมขวาบนเพื่อสลับโหมดวิกฤต</span>
+        </div>
+      )}
+
       {/* working area */}
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-12">
         {/* MAIN — worklist */}
@@ -298,7 +357,7 @@ export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, 
               <SegBtn active={seg === 'requests'} onClick={() => setSeg('requests')} count={counts.open} urgent={counts.open > 0}>คำร้อง / Triage</SegBtn>
               <SegBtn active={seg === 'teams'} onClick={() => setSeg('teams')} count={counts.teams}>ทีมกู้ภัย</SegBtn>
             </div>
-            {seg === 'roster' && (
+            {seg === 'roster' && activeIncidents.length > 0 && (
               <div className="flex items-center gap-2">
                 <div className="inline-flex rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] p-0.5 text-xs">
                   {[
@@ -379,8 +438,102 @@ export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, 
                 </div>
               )}
 
-              {/* Table view (flat อำเภอ/ตำบล/หมู่บ้าน) — มีผลเฉพาะตอนยังไม่ค้นชื่อ */}
-              {(viewMode === 'table-risk' || viewMode === 'table-type') && !isSearching ? (
+              {/* ── Normal-mode: coverage view ── */}
+              {activeIncidents.length === 0 && !isSearching ? (
+                <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)]">
+                  <div className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--bg-sunken)] px-4 py-2.5">
+                    <span className="text-[11px] font-semibold uppercase tracking-wide text-[var(--fg-subtle)]">
+                      ความครอบคลุมการเยี่ยม 90 วัน · {levelNoun || 'อำเภอ'}
+                    </span>
+                    <span className="text-[11px] text-[var(--fg-subtle)]">เรียงตามครอบคลุมน้อย→มาก</span>
+                  </div>
+                  <div className="max-h-[600px] overflow-auto">
+                    {coverageScoped.length === 0 ? (
+                      <p className="px-4 py-10 text-center text-sm text-[var(--fg-subtle)]">ไม่มีข้อมูล</p>
+                    ) : (
+                      <ul>
+                        {coverageScoped.map((r) => {
+                          const prefix = !drill.amphoe ? 'อ.' : !drill.tambon ? 'ต.' : ''
+                          const pctColor =
+                            r.pct < 50
+                              ? 'var(--risk-flood)'
+                              : r.pct < 80
+                              ? 'var(--risk-near)'
+                              : 'var(--risk-safe)'
+                          const daysLabel =
+                            r.daysSince === null
+                              ? 'ไม่เคยเยี่ยม'
+                              : r.daysSince === 0
+                              ? 'วันนี้'
+                              : `${r.daysSince} วันก่อน`
+                          const daysUrgent = r.daysSince === null || r.daysSince > 90
+                          return (
+                            <li key={r.name}>
+                              <button
+                                type="button"
+                                onClick={() => drillInto(r.name)}
+                                className="flex w-full items-center gap-4 border-b border-[var(--border)] px-4 py-3.5 text-left transition-colors last:border-b-0 hover:bg-[var(--bg-sunken)]"
+                              >
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-baseline justify-between gap-3">
+                                    <span className="truncate text-sm font-semibold text-[var(--fg)]">{prefix}{r.name}</span>
+                                    <div className="flex shrink-0 items-center gap-3 text-xs">
+                                      <span className={`font-mono font-semibold`} style={{ color: pctColor }}>
+                                        {r.pct}%
+                                      </span>
+                                      <span className="text-[var(--fg-subtle)]">
+                                        {r.visited}/{r.total} คน
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[var(--bg-sunken)]">
+                                    <div style={{ width: `${r.pct}%`, background: pctColor }} className="h-full rounded-full transition-all" />
+                                  </div>
+                                  <div className="mt-1.5 flex items-center gap-3 text-xs">
+                                    <span className={daysUrgent ? 'font-medium text-[var(--risk-flood)]' : 'text-[var(--fg-subtle)]'}>
+                                      เยี่ยมล่าสุด: {daysLabel}
+                                    </span>
+                                    <span className="text-[var(--fg-subtle)]">เปราะบาง {r.total} ราย</span>
+                                  </div>
+                                </div>
+                                <ChevronRight size={16} className="shrink-0 text-[var(--fg-subtle)]" />
+                              </button>
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              ) : activeIncidents.length === 0 && isSearching ? (
+                // normal mode + searching → show people list
+                <ul className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)]">
+                  {leafPeople.map((p) => {
+                    const risk = (p.risk ?? 'safe') as RiskLevel
+                    const isSel = selected?.id === p.id
+                    return (
+                      <li key={p.id}>
+                        <div onClick={() => setSelected(p)} className={`flex cursor-pointer items-center gap-3.5 border-b border-[var(--border)] px-4 py-3 transition-colors last:border-b-0 ${isSel ? 'bg-[color-mix(in_oklch,var(--accent)_8%,transparent)]' : 'hover:bg-[var(--bg-sunken)]'}`}>
+                          <span className="flex w-16 shrink-0 items-center gap-2">
+                            <span className="size-2.5 shrink-0 rounded-full" style={{ background: riskColor[risk] }} />
+                            <span className="text-[10px] font-medium uppercase tracking-wide" style={{ color: riskColor[risk] }}>{risk === 'flood' ? 'วิกฤต' : risk === 'near' ? 'เฝ้า' : 'ปกติ'}</span>
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-baseline gap-2">
+                              <span className="truncate text-sm font-semibold">{p.name}</span>
+                              <span className="font-mono text-xs text-[var(--fg-subtle)]">{p.age}</span>
+                              <span className="truncate text-xs text-[var(--fg-subtle)]">· {p.vil}</span>
+                            </div>
+                            <p className="truncate text-xs text-[var(--fg-muted)]">{p.cond || p.label}</p>
+                          </div>
+                        </div>
+                      </li>
+                    )
+                  })}
+                  {leafPeople.length === 0 && <li className="px-4 py-10 text-center text-sm text-[var(--fg-subtle)]">ไม่พบรายการ</li>}
+                </ul>
+              ) : /* ── Crisis-mode: table/cards ── */
+              (viewMode === 'table-risk' || viewMode === 'table-type') && !isSearching ? (
                 (() => {
                   const isType = viewMode === 'table-type'
                   const rows = isType ? flatRowsByType : flatRowsByRisk

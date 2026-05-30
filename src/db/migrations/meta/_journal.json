@@ -127,6 +127,13 @@
       "when": 1780143640363,
       "tag": "0017_left_doctor_doom",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1780163039143,
+      "tag": "0018_regular_steel_serpent",
+      "breakpoints": true
     }
   ]
 }

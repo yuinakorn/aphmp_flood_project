@@ -1,6 +1,6 @@
 # DESIGN.md — ระบบภูมิสารสนเทศสุขภาพระดับหน้าด่าน
 
-> v1 (decisions locked 2026-05-30) · north star = `docs/new/health_gis_emergency_dashboard.html`
+> v1.1 (updated 2026-05-31) · north star = `docs/new/health_gis_emergency_dashboard.html`
 > เอกสารเดิม archive ที่ `DESIGN.legacy.md` (ทิศทาง austere/dark-first — ถูกแทนที่)
 > Implementation: Tailwind v4 + shadcn/ui + token ใน `src/app/globals.css` + ชุดคลาส `gx-*`
 
@@ -131,17 +131,30 @@
 
 ## สถานะการ implement
 
+**เสร็จแล้ว:**
 - ✅ token (สี/เงา/type scale/category) + คลาส `gx-*` ใน globals.css
 - ✅ หน้า `/admin` launcher + `/admin/vulnerable` แปลงเป็น gx-system
-- ✅ Masthead ใหม่ (header เข้ม) + `RoleViewProvider` (view-as preview)
-- ✅ **`/admin/eoc` — operations console** (status ribbon, worklist-led, Leaflet rail, mode toggle)
-- ✅ schema เฟส B: ตาราง `rescue_teams`, ฟิลด์ vital/mental/mcat/med/oxygen บน `health_visits`, API `/api/rescue-teams`
-- ✅ restyle `/admin/incidents` (crisis banner เมื่อมี active, form ในการ์ดเดียว, list ใช้ gx-badge สถานะ)
-- ✅ restyle `/admin/infra` (header gx-title, sections + gx-icon-tile แต่ละหมวด, ปุ่ม gx-btn-ghost-sm)
-- ✅ restyle `/admin/water-level` (header gx-title, table → gx-table ในการ์ด)
-- ✅ restyle `/admin/family-folder` (summary → status ribbon, table → gx-table, household grid = gx-card-interactive, drawer ใช้ gx-icon-tile)
-- ✅ **`/admin/shelters` + `/admin/shelters/[id]`** (เฟส D: Shelter Intake) — operations console pattern เต็มรูป, intake modal กลางจอ มี search-existing/walk-in สลับ tab, status ribbon, segmented control ตามโซน (data-driven ต่อศูนย์), worklist รายผู้พักพิงพร้อม PDPA mask เลขบัตร, action ส่ง รพ./ย้ายออก inline
-- schema เฟส D (migration 0016): `shelter_zones` + ขยาย `household_members` (nationalId/birthDate/nationality/foodAllergy/drugAllergy/hno/villno) + ขยาย `shelter_admissions` (zoneId/intakePoint/broughtByTeamId/broughtByText/exitReason/exitDestination). API: `/api/shelters`, `/api/shelters/[id]/zones`, `/api/shelters/[id]/admissions`(+`[admissionId]` PATCH), `/api/household-members/search`
-- ⬜ map surface `/map` (FloodMap, popup, Rail/StatusStrip)
-- ⬜ modal/sheet ฟอร์มเยี่ยม/คำร้อง — ปัจจุบันยังใช้ FieldActionSheet เดิม ยังไม่ restyle
-- ⬜ MCAT screen + Triage UI ใน health visit form
+- ✅ Masthead: header เข้ม slate-900 + `RoleViewProvider` (view-as preview) + logout
+- ✅ **`/admin/eoc` — operations console**: status ribbon, worklist-led 3 segment, Leaflet map rail
+  - Geo drill: อำเภอ→ตำบล→หมู่บ้าน→รายชื่อ พร้อม breadcrumb + reset
+  - 3 view-mode: การ์ด / ตาราง·เร่งด่วน (flood/near/safe) / ตาราง·ประเภท (ติดเตียง/พิการ/สูงอายุ/ตั้งครรภ์)
+  - **โหมดปกติ**: coverage view รายหมู่บ้าน (% เยี่ยมใน 90 วัน + วันเยี่ยมล่าสุด)
+  - **Incident Scope**: ribbon/tables/map filter ตาม incident ที่เลือก
+- ✅ schema เฟส B: `rescue_teams`, `health_visits` (vital/mental/mcat), API `/api/rescue-teams`
+- ✅ restyle `/admin/incidents` + ปุ่ม "จัดการเหตุการณ์นี้" → set scope + เด้งไป EOC
+- ✅ restyle `/admin/infra`, `/admin/water-level`, `/admin/family-folder`
+- ✅ **`/admin/shelters` + `[id]`** (เฟส D): intake modal, zone data-driven, PDPA mask, action inline
+- ✅ **Phase G — Incident Scope** (migration 0017–0018):
+  - `IncidentScopeProvider` + cookie `gx-incident-id` (httpOnly, 30 วัน)
+  - `IncidentSwitcher` dropdown บน Masthead (สีแดงเมื่อ active)
+  - `IncidentBanner` sticky ใต้ Masthead (แดง/เหลือง/เทาตาม status)
+  - EOC/shelters/rescue/requests/admissions ทุกตัว scope ตาม incident
+  - `shelter_admissions.incident_id` FK + 5 indexes (incident_id บนทุกตารางปฏิบัติการ)
+  - Server-side validation ใน `getActiveIncident()` — ไม่เชื่อ cookie อย่างเดียว
+
+**ยังไม่ทำ:**
+- ⬜ map surface `/map` (FloodMap, popup, Rail/StatusStrip) — restyle
+- ⬜ FieldActionSheet (ฟอร์มเยี่ยม/คำร้อง) — restyle
+- ⬜ MCAT screen + Triage UI ใน health visit form (schema พร้อมแล้ว)
+- ⬜ Phase E: operations counters + surveillance (สำหรับ Sit Rep)
+- ⬜ Phase F: Situation Report page (hybrid auto-aggregate + manual)

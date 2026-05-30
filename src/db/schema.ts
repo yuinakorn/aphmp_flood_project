@@ -13,6 +13,7 @@ import {
   jsonb,
   varchar,
   uniqueIndex,
+  index,
 } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 
@@ -287,7 +288,7 @@ export const rescueTeams = pgTable('rescue_teams', {
   registeredBy: uuid('registered_by'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
-})
+}, (t) => [index('idx_rescue_teams_incident_id').on(t.incidentId)])
 
 // อสม. / field health visits
 export const healthVisits = pgTable('health_visits', {
@@ -311,7 +312,10 @@ export const healthVisits = pgTable('health_visits', {
   observedAt: timestamp('observed_at', { withTimezone: true }).notNull().defaultNow(),
   syncedAt: timestamp('synced_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
-})
+}, (t) => [
+  index('idx_health_visits_incident_id').on(t.incidentId),
+  index('idx_health_visits_member_observed').on(t.memberId, t.observedAt),
+])
 
 // Help requests from VHV/field staff/EOC
 export const helpRequests = pgTable('help_requests', {
@@ -331,7 +335,7 @@ export const helpRequests = pgTable('help_requests', {
   syncedAt: timestamp('synced_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
-})
+}, (t) => [index('idx_help_requests_incident_id').on(t.incidentId)])
 
 // Assignment and status timeline for EMS/rescue/field teams
 export const caseAssignments = pgTable('case_assignments', {
@@ -391,7 +395,7 @@ export const shelterAdmissions = pgTable('shelter_admissions', {
   notes: text('notes'),
   admittedAt: timestamp('admitted_at', { withTimezone: true }).defaultNow(),
   dischargedAt: timestamp('discharged_at', { withTimezone: true }),
-})
+}, (t) => [index('idx_shelter_admissions_incident_id').on(t.incidentId)])
 
 // Audit log (PDPA)
 export const accessLog = pgTable('access_log', {

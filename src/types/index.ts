@@ -60,6 +60,17 @@ export interface Incident {
   updatedAt?: string | null
 }
 
+export interface CoverageRow {
+  amphoe: string
+  tambon: string
+  vil: string
+  totalMembers: number
+  visitedIn90d: number
+  pct90d: number            // 0–100
+  lastVisitAt: string | null // ISO
+  daysSinceLastVisit: number | null
+}
+
 export interface FloodPoint {
   lat: number
   lng: number

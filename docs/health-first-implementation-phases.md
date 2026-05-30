@@ -1,16 +1,15 @@
 # Health-first Implementation Phases
 
+อัปเดตล่าสุด: 2026-05-31  
 เอกสารนี้คือ phase plan สำหรับเริ่มเปลี่ยน FloodWatch จาก flood map MVP ไปเป็นระบบปฏิบัติการด้านสาธารณสุขในสถานการณ์น้ำท่วม
 
-## Phase 0: Grounding
+## Phase 0: Grounding ✅
 
 เป้าหมาย: ให้ทีมและ agent เข้าใจ product scope เดียวกัน
 
 - สรุป SRS และ health-first context ใน `/docs`
 - อัปเดต `PRODUCT.md`
 - เชื่อมต่อ local Postgres และยืนยันว่า DB ว่างพร้อมเริ่ม migration
-
-สถานะ: เริ่มแล้ว
 
 ## Phase 1: Health Operations Data Foundation
 
@@ -75,3 +74,37 @@ Definition of done:
 - Load/performance check กับจำนวนคนและจุดน้ำท่วมที่มากขึ้น
 - Real-time update ภายใน 1 นาทีด้วย polling/SSE/WebSocket ตามข้อจำกัด deploy
 - Export/after-action review report
+
+---
+
+## Phase G: Incident Scope ✅ (2026-05-31)
+
+เป้าหมาย: ผู้ใช้เลือกเหตุการณ์ที่กำลังจัดการทีละ 1 อัน → ทั้งระบบ filter ตาม incident นั้น
+
+**เสร็จแล้ว:**
+- `IncidentScopeProvider` client context + cookie `gx-incident-id` (httpOnly, 30 วัน)
+- `POST /api/incident-scope` validate ฝั่ง server (DB lookup + role check)
+- `IncidentSwitcher` dropdown บน Masthead — แดงเมื่อมี active, เทาเมื่อโหมดปกติ
+- `IncidentBanner` sticky ใต้ Masthead — แดง/เหลือง/เทาตาม status + ปุ่มออกโหมดวิกฤต
+- EOC: persons filter ตามพื้นที่ incident (tambon→amphoe→province), teams+requests filter by incidentId
+- Shelters: occupancy count + admissions filter by incidentId; schema เพิ่ม `shelter_admissions.incident_id`
+- Rescue teams API: GET filter auto, POST บันทึก incidentId
+- Incidents list: ปุ่ม "จัดการเหตุการณ์นี้" → set scope + redirect /eoc
+- EOC โหมดปกติ: coverage view รายหมู่บ้าน (% เยี่ยมใน 90 วัน + วันล่าสุด), ribbon ต่างจากโหมดวิกฤต
+- Migration 0017: `shelter_admissions.incident_id FK`
+- Migration 0018: 5 indexes (`idx_*_incident_id` + `idx_health_visits_member_observed`)
+
+**Upgrade path (ยังไม่ทำ):**
+- ตาราง `incident_members` สำหรับ assign operator → incident ต่อพื้นที่
+- `user.assignedAmphoe` สำหรับ auto-scope ตามพื้นที่รับผิดชอบ
+
+---
+
+## Phase E: Operations Counters + Surveillance (รอดำเนินการ)
+
+เป้าหมาย: นับ dispatch ทีม, ผู้บาดเจ็บ/เสียชีวิต, โรคเฝ้าระวัง, จำนวนบริการ — สำหรับ Sit Rep อัตโนมัติ
+
+## Phase F: Situation Report (รอดำเนินการ)
+
+เป้าหมาย: หน้า Sit Rep hybrid — auto-aggregate จากข้อมูลในระบบ + manual fields บางส่วน (เช่น ความเสียหายโครงสร้าง)
+รูปแบบ: ตาม TABLE_Situation_Report.md ใน docs/

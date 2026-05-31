@@ -15,6 +15,7 @@ export type UserRole =
   | 'ems'
   | 'rescue'
   | 'ddpm'
+  | 'shelter_manager'
 export type MedicalPriority = 'A' | 'B' | 'C'
 export type FollowUpStatus =
   | 'pending'

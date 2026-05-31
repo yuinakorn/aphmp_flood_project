@@ -397,6 +397,18 @@ export const shelterAdmissions = pgTable('shelter_admissions', {
   dischargedAt: timestamp('discharged_at', { withTimezone: true }),
 }, (t) => [index('idx_shelter_admissions_incident_id').on(t.incidentId)])
 
+// ผูกผู้ใช้ (ผู้รับผิดชอบประจำศูนย์) กับศูนย์พักพิง — 1 คนดูแลได้หลายศูนย์
+// ผู้ที่มี role shelter_manager จะเห็น/จัดการได้เฉพาะศูนย์ที่ถูก assign ไว้ในตารางนี้
+export const shelterStaff = pgTable('shelter_staff', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  shelterId: uuid('shelter_id').notNull().references(() => infrastructures.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+}, (t) => [
+  uniqueIndex('shelter_staff_user_shelter_idx').on(t.userId, t.shelterId),
+  index('idx_shelter_staff_user_id').on(t.userId),
+])
+
 // ───────── Phase E: Operations counters + surveillance (input ให้ Sit Rep) ─────────
 
 // บันทึกผู้บาดเจ็บ/เสียชีวิต/สูญหาย/ป่วย ระหว่างเหตุการณ์ — log ราย event (นับยอด + list ได้)

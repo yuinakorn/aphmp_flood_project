@@ -11,6 +11,7 @@ import {
   Droplets,
   AlertTriangle,
   Tent,
+  ClipboardList,
   Eye,
   Check,
   LogOut,
@@ -209,6 +210,14 @@ export function Masthead({ session }: Props) {
               >
                 <Tent className="size-4 shrink-0 opacity-70" />
                 <span>ศูนย์พักพิง — รับเข้า/ย้ายออก</span>
+              </DropdownMenuItem>
+
+              <DropdownMenuItem
+                render={<Link href="/admin/eoc/roster" />}
+                className="gap-2 px-2.5 py-2 text-[12.5px] cursor-pointer"
+              >
+                <ClipboardList className="size-4 shrink-0 opacity-70" />
+                <span>Roster ผู้พักพิง — รวมทุกศูนย์</span>
               </DropdownMenuItem>
 
               <DropdownMenuItem

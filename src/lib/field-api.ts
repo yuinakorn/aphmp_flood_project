@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import type { Session } from 'next-auth'
 import type { UserRole } from '@/types'
 
-const WRITE_ROLES = new Set<UserRole>(['admin', 'officer', 'eoc', 'vhv', 'ems', 'ddpm'])
+const WRITE_ROLES = new Set<UserRole>(['admin', 'officer', 'eoc', 'vhv', 'ems', 'ddpm', 'shelter_manager'])
 const TRIAGE_ROLES = new Set<UserRole>(['admin', 'officer', 'eoc', 'ems', 'ddpm'])
 
 export function canWriteFieldData(role?: UserRole) {

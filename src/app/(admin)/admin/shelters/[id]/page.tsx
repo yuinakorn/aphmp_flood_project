@@ -4,7 +4,9 @@ import { auth } from '@/lib/auth'
 import { getDb } from '@/lib/db'
 import { infrastructures, rescueTeams, shelterZones } from '@/db/schema'
 import { getActiveIncident } from '@/lib/incident-scope'
+import { canAccessShelter } from '@/lib/shelter-access'
 import { ShelterDetail } from './ShelterDetail'
+import { ShelterStaffPanel } from './ShelterStaffPanel'
 import type { RescueTeam, RescueTeamStatus, RescueTeamType } from '@/types'
 
 export const dynamic = 'force-dynamic'
@@ -17,6 +19,12 @@ export default async function ShelterDetailPage({ params }: { params: Promise<{ 
   const db = getDb()
   const [shelter] = await db.select().from(infrastructures).where(eq(infrastructures.id, id))
   if (!shelter || !inArray(infrastructures.type, ['shelter', 'assembly'])) {
+    notFound()
+  }
+
+  // ผู้รับผิดชอบประจำศูนย์ (shelter_manager) เข้าได้เฉพาะศูนย์ที่ตนดูแล
+  const userId = typeof session.user?.id === 'string' ? session.user.id : null
+  if (!(await canAccessShelter(session.user?.role, userId, id))) {
     notFound()
   }
 
@@ -41,9 +49,11 @@ export default async function ShelterDetailPage({ params }: { params: Promise<{ 
     registeredBy: t.registeredBy ?? undefined,
   }))
 
-  const canEdit = ['admin', 'officer', 'eoc', 'ems', 'ddpm'].includes(session.user?.role ?? '')
+  const canEdit = ['admin', 'officer', 'eoc', 'ems', 'ddpm', 'shelter_manager'].includes(session.user?.role ?? '')
+  const isAdmin = ['admin', 'eoc'].includes(session.user?.role ?? '')
 
   return (
+    <>
     <ShelterDetail
       shelter={{
         id: shelter.id,
@@ -68,5 +78,11 @@ export default async function ShelterDetailPage({ params }: { params: Promise<{ 
       teams={teams}
       canEdit={canEdit}
     />
+    {isAdmin && (
+      <div className="mt-6">
+        <ShelterStaffPanel shelterId={shelter.id} />
+      </div>
+    )}
+    </>
   )
 }

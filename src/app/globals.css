@@ -510,3 +510,19 @@ a {
     transition-duration: 120ms !important;
   }
 }
+
+/* Roster — print to PDF (แบบฟอร์มราชการ) */
+.print-only { display: none; }
+@media print {
+  /* ซ่อน chrome ของแอป เหลือเฉพาะตาราง roster */
+  header, .gx-banner-crisis, .no-print { display: none !important; }
+  main { padding: 0 !important; }
+  body { background: #fff !important; color: #000 !important; }
+  .print-only { display: block; }
+  .roster-shelter { break-inside: avoid; page-break-inside: avoid; }
+  .gx-table { font-size: 11px; }
+  .gx-table thead th { position: static; background: #f1f5f9 !important; color: #000 !important; }
+  .gx-table tbody td { color: #000 !important; padding: 4px 6px; }
+  .gx-table thead th { padding: 4px 6px; }
+  @page { size: A4 landscape; margin: 12mm; }
+}

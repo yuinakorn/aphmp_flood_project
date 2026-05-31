@@ -115,7 +115,19 @@ Definition of done:
 
 **หมายเหตุ:** ตัวนับชุดนี้คือ input ตรงให้ Phase F (Sit Rep) นำไป auto-aggregate
 
-## Phase F: Situation Report (รอดำเนินการ)
+## Phase F: Situation Report ✅ (2026-05-31)
 
-เป้าหมาย: หน้า Sit Rep hybrid — auto-aggregate จากข้อมูลในระบบ + manual fields บางส่วน (เช่น ความเสียหายโครงสร้าง)
-รูปแบบ: ตาม TABLE_Situation_Report.md ใน docs/
+เป้าหมาย: หน้า Sit Rep hybrid — auto-aggregate จากข้อมูลในระบบ + manual fields บางส่วน
+รูปแบบ: เลียนแบบ infographic สรุปสถานการณ์ รพ.แม่สาย (docs/new/S__33054744.jpg)
+
+**เสร็จแล้ว:**
+- Schema `sit_reports` (incident-scoped): manual fields (JSONB) + measures/planNote (text) + autoSnapshot + status (draft/published) — Migration 0020
+- `getSitRepAuto(incidentId)` ใน `src/lib/sitrep.ts` — auto numbers แยก "วันนี้ (เวลาไทย)" vs "สะสม":
+  - casualties (เสียชีวิต/สูญหาย/บาดเจ็บ/รวม), ครัวเรือนที่เยี่ยม, ศูนย์พักพิง+ชื่อ, เฝ้าระวังโรค, ตำบลที่กระทบ
+- API: `GET /api/incidents/[id]/sitrep` (auto + ใบล่าสุด), `POST` (upsert ตาม reportDate, canTriage)
+- หน้า `/admin/eoc/sitrep` — `SitRepView` infographic บน gx- design system: header gradient, การ์ด casualties วันนี้/สะสม, บล็อกสถานบริการ/สนับสนุน/ทีม/บริการ (manual), เฝ้าระวังโรค (auto)
+- ส่วน manual กรอกผ่าน edit panel (officer/admin) → POST → refresh
+- ปุ่ม **พิมพ์ / บันทึก PDF** (`window.print()` + print CSS — ซ่อน toolbar, คงสีพื้น)
+- ลิงก์เข้าจาก OpsPanel ใน EOC ("เปิดใบสรุปสถานการณ์")
+
+**หมายเหตุ:** ทีม MERT/MCATT/SEhRT ฯลฯ เป็น manual (taxonomy ต่างจาก rescue_teams); export PDF ใช้ผ่าน print dialog (Save as PDF)

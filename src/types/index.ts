@@ -148,6 +148,80 @@ export interface SurveillanceEntry {
   createdAt?: string | null
 }
 
+// ───────── Phase F: Situation Report ─────────
+export interface TodayCumulative {
+  today: number
+  cumulative: number
+}
+
+// ตัวเลขที่กรอกเอง (manual) — เก็บใน sit_reports.manual (JSONB)
+export interface SitRepManual {
+  affectedTambonCount?: number | null   // override จำนวนตำบลที่มีสถานการณ์
+  // สถานบริการสาธารณสุขที่ได้รับผลกระทบ
+  rpstAffected?: number       // รพ.สต.
+  hospitalAffected?: number   // รพ.
+  facilitiesClosed?: number   // ปิดบริการ
+  facilitiesPartial?: number  // เปิดบางส่วน
+  // การสนับสนุน
+  mobileUnitDispatch?: number // สนับสนุนออกหน่วย (จำนวนการ)
+  woundKits?: number          // ชุดทำแผล
+  floodMedKits?: number       // ชุดยาน้ำท่วม
+  staffAffected?: number      // บุคลากรสาธารณสุขที่กระทบ (ราย)
+  chronicMedItems?: number    // ยาโรคเรื้อรัง (รายการ)
+  chronicMedUnits?: number    // ยาโรคเรื้อรัง (หน่วย)
+  // ทีมปฏิบัติการฉุกเฉินทางการแพทย์
+  teams?: {
+    mert?: number
+    miniMert?: number
+    mobileMed?: number   // หน่วยแพทย์เคลื่อนที่
+    mcatt?: number
+    sehrt?: number
+    cdcu?: number
+    srrt?: number
+    other?: number
+  }
+  // ผู้รับบริการด้านการแพทย์รวม
+  services?: {
+    homeVisit?: number     // เยี่ยมบ้าน (prefill จาก auto ได้)
+    supplies?: number      // แจกจ่ายเวชภัณฑ์
+    treatment?: number     // ตรวจรักษา
+    healthEdu?: number     // ให้สุขศึกษา
+    mentalHealth?: number  // สุขภาพจิต
+    referRpst?: number      // ส่งต่อ รพ.สต.
+    referHospital?: number  // ส่งต่อ รพ.
+  }
+}
+
+// ตัวเลขที่ระบบคำนวณให้ (auto)
+export interface SitRepAuto {
+  casualties: {
+    dead: TodayCumulative
+    missing: TodayCumulative
+    injured: TodayCumulative
+    ill: TodayCumulative
+    total: TodayCumulative
+  }
+  householdsVisited: number   // ครัวเรือนที่ได้รับการเยี่ยม (สะสม)
+  visitsToday: number
+  sheltersUsed: number
+  shelterNames: string[]
+  shelterCurrent: number      // ผู้พักปัจจุบัน
+  surveillance: { code: SurveillanceDiseaseCode; label: string; today: number; cumulative: number }[]
+  affectedTambons: string[]
+}
+
+export interface SitReport {
+  id: string
+  incidentId: string
+  reportDate: string
+  reportTime?: string | null
+  status: 'draft' | 'published'
+  manual: SitRepManual
+  measures?: string | null
+  planNote?: string | null
+  updatedAt?: string | null
+}
+
 export interface IncidentCounters {
   teams: { total: number; active: number; standby: number; offline: number }
   dispatches: { total: number; open: number; closed: number }

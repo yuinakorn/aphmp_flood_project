@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
   HeartPulse,
@@ -13,6 +14,7 @@ import {
   Loader2,
   Trash2,
   ChevronDown,
+  FileText,
 } from 'lucide-react'
 import {
   CASUALTY_TYPE_LABEL,
@@ -100,6 +102,16 @@ export function OpsPanel({ incidentId, counters, casualties, surveillanceEntries
 
   return (
     <div className="space-y-4">
+      {/* เปิดใบสรุปสถานการณ์ */}
+      <Link
+        href="/admin/eoc/sitrep"
+        className="flex items-center gap-2.5 rounded-xl border border-[var(--accent)] bg-[color-mix(in_oklch,var(--accent)_6%,transparent)] px-4 py-3 text-sm font-medium text-[var(--fg)] transition-colors hover:bg-[color-mix(in_oklch,var(--accent)_12%,transparent)]"
+      >
+        <FileText size={17} className="text-[var(--accent)]" />
+        <span>เปิดใบสรุปสถานการณ์ (Sit Rep)</span>
+        <span className="ml-auto text-xs text-[var(--fg-subtle)]">รวม auto + กรอกเอง · พิมพ์ได้</span>
+      </Link>
+
       {/* ── Casualties ── */}
       <Group icon={<HeartPulse size={15} />} title="ผู้บาดเจ็บ / เสียชีวิต" tone="var(--risk-flood)">
         <Stat label="บาดเจ็บ" value={c.casualties.injured} />

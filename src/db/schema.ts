@@ -434,6 +434,24 @@ export const diseaseSurveillance = pgTable('disease_surveillance', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 }, (t) => [index('idx_disease_surveillance_incident_id').on(t.incidentId)])
 
+// ───────── Phase F: Situation Report (hybrid auto-aggregate + manual fields) ─────────
+// 1 แถว = 1 ใบสรุปสถานการณ์ ณ จุดเวลาหนึ่งของเหตุการณ์ (ประจำวันที่/เวลา)
+// auto numbers คำนวณสดจากระบบ; manual fields เก็บที่นี่ + snapshot auto ตอน publish
+export const sitReports = pgTable('sit_reports', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  incidentId: uuid('incident_id').notNull().references(() => incidents.id),
+  reportDate: date('report_date').notNull(),
+  reportTime: text('report_time'),                 // เช่น "17.00 น."
+  status: text('status').notNull().default('draft'), // draft | published
+  manual: jsonb('manual').$type<Record<string, unknown>>(),     // ตัวเลข/ทีม/ชุดสนับสนุน ที่กรอกเอง
+  measures: text('measures'),                       // มาตรการดำเนินการหลัก (ข้อความหลายบรรทัด)
+  planNote: text('plan_note'),                      // แผนปฏิบัติการ/หมายเหตุ
+  autoSnapshot: jsonb('auto_snapshot').$type<Record<string, unknown>>(), // freeze auto ตอน publish
+  createdBy: uuid('created_by'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+}, (t) => [index('idx_sit_reports_incident_id').on(t.incidentId)])
+
 // Audit log (PDPA)
 export const accessLog = pgTable('access_log', {
   id: bigserial('id', { mode: 'number' }).primaryKey(),

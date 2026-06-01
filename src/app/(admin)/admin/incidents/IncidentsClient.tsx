@@ -2,9 +2,16 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { AlertTriangle, Plus, CircleDot, Archive, Siren, Crosshair, Check } from 'lucide-react'
+import { AlertTriangle, CircleDot, Archive, Siren, Crosshair, Check, Lock, ShieldAlert } from 'lucide-react'
 import type { Incident, IncidentType } from '@/types'
 import { useIncidentScope } from '@/components/shell/IncidentScopeProvider'
+
+interface IncidentsClientProps {
+  canCreate: boolean
+  province: string | null
+  isNational: boolean
+  provinceOptions: string[]
+}
 
 const TYPE_LABEL: Record<IncidentType, string> = {
   flood: 'น้ำท่วม',
@@ -23,7 +30,7 @@ function fmt(iso?: string | null) {
   return new Date(iso).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' })
 }
 
-export function IncidentsClient() {
+export function IncidentsClient({ canCreate, province: myProvince, isNational, provinceOptions }: IncidentsClientProps) {
   const router = useRouter()
   const scope = useIncidentScope()
   const [incidents, setIncidents] = useState<Incident[]>([])
@@ -33,7 +40,8 @@ export function IncidentsClient() {
 
   const [name, setName] = useState('')
   const [type, setType] = useState<IncidentType>('flood')
-  const [province, setProvince] = useState('')
+  // non-national: ล็อกเป็นจังหวัดสังกัด · national: เลือกเองจาก dropdown
+  const [province, setProvince] = useState(isNational ? '' : (myProvince ?? ''))
   const [amphoe, setAmphoe] = useState('')
   const [tambon, setTambon] = useState('')
   const [description, setDescription] = useState('')
@@ -133,39 +141,63 @@ export function IncidentsClient() {
         </div>
       </div>
 
-      <form onSubmit={create} className="gx-card mt-6 p-5" style={{ ['--tile' as string]: 'var(--risk-flood)' }}>
-        <div className="mb-4 flex items-center gap-3">
-          <span className="gx-icon-tile size-10"><Siren size={18} strokeWidth={1.75} /></span>
+      {canCreate ? (
+        <form onSubmit={create} className="gx-card mt-6 p-5" style={{ ['--tile' as string]: 'var(--risk-flood)' }}>
+          <div className="mb-4 flex items-center gap-3">
+            <span className="gx-icon-tile size-10"><Siren size={18} strokeWidth={1.75} /></span>
+            <div>
+              <p className="text-sm font-semibold text-[var(--fg)]">เปิดเหตุการณ์ใหม่</p>
+              <p className="text-xs text-[var(--fg-muted)]">การเปิดเหตุการณ์จะกระตุ้นโหมดวิกฤตทันที ทุกระบบที่เกี่ยวข้องจะตอบสนอง</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <input
+              className={`${inputCls} sm:col-span-2`}
+              placeholder="ชื่อเหตุการณ์ เช่น น้ำท่วม ต.สันทราย ต.ค. 2568"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
+            <select className={inputCls} value={type} onChange={(e) => setType(e.target.value as IncidentType)}>
+              <option value="flood">น้ำท่วม</option>
+              <option value="storm">พายุ</option>
+              <option value="other">อื่นๆ</option>
+            </select>
+            {isNational ? (
+              <select className={inputCls} value={province} onChange={(e) => setProvince(e.target.value)} required>
+                <option value="">— เลือกจังหวัด —</option>
+                {provinceOptions.map((p) => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+            ) : (
+              <div className={`${inputCls} flex items-center gap-2 !bg-[var(--bg-sunken)] text-[var(--fg-muted)]`} title="จังหวัดสังกัดของคุณ — ล็อกอัตโนมัติ">
+                <Lock size={13} strokeWidth={1.75} className="shrink-0 text-[var(--fg-subtle)]" />
+                <span className="truncate">{myProvince ?? 'ไม่พบจังหวัดสังกัด'}</span>
+              </div>
+            )}
+            <input className={inputCls} placeholder="อำเภอ" value={amphoe} onChange={(e) => setAmphoe(e.target.value)} />
+            <input className={inputCls} placeholder="ตำบล" value={tambon} onChange={(e) => setTambon(e.target.value)} />
+            <input className={`${inputCls} sm:col-span-2`} placeholder="รายละเอียด (ไม่บังคับ)" value={description} onChange={(e) => setDescription(e.target.value)} />
+          </div>
+          <div className="mt-4 flex items-center gap-3">
+            <button type="submit" disabled={busy || !name.trim()} className="gx-btn gx-btn-primary disabled:opacity-50">
+              <AlertTriangle size={16} strokeWidth={2} /> {busy ? 'กำลังเปิด...' : 'เปิดเหตุการณ์'}
+            </button>
+            {error && <span className="text-sm text-[var(--risk-flood)]">{error}</span>}
+          </div>
+        </form>
+      ) : (
+        <div className="gx-card mt-6 flex items-start gap-3 p-5">
+          <span className="gx-icon-tile size-10"><ShieldAlert size={18} strokeWidth={1.75} /></span>
           <div>
-            <p className="text-sm font-semibold text-[var(--fg)]">เปิดเหตุการณ์ใหม่</p>
-            <p className="text-xs text-[var(--fg-muted)]">การเปิดเหตุการณ์จะกระตุ้นโหมดวิกฤตทันที ทุกระบบที่เกี่ยวข้องจะตอบสนอง</p>
+            <p className="text-sm font-semibold text-[var(--fg)]">ดูได้อย่างเดียว</p>
+            <p className="mt-0.5 text-xs text-[var(--fg-muted)]">
+              เฉพาะผู้บัญชาการ (EOC / ผู้ดูแลระบบ / ปภ.) เท่านั้นที่เปิดหรือปิดเหตุการณ์ได้
+            </p>
           </div>
         </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <input
-            className={`${inputCls} sm:col-span-2`}
-            placeholder="ชื่อเหตุการณ์ เช่น น้ำท่วม ต.สันทราย ต.ค. 2568"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-          />
-          <select className={inputCls} value={type} onChange={(e) => setType(e.target.value as IncidentType)}>
-            <option value="flood">น้ำท่วม</option>
-            <option value="storm">พายุ</option>
-            <option value="other">อื่นๆ</option>
-          </select>
-          <input className={inputCls} placeholder="จังหวัด" value={province} onChange={(e) => setProvince(e.target.value)} />
-          <input className={inputCls} placeholder="อำเภอ" value={amphoe} onChange={(e) => setAmphoe(e.target.value)} />
-          <input className={inputCls} placeholder="ตำบล" value={tambon} onChange={(e) => setTambon(e.target.value)} />
-          <input className={`${inputCls} sm:col-span-2`} placeholder="รายละเอียด (ไม่บังคับ)" value={description} onChange={(e) => setDescription(e.target.value)} />
-        </div>
-        <div className="mt-4 flex items-center gap-3">
-          <button type="submit" disabled={busy || !name.trim()} className="gx-btn gx-btn-primary disabled:opacity-50">
-            <AlertTriangle size={16} strokeWidth={2} /> {busy ? 'กำลังเปิด...' : 'เปิดเหตุการณ์'}
-          </button>
-          {error && <span className="text-sm text-[var(--risk-flood)]">{error}</span>}
-        </div>
-      </form>
+      )}
 
       <div className="mt-7 flex items-baseline justify-between">
         <h2 className="text-sm font-semibold text-[var(--fg)]">เหตุการณ์ทั้งหมด <span className="ml-1.5 font-mono text-[var(--fg-subtle)]">{incidents.length}</span></h2>
@@ -222,7 +254,7 @@ export function IncidentsClient() {
                   </button>
                 )
               })()}
-              {isActive ? (
+              {canCreate && (isActive ? (
                 <button
                   type="button"
                   disabled={busy}
@@ -240,7 +272,7 @@ export function IncidentsClient() {
                 >
                   เปิดอีกครั้ง
                 </button>
-              )}
+              ))}
             </li>
           )
         })}

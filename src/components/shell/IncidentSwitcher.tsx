@@ -46,12 +46,23 @@ export function IncidentSwitcher() {
         }
       >
         {hasActive ? (
-          <AlertTriangle className="size-3.5" strokeWidth={2} />
+          active.status === 'active' ? (
+            <span className="relative flex size-2.5 shrink-0" aria-hidden>
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-300 opacity-75" />
+              <span className="relative inline-flex size-2.5 rounded-full bg-red-200" />
+            </span>
+          ) : (
+            <AlertTriangle className="size-3.5" strokeWidth={2} />
+          )
         ) : (
           <Sun className="size-3.5 text-slate-400" strokeWidth={1.75} />
         )}
-        <span className="hidden max-w-[200px] truncate sm:inline">
-          {hasActive ? active.name : 'โหมดปกติ'}
+        <span className="hidden max-w-[220px] truncate sm:inline">
+          {hasActive ? (
+            <>{active.status === 'active' && <span className="font-semibold">วิกฤต · </span>}{active.name}</>
+          ) : (
+            'โหมดปกติ'
+          )}
         </span>
         {isSwitching ? (
           <Loader2 className="size-3 animate-spin opacity-60" />

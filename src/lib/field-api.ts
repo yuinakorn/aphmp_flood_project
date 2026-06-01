@@ -4,6 +4,10 @@ import type { UserRole } from '@/types'
 
 const WRITE_ROLES = new Set<UserRole>(['admin', 'officer', 'eoc', 'vhv', 'ems', 'ddpm', 'shelter_manager'])
 const TRIAGE_ROLES = new Set<UserRole>(['admin', 'officer', 'eoc', 'ems', 'ddpm'])
+// เปิด/ปิด/จัดการเหตุการณ์ = ผู้บัญชาการเท่านั้น (แคบกว่า triage)
+const INCIDENT_MANAGE_ROLES = new Set<UserRole>(['admin', 'eoc', 'ddpm'])
+// จัดการทะเบียนเจ้าหน้าที่ (อนุมัติ/whitelist/ระงับ) — ผู้บัญชาการ; non-national scope แค่จังหวัดตัวเอง
+const STAFF_MANAGE_ROLES = new Set<UserRole>(['admin', 'eoc', 'ddpm'])
 
 export function canWriteFieldData(role?: UserRole) {
   return !!role && WRITE_ROLES.has(role)
@@ -11,6 +15,14 @@ export function canWriteFieldData(role?: UserRole) {
 
 export function canTriage(role?: UserRole) {
   return !!role && TRIAGE_ROLES.has(role)
+}
+
+export function canManageIncident(role?: UserRole) {
+  return !!role && INCIDENT_MANAGE_ROLES.has(role)
+}
+
+export function canManageStaff(role?: UserRole) {
+  return !!role && STAFF_MANAGE_ROLES.has(role)
 }
 
 export function unauthorized() {

@@ -12,7 +12,7 @@ export default async function RosterPage() {
   if (!session) redirect('/login')
 
   const role = session.user?.role ?? 'viewer'
-  const scope = await getActiveIncident(role)
+  const scope = await getActiveIncident(role, session.user?.province ?? null)
 
   return (
     <RosterView

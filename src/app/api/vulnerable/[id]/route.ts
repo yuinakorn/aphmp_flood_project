@@ -4,8 +4,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
+import { isNationalRole } from '@/lib/incident-scope'
 import { getDb } from '@/lib/db'
 import { classifyRisk } from '@/lib/geo'
 import {
@@ -55,6 +56,11 @@ export async function GET(
     .limit(1)
 
   if (!p || p.deletedAt) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  // province guard — เจ้าหน้าที่ (non-national) เปิดดูได้เฉพาะคนในจังหวัดสังกัด
+  if (session?.user && !isNationalRole(role) && p.province !== (session.user.province ?? null)) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
 
   const lat = numberFromDb(p.lat)
   const lng = numberFromDb(p.lng)
@@ -130,6 +136,9 @@ const VALID_FOLLOW_UP = new Set([
   'pending', 'contacted', 'needs_help', 'moved', 'referred', 'closed',
 ])
 const VALID_PRIORITIES = new Set(['A', 'B', 'C'])
+const LIFE_SUPPORT_CODES = new Set([
+  'oxygen', 'dialysis_capd', 'dialysis_hd', 'ventilator', 'anti_seizure', 'feeding_tube',
+])
 
 export async function PATCH(
   req: NextRequest,
@@ -180,14 +189,34 @@ export async function PATCH(
     patch.lastContactedAt = d && !isNaN(d.getTime()) ? d : null
   }
 
+  if ('lifeSupport' in body) {
+    const ls = body.lifeSupport
+    if (ls === null) {
+      patch.lifeSupport = null
+    } else if (
+      Array.isArray(ls) &&
+      ls.every((c) => typeof c === 'string' && LIFE_SUPPORT_CODES.has(c))
+    ) {
+      patch.lifeSupport = [...new Set(ls as string[])]
+    } else {
+      return badRequest('lifeSupport must be null or an array of valid codes')
+    }
+  }
+
   // ถ้าไม่มี field นอกจาก updatedAt → ไม่มีอะไรอัปเดต
   if (Object.keys(patch).length === 1) return badRequest('No updatable fields provided')
+
+  // province guard — non-national แก้ได้เฉพาะคนในจังหวัดสังกัด (ใส่เงื่อนไขใน WHERE)
+  const national = isNationalRole(session.user.role as UserRole)
+  const where = national
+    ? eq(householdMembers.id, id)
+    : and(eq(householdMembers.id, id), eq(householdMembers.province, session.user.province ?? '__none__'))
 
   const db = getDb()
   const [updated] = await db
     .update(householdMembers)
     .set(patch)
-    .where(eq(householdMembers.id, id))
+    .where(where)
     .returning()
 
   if (!updated) return NextResponse.json({ error: 'Not found' }, { status: 404 })

@@ -18,9 +18,10 @@ export default async function MapPage() {
 
   if (!mapSession) redirect('/login')
 
+  const province = session?.user?.province ?? null
   const [activeIncident, selectableIncidents] = await Promise.all([
-    getActiveIncident(mapSession.role),
-    getSelectableIncidents(mapSession.role),
+    getActiveIncident(mapSession.role, province),
+    getSelectableIncidents(mapSession.role, province),
   ])
 
   return (

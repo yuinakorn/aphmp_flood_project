@@ -265,6 +265,7 @@ export interface VulnerablePerson {
   lastContactedAt?: string
   lastVisitedAt?: string
   lastKnownStatus?: string
+  lifeSupport?: string[] | null
 }
 
 export interface HouseholdMapMember {

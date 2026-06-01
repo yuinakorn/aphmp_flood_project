@@ -18,7 +18,10 @@
     "db:seed:rescue": "tsx src/db/seed-rescue-mock.ts",
     "db:seed:shelters": "tsx src/db/seed-shelter-zones.ts",
     "db:seed:ops": "tsx src/db/seed-ops-mock.ts",
-    "db:backfill:flood-codes": "tsx src/db/backfill-flood-mark-codes.ts"
+    "db:backfill:flood-codes": "tsx src/db/backfill-flood-mark-codes.ts",
+    "db:backfill:life-support": "tsx src/db/backfill-life-support.ts",
+    "db:seed:overview-demo": "tsx src/db/seed-overview-demo.ts",
+    "db:seed:staff": "tsx src/db/seed-staff-demo.ts"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^1.11.2",

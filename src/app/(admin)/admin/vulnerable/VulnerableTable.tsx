@@ -27,7 +27,7 @@ interface Props {
 
 export function VulnerableTable({ persons, canEdit, activeIncidents }: Props) {
   const router = useRouter()
-  const [action, setAction] = useState<{ id: string; name: string; mode: FieldActionMode } | null>(null)
+  const [action, setAction] = useState<{ id: string; name: string; mode: FieldActionMode; lifeSupport: string[] } | null>(null)
 
   const riskClass: Record<RiskLevel, string> = {
     flood: 'gx-badge gx-badge-flood',
@@ -86,7 +86,7 @@ export function VulnerableTable({ persons, canEdit, activeIncidents }: Props) {
                     <div className="flex justify-end gap-2">
                       <button
                         type="button"
-                        onClick={() => setAction({ id: String(p.id), name: p.name, mode: 'visit' })}
+                        onClick={() => setAction({ id: String(p.id), name: p.name, mode: 'visit', lifeSupport: p.lifeSupport ?? [] })}
                         className="gx-btn gx-btn-ghost gx-btn-sm hover:!border-[var(--accent)] hover:!text-[var(--accent)]"
                       >
                         <Stethoscope size={14} strokeWidth={1.75} />
@@ -94,7 +94,7 @@ export function VulnerableTable({ persons, canEdit, activeIncidents }: Props) {
                       </button>
                       <button
                         type="button"
-                        onClick={() => setAction({ id: String(p.id), name: p.name, mode: 'help' })}
+                        onClick={() => setAction({ id: String(p.id), name: p.name, mode: 'help', lifeSupport: p.lifeSupport ?? [] })}
                         className="gx-btn gx-btn-ghost gx-btn-sm hover:!border-[var(--risk-flood)] hover:!text-[var(--risk-flood)]"
                       >
                         <LifeBuoy size={14} strokeWidth={1.75} />
@@ -114,6 +114,7 @@ export function VulnerableTable({ persons, canEdit, activeIncidents }: Props) {
           target={{ id: action.id, name: action.name }}
           mode={action.mode}
           activeIncidents={activeIncidents}
+          currentLifeSupport={action.lifeSupport}
           onClose={() => setAction(null)}
           onDone={() => {
             setAction(null)

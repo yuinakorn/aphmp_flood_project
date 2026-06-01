@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { eq } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 import { getDb } from '@/lib/db'
-import { badRequest, canTriage, forbidden, isUuid, unauthorized } from '@/lib/field-api'
+import { badRequest, canManageIncident, forbidden, isUuid, unauthorized } from '@/lib/field-api'
+import { isNationalRole } from '@/lib/incident-scope'
 import { INCIDENT_STATUSES, INCIDENT_TYPES } from '@/lib/incident'
 import { incidents } from '@/db/schema'
 
-// PATCH /api/incidents/[id] — แก้ไข/ปิดเหตุการณ์ (admin/officer/eoc)
+// PATCH /api/incidents/[id] — แก้ไข/ปิดเหตุการณ์ (ผู้บัญชาการ: admin/eoc/ddpm)
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -16,7 +17,15 @@ export async function PATCH(
 
   const session = await auth()
   if (!session?.user) return unauthorized()
-  if (!canTriage(session.user.role)) return forbidden()
+  if (!canManageIncident(session.user.role)) return forbidden()
+
+  // province guard — non-national แก้ได้เฉพาะเหตุการณ์ในจังหวัดสังกัด
+  const db = getDb()
+  const [existing] = await db.select().from(incidents).where(eq(incidents.id, id))
+  if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (!isNationalRole(session.user.role) && existing.province !== (session.user.province ?? null)) {
+    return forbidden()
+  }
 
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null
   if (!body) return badRequest('Invalid JSON body')
@@ -41,7 +50,11 @@ export async function PATCH(
     patch.endedAt = body.status === 'closed' ? new Date() : null
   }
 
-  for (const field of ['province', 'amphoe', 'tambon', 'description'] as const) {
+  // non-national เปลี่ยนจังหวัดของเหตุการณ์ไม่ได้ (กันย้ายออกนอก scope)
+  const editableLoc = isNationalRole(session.user.role)
+    ? (['province', 'amphoe', 'tambon', 'description'] as const)
+    : (['amphoe', 'tambon', 'description'] as const)
+  for (const field of editableLoc) {
     if (field in body) {
       patch[field] = typeof body[field] === 'string' ? (body[field] as string) : null
     }
@@ -49,7 +62,6 @@ export async function PATCH(
 
   if (Object.keys(patch).length === 1) return badRequest('No updatable fields provided')
 
-  const db = getDb()
   const [updated] = await db
     .update(incidents)
     .set(patch)

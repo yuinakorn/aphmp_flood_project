@@ -1,0 +1,820 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ภาพรวมผู้บัญชาการ — ระบบภูมิสารสนเทศสุขภาพระดับหน้าด่าน (mockup)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet" />
+<style>
+/* ═══════════════ tokens (gx-, จาก globals.css) ═══════════════ */
+:root{
+  --bg:oklch(0.97 0.004 245); --bg-elevated:oklch(1 0 245); --bg-sunken:oklch(0.945 0.006 245);
+  --border:oklch(0.89 0.008 245); --border-strong:oklch(0.80 0.010 245);
+  --fg:oklch(0.20 0.012 245); --fg-muted:oklch(0.44 0.012 245); --fg-subtle:oklch(0.585 0.010 245);
+  --accent:oklch(0.55 0.18 230); --accent-fg:oklch(0.99 0.004 245);
+  --flood:oklch(0.55 0.22 30); --near:oklch(0.62 0.17 70); --safe:oklch(0.52 0.14 150);
+  --evac:oklch(0.55 0.16 245); --signal:oklch(0.55 0.15 200); --shelter:oklch(0.52 0.17 285);
+  --sidebar:oklch(0.23 0.018 255); --sidebar-fg:oklch(0.97 0.005 255); --sidebar-muted:oklch(0.66 0.012 255);
+  --sidebar-line:oklch(0.32 0.018 255); --sidebar-active:oklch(0.30 0.03 255);
+  --r-sm:6px; --r-md:9px; --r-lg:13px; --r-xl:17px;
+  --sh-1:0 1px 2px oklch(0.45 0.03 245/.06),0 1px 3px oklch(0.45 0.03 245/.08);
+  --sh-2:0 2px 6px oklch(0.45 0.03 245/.07),0 10px 24px oklch(0.45 0.03 245/.10);
+  --sh-3:0 6px 14px oklch(0.45 0.03 245/.09),0 22px 48px oklch(0.45 0.03 245/.16);
+  --ease:cubic-bezier(0.22,1,0.36,1);
+}
+.dark{
+  --bg:oklch(0.17 0.012 255); --bg-elevated:oklch(0.215 0.013 255); --bg-sunken:oklch(0.14 0.010 255);
+  --border:oklch(0.30 0.014 255); --border-strong:oklch(0.40 0.015 255);
+  --fg:oklch(0.96 0.005 255); --fg-muted:oklch(0.72 0.010 255); --fg-subtle:oklch(0.56 0.012 255);
+  --accent:oklch(0.70 0.15 230); --accent-fg:oklch(0.17 0.012 255);
+  --flood:oklch(0.67 0.20 30); --near:oklch(0.78 0.15 72); --safe:oklch(0.74 0.12 150);
+  --evac:oklch(0.70 0.14 245); --signal:oklch(0.78 0.13 200); --shelter:oklch(0.70 0.15 285);
+  --sidebar:oklch(0.13 0.010 255); --sidebar-fg:oklch(0.95 0.005 255); --sidebar-muted:oklch(0.60 0.012 255);
+  --sidebar-line:oklch(0.26 0.014 255); --sidebar-active:oklch(0.24 0.02 255);
+  --sh-1:0 1px 2px oklch(0 0 0/.4); --sh-2:0 2px 8px oklch(0 0 0/.45),0 10px 28px oklch(0 0 0/.5);
+  --sh-3:0 6px 16px oklch(0 0 0/.5),0 24px 56px oklch(0 0 0/.6);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:"IBM Plex Sans Thai",system-ui,sans-serif; background:var(--bg); color:var(--fg);
+  font-size:15px; line-height:1.55; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+}
+.mono{font-family:"JetBrains Mono",ui-monospace,monospace; font-variant-numeric:tabular-nums; font-feature-settings:"tnum"}
+.ic{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex:none}
+button{font:inherit;cursor:pointer;border:none;background:none;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:5px}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.08ms!important}}
+
+/* ═══════════════ shell ═══════════════ */
+.app{display:flex;min-height:100vh}
+.sidebar{
+  width:250px;flex:none;background:var(--sidebar);color:var(--sidebar-fg);
+  position:sticky;top:0;height:100vh;display:flex;flex-direction:column;
+  border-right:1px solid var(--sidebar-line);
+}
+.brand{display:flex;align-items:center;gap:11px;padding:18px 18px 16px}
+.brand .logo{width:38px;height:38px;border-radius:10px;background:var(--safe);color:#fff;display:grid;place-items:center;box-shadow:var(--sh-1)}
+.brand .logo .ic{width:21px;height:21px;stroke-width:2}
+.brand b{font-size:13.5px;font-weight:700;letter-spacing:-.01em;line-height:1.2;display:block}
+.brand span{font-size:10px;color:var(--sidebar-muted);letter-spacing:.02em}
+.nav{padding:8px 12px;display:flex;flex-direction:column;gap:2px;flex:1;overflow-y:auto}
+.nav .lbl{font-size:10px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--sidebar-muted);padding:14px 10px 6px}
+.nav a{
+  display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:9px;
+  color:var(--sidebar-muted);font-size:13.5px;font-weight:500;text-decoration:none;
+  transition:background .18s var(--ease),color .18s var(--ease);position:relative;
+}
+.nav a .ic{width:18px;height:18px}
+.nav a:hover{background:var(--sidebar-active);color:var(--sidebar-fg)}
+.nav a.on{background:var(--sidebar-active);color:#fff;font-weight:600}
+.nav a.on .ic{color:var(--safe)}
+.nav a .count{margin-left:auto;font-size:11px;font-weight:700;padding:1px 8px;border-radius:999px;background:oklch(0.55 0.22 30/.18);color:oklch(0.82 0.16 35)}
+.nav a .count.q{background:oklch(0.62 0.17 70/.16);color:oklch(0.85 0.15 75)}
+.sidebar .foot{padding:12px;border-top:1px solid var(--sidebar-line)}
+.incpill{display:flex;align-items:center;gap:9px;padding:10px 11px;border-radius:11px;background:oklch(0.55 0.22 30/.12);border:1px solid oklch(0.55 0.22 30/.3)}
+.incpill .dot{width:8px;height:8px;border-radius:50%;background:var(--flood);box-shadow:0 0 0 0 oklch(0.55 0.22 30/.5);animation:ping 2.4s var(--ease) infinite;flex:none}
+.incpill b{font-size:12.5px;font-weight:600;color:oklch(0.86 0.13 35)}
+.incpill span{font-size:10.5px;color:var(--sidebar-muted);display:block}
+body.mode-normal .incpill{background:oklch(0.52 0.14 150/.12);border-color:oklch(0.52 0.14 150/.3)}
+body.mode-normal .incpill .dot{background:var(--safe);animation:none}
+body.mode-normal .incpill b{color:oklch(0.82 0.12 150)}
+.usr{display:flex;align-items:center;gap:9px;padding:11px 4px 2px;margin-top:4px}
+.usr .av{width:30px;height:30px;border-radius:50%;background:var(--sidebar-active);display:grid;place-items:center;font-size:12px;font-weight:600;color:var(--sidebar-fg)}
+.usr b{font-size:12px;font-weight:600;display:block;line-height:1.3}
+.usr span{font-size:10.5px;color:var(--sidebar-muted)}
+@keyframes ping{0%{box-shadow:0 0 0 0 oklch(0.55 0.22 30/.5)}70%,100%{box-shadow:0 0 0 7px oklch(0.55 0.22 30/0)}}
+
+.main{flex:1;min-width:0;display:flex;flex-direction:column}
+.topbar{
+  position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:16px;
+  padding:13px 24px;background:color-mix(in oklch,var(--bg-elevated) 86%,transparent);
+  backdrop-filter:saturate(1.4) blur(8px);border-bottom:1px solid var(--border);
+}
+.topbar .eyebrow{font-size:10.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--fg-subtle)}
+.topbar h1{font-size:21px;font-weight:650;letter-spacing:-.02em;line-height:1.2}
+.tb-right{margin-left:auto;display:flex;align-items:center;gap:9px}
+.inc-switch{display:flex;align-items:center;gap:9px;padding:7px 13px;border-radius:10px;background:color-mix(in oklch,var(--flood) 9%,var(--bg-elevated));border:1px solid color-mix(in oklch,var(--flood) 28%,transparent)}
+.inc-switch .dot{width:7px;height:7px;border-radius:50%;background:var(--flood);animation:pulse 2.4s var(--ease) infinite}
+.inc-switch b{font-size:12.5px;font-weight:600;color:var(--flood)}
+.inc-switch .ic{width:15px;height:15px;color:var(--flood);opacity:.7}
+body.mode-normal .inc-switch{background:color-mix(in oklch,var(--safe) 9%,var(--bg-elevated));border-color:color-mix(in oklch,var(--safe) 28%,transparent)}
+body.mode-normal .inc-switch .dot,body.mode-normal .inc-switch .ic{background:var(--safe);color:var(--safe);animation:none}
+body.mode-normal .inc-switch b{color:var(--safe)}
+@keyframes pulse{0%,100%{opacity:.5}50%{opacity:1}}
+.conn{display:none;align-items:center;gap:6px;font-size:11.5px;font-weight:500;color:var(--safe);padding:7px 11px;border-radius:10px;background:color-mix(in oklch,var(--safe) 8%,var(--bg-elevated));border:1px solid color-mix(in oklch,var(--safe) 22%,transparent)}
+.conn .dot{width:6px;height:6px;border-radius:50%;background:var(--safe)}
+@media(min-width:1180px){.conn{display:flex}}
+.iconbtn{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;color:var(--fg-muted);border:1px solid var(--border);background:var(--bg-elevated);transition:.16s var(--ease)}
+.iconbtn:hover{color:var(--fg);border-color:var(--border-strong);background:color-mix(in oklch,var(--accent) 6%,var(--bg-elevated))}
+.modetoggle{display:flex;padding:3px;border-radius:11px;background:var(--bg-sunken);border:1px solid var(--border)}
+.modetoggle button{padding:6px 13px;border-radius:8px;font-size:12.5px;font-weight:600;color:var(--fg-subtle);transition:.18s var(--ease)}
+.modetoggle button.on{background:var(--bg-elevated);color:var(--fg);box-shadow:var(--sh-1)}
+.modetoggle button.crisis.on{color:var(--flood)}
+
+.content{padding:20px 24px 40px;max-width:1480px;width:100%;margin:0 auto;flex:1}
+
+/* ═══════════════ action banner ═══════════════ */
+.banner{display:flex;align-items:center;gap:14px;padding:14px 18px;border-radius:var(--r-lg);margin-bottom:18px;
+  background:color-mix(in oklch,var(--flood) 11%,var(--bg-elevated));border:1px solid color-mix(in oklch,var(--flood) 32%,transparent);box-shadow:var(--sh-1)}
+.banner .bell{width:40px;height:40px;border-radius:11px;flex:none;display:grid;place-items:center;background:var(--flood);color:#fff;box-shadow:0 2px 8px oklch(0.55 0.22 30/.4)}
+.banner .bell .ic{width:21px;height:21px;stroke-width:2}
+.banner .btxt b{font-size:15px;font-weight:650;color:var(--flood);display:block;line-height:1.35}
+.banner .btxt b .n{font-family:"JetBrains Mono";font-weight:700;font-size:17px;padding:0 2px}
+.banner .btxt span{font-size:12.5px;color:var(--fg-muted)}
+.banner .go{margin-left:auto;display:inline-flex;align-items:center;gap:7px;padding:10px 17px;border-radius:10px;background:var(--flood);color:#fff;font-size:13.5px;font-weight:600;white-space:nowrap;box-shadow:var(--sh-1);transition:.16s var(--ease)}
+.banner .go:hover{filter:brightness(1.07);box-shadow:var(--sh-2);transform:translateY(-1px)}
+.banner .go .ic{width:17px;height:17px}
+.banner.normal{background:color-mix(in oklch,var(--signal) 9%,var(--bg-elevated));border-color:color-mix(in oklch,var(--signal) 26%,transparent)}
+.banner.normal .bell{background:var(--signal);box-shadow:none}
+.banner.normal .btxt b{color:var(--signal)}
+.banner.normal .go{background:var(--signal)}
+
+/* ═══════════════ status ribbon ═══════════════ */
+.ribbon{display:flex;align-items:stretch;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--r-xl);box-shadow:var(--sh-1);overflow:hidden;margin-bottom:18px}
+.ribbon .stat{flex:1;padding:15px 20px;display:flex;flex-direction:column;gap:3px;position:relative;min-width:0}
+.ribbon .stat + .stat{border-left:1px solid var(--border)}
+.ribbon .stat .k{font-size:11.5px;font-weight:500;color:var(--fg-subtle);display:flex;align-items:center;gap:6px;white-space:nowrap}
+.ribbon .stat .k i{width:7px;height:7px;border-radius:2px;flex:none}
+.ribbon .stat .v{font-family:"JetBrains Mono";font-weight:700;font-size:27px;letter-spacing:-.02em;line-height:1.05;color:var(--fg)}
+.ribbon .stat .v small{font-size:13px;font-weight:600;color:var(--fg-subtle);margin-left:2px}
+.ribbon .stat .v.flood{color:var(--flood)} .ribbon .stat .v.near{color:var(--near)} .ribbon .stat .v.evac{color:var(--evac)} .ribbon .stat .v.safe{color:var(--safe)}
+.ribbon .stat .trend{font-size:11px;color:var(--fg-subtle)}
+.ribbon .stat .trend b{color:var(--flood);font-weight:600}
+.ribbon-normal{display:none}
+body.mode-normal .ribbon-crisis{display:none}
+body.mode-normal .ribbon-normal{display:flex}
+
+/* ═══════════════ layout grid ═══════════════ */
+.grid{display:grid;grid-template-columns:minmax(0,1.72fr) minmax(330px,1fr);gap:18px;align-items:start}
+@media(max-width:1080px){.grid{grid-template-columns:1fr}}
+.panel{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--r-xl);box-shadow:var(--sh-1)}
+.panel > header{display:flex;align-items:center;gap:12px;padding:16px 18px 13px;border-bottom:1px solid var(--border)}
+.panel > header .ttl{font-size:15px;font-weight:650;letter-spacing:-.01em}
+.panel > header .sub{font-size:11.5px;color:var(--fg-subtle);margin-top:1px}
+.panel > header .auto{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:var(--accent);padding:4px 10px;border-radius:999px;background:color-mix(in oklch,var(--accent) 10%,transparent)}
+.panel > header .auto .d{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:pulse 2.4s var(--ease) infinite}
+
+/* segmented filter */
+.seg{display:flex;gap:3px;padding:3px;border-radius:10px;background:var(--bg-sunken);border:1px solid var(--border)}
+.seg button{padding:5px 11px;border-radius:7px;font-size:12px;font-weight:600;color:var(--fg-subtle);display:inline-flex;align-items:center;gap:6px;transition:.16s var(--ease)}
+.seg button .c{font-size:10.5px;font-weight:700;padding:0 6px;border-radius:999px;background:color-mix(in oklch,var(--fg-subtle) 16%,transparent)}
+.seg button.on{background:var(--bg-elevated);color:var(--fg);box-shadow:var(--sh-1)}
+.seg button.on .c{background:var(--flood);color:#fff}
+
+/* ═══════════════ survivability queue ═══════════════ */
+.queue{display:flex;flex-direction:column}
+.qrow{border-bottom:1px solid var(--border);transition:background .15s var(--ease)}
+.qrow:last-child{border-bottom:none}
+.qhead{display:grid;grid-template-columns:54px 1fr auto;gap:14px;padding:13px 18px;align-items:center;cursor:pointer}
+.qrow:hover{background:color-mix(in oklch,var(--accent) 4%,var(--bg-elevated))}
+.qrow.open{background:color-mix(in oklch,var(--accent) 6%,var(--bg-elevated))}
+.score{width:54px;height:54px;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;flex:none}
+.score b{font-size:16px;font-weight:700;line-height:1;font-family:"JetBrains Mono"}
+.score span{font-size:9px;font-weight:600;letter-spacing:.02em;line-height:1}
+.score.p1{background:color-mix(in oklch,var(--flood) 15%,var(--bg-elevated));color:var(--flood);border:1px solid color-mix(in oklch,var(--flood) 35%,transparent)}
+.score.p2{background:color-mix(in oklch,var(--near) 16%,var(--bg-elevated));color:oklch(0.5 0.16 65);border:1px solid color-mix(in oklch,var(--near) 38%,transparent)}
+.score.p3{background:color-mix(in oklch,var(--near) 11%,var(--bg-elevated));color:oklch(0.55 0.13 72);border:1px solid color-mix(in oklch,var(--near) 26%,transparent)}
+.dark .score.p2{color:var(--near)} .dark .score.p3{color:var(--near)}
+.qident{min-width:0}
+.qident .who{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.qident .st{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600}
+.qident .st .d{width:8px;height:8px;border-radius:50%;flex:none}
+.qident .name{font-size:14.5px;font-weight:650;letter-spacing:-.01em}
+.qident .house{font-size:12px;color:var(--fg-subtle)}
+.qident .meta{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:7px}
+.tag{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:550;padding:3px 9px;border-radius:999px;white-space:nowrap}
+.tag .ic{width:13px;height:13px}
+.tag.life{background:color-mix(in oklch,var(--flood) 13%,transparent);color:var(--flood);border:1px solid color-mix(in oklch,var(--flood) 26%,transparent);font-weight:600}
+.tag.dist{background:var(--bg-sunken);color:var(--fg-muted);border:1px solid var(--border)}
+.tag.warn{background:color-mix(in oklch,var(--near) 14%,transparent);color:oklch(0.5 0.15 60);border:1px solid color-mix(in oklch,var(--near) 28%,transparent)}
+.dark .tag.warn{color:var(--near)}
+.tag.time{background:var(--bg-sunken);color:var(--fg-subtle);border:1px solid var(--border)}
+.qright{display:flex;flex-direction:column;align-items:flex-end;gap:9px}
+.team{display:inline-flex;align-items:center;gap:7px;font-size:11.5px;color:var(--fg-muted);background:color-mix(in oklch,var(--safe) 9%,var(--bg-elevated));border:1px solid color-mix(in oklch,var(--safe) 22%,transparent);padding:4px 10px;border-radius:999px;white-space:nowrap}
+.team .ic{width:14px;height:14px;color:var(--safe)}
+.team b{color:var(--fg);font-weight:600}
+.qact{display:flex;gap:7px;align-items:center}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 13px;border-radius:9px;font-size:12.5px;font-weight:600;white-space:nowrap;transition:.15s var(--ease)}
+.btn .ic{width:15px;height:15px}
+.btn.primary{background:var(--flood);color:#fff;box-shadow:var(--sh-1)}
+.btn.primary:hover{filter:brightness(1.07);transform:translateY(-1px);box-shadow:var(--sh-2)}
+.btn.ghost{background:var(--bg-elevated);color:var(--fg-muted);border:1px solid var(--border)}
+.btn.ghost:hover{color:var(--fg);border-color:var(--border-strong)}
+.btn.icon{width:34px;height:34px;padding:0;justify-content:center;background:var(--bg-elevated);border:1px solid var(--border);color:var(--fg-subtle)}
+.btn.icon:hover{color:var(--fg);border-color:var(--border-strong)}
+.chev{transition:transform .25s var(--ease);color:var(--fg-subtle)}
+.qrow.open .chev{transform:rotate(90deg)}
+
+/* household expand (L2) */
+.qdetail{display:grid;grid-template-rows:0fr;transition:grid-template-rows .3s var(--ease)}
+.qrow.open .qdetail{grid-template-rows:1fr}
+.qdetail > div{overflow:hidden}
+.hh{padding:2px 18px 18px 72px;display:grid;grid-template-columns:1.3fr 1fr;gap:18px}
+@media(max-width:720px){.hh{grid-template-columns:1fr;padding-left:18px}}
+.hh h4{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--fg-subtle);margin-bottom:9px}
+.member{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px dashed var(--border)}
+.member:last-child{border-bottom:none}
+.member .mav{width:30px;height:30px;border-radius:8px;background:var(--bg-sunken);display:grid;place-items:center;font-size:12px;font-weight:600;color:var(--fg-muted);flex:none}
+.member .mn{font-size:13px;font-weight:600}
+.member .mr{font-size:11.5px;color:var(--fg-subtle)}
+.member .mtag{margin-left:auto;font-size:10.5px;font-weight:600;padding:2px 8px;border-radius:999px}
+.member .mtag.o2{background:color-mix(in oklch,var(--flood) 13%,transparent);color:var(--flood)}
+.member .mtag.care{background:color-mix(in oklch,var(--safe) 13%,transparent);color:var(--safe)}
+.bringlist{background:var(--bg-sunken);border:1px solid var(--border);border-radius:var(--r-lg);padding:13px 15px}
+.bringlist .item{display:flex;align-items:center;gap:9px;font-size:12.5px;color:var(--fg-muted);padding:4px 0}
+.bringlist .item .ic{width:15px;height:15px;color:var(--flood)}
+.bringlist .item b{color:var(--fg);font-weight:600}
+.hh-act{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap;padding-top:4px}
+
+/* ═══════════════ rail: donut ═══════════════ */
+.rail{display:flex;flex-direction:column;gap:18px}
+.donutwrap{display:flex;align-items:center;gap:18px;padding:18px}
+.donut{width:140px;height:140px;flex:none;position:relative}
+.donut svg{transform:rotate(-90deg)}
+.donut .ctr{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.donut .ctr b{font-family:"JetBrains Mono";font-size:30px;font-weight:700;line-height:1;letter-spacing:-.02em}
+.donut .ctr span{font-size:10.5px;color:var(--fg-subtle);margin-top:2px}
+.legend{flex:1;display:flex;flex-direction:column;gap:9px;min-width:0}
+.legend .lr{display:flex;align-items:center;gap:9px;font-size:12.5px}
+.legend .lr i{width:10px;height:10px;border-radius:3px;flex:none}
+.legend .lr .lt{color:var(--fg-muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.legend .lr .lv{margin-left:auto;font-family:"JetBrains Mono";font-weight:600;font-size:13px}
+.legend .lr .lp{font-size:10.5px;color:var(--fg-subtle);width:34px;text-align:right}
+
+/* bars */
+.bars{padding:16px 18px;display:flex;flex-direction:column;gap:13px}
+.bar .blab{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.bar .blab .bn{font-size:12.5px;font-weight:550;color:var(--fg-muted);display:flex;align-items:center;gap:7px}
+.bar .blab .bn .ic{width:14px;height:14px;color:var(--fg-subtle)}
+.bar .blab .bv{font-size:11.5px;color:var(--fg-subtle)}
+.bar .blab .bv b{font-family:"JetBrains Mono";color:var(--fg);font-weight:600}
+.bar .blab .bv .inf{color:var(--flood);font-weight:600;margin-left:7px}
+.track{height:9px;border-radius:999px;background:var(--bg-sunken);overflow:hidden;display:flex}
+.track .total{height:100%;background:color-mix(in oklch,var(--accent) 38%,var(--bg-sunken));border-radius:999px;display:flex}
+.track .inf{height:100%;background:var(--flood);border-radius:999px}
+
+/* shelters */
+.shl{padding:7px 18px 16px}
+.shl .srow{padding:13px 0;border-bottom:1px solid var(--border)}
+.shl .srow:last-child{border-bottom:none}
+.shl .stop{display:flex;align-items:baseline;gap:8px;margin-bottom:8px}
+.shl .sn{font-size:13.5px;font-weight:600;letter-spacing:-.01em}
+.shl .smgr{font-size:11px;color:var(--fg-subtle)}
+.shl .scap{margin-left:auto;font-family:"JetBrains Mono";font-size:13px;font-weight:600}
+.shl .scap .pct{font-size:11px;color:var(--fg-subtle);margin-left:5px}
+.captrack{height:8px;border-radius:999px;background:var(--bg-sunken);overflow:hidden}
+.capfill{height:100%;border-radius:999px}
+.capfill.hot{background:var(--flood)} .capfill.warm{background:var(--near)}
+.shl .health{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}
+.hchip{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:550;padding:3px 8px;border-radius:7px;background:var(--bg-sunken);border:1px solid var(--border);color:var(--fg-muted)}
+.hchip .ic{width:12px;height:12px}
+.hchip.ok{color:var(--safe);border-color:color-mix(in oklch,var(--safe) 25%,transparent);background:color-mix(in oklch,var(--safe) 8%,transparent)}
+.hchip.no{color:var(--flood);border-color:color-mix(in oklch,var(--flood) 25%,transparent);background:color-mix(in oklch,var(--flood) 8%,transparent)}
+.hchip.full{color:var(--near);border-color:color-mix(in oklch,var(--near) 28%,transparent);background:color-mix(in oklch,var(--near) 10%,transparent)}
+
+/* normal-mode hero (coverage) */
+.hero-normal{display:none}
+body.mode-normal .hero-crisis{display:none}
+body.mode-normal .hero-normal{display:block}
+.cov{display:grid;grid-template-columns:1fr auto;gap:14px;padding:14px 18px;border-bottom:1px solid var(--border);align-items:center}
+.cov:last-child{border-bottom:none}
+.cov:hover{background:color-mix(in oklch,var(--accent) 4%,var(--bg-elevated))}
+.cov .cvn{font-size:14px;font-weight:600}
+.cov .cvm{display:flex;gap:7px;flex-wrap:wrap;margin-top:7px}
+.cov .days{font-family:"JetBrains Mono";font-weight:700;font-size:15px;color:var(--near)}
+.cov .days.old{color:var(--flood)}
+
+.foot-note{margin-top:22px;text-align:center;font-size:11px;color:var(--fg-subtle);line-height:1.7}
+.hide{display:none!important}
+
+@media(max-width:880px){
+  .sidebar{width:68px}
+  .brand b,.brand span,.nav a span,.nav .lbl,.sidebar .foot .incpill b,.sidebar .foot .incpill span,.usr b,.usr span{display:none}
+  .nav a{justify-content:center;padding:11px 0}
+  .brand{justify-content:center;padding:18px 0}
+  .incpill{justify-content:center;padding:10px 0}
+  .usr{justify-content:center}
+  .ribbon{flex-wrap:wrap}.ribbon .stat{flex:1 1 33%;min-width:130px}.ribbon .stat+.stat{border-left:none}
+}
+@media(max-width:560px){
+  .topbar h1{font-size:17px}.content{padding:14px}
+  .qhead{grid-template-columns:48px 1fr;gap:11px}.qright{grid-column:1/-1;flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:flex-start;padding-left:59px}
+  .banner{flex-wrap:wrap}.banner .go{margin-left:0;width:100%;justify-content:center}
+}
+</style>
+</head>
+<body class="mode-crisis">
+
+<!-- icon symbols -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-activity" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></symbol>
+  <symbol id="i-dash" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1.2"/><rect x="14" y="3" width="7" height="5" rx="1.2"/><rect x="14" y="12" width="7" height="9" rx="1.2"/><rect x="3" y="16" width="7" height="5" rx="1.2"/></symbol>
+  <symbol id="i-map" viewBox="0 0 24 24"><path d="M9 4 3 6.2v14L9 18l6 2 6-2.2v-14L15 6 9 4Z"/><path d="M9 4v14"/><path d="M15 6v14"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 10.6 12 3.4l9 7.2"/><path d="M5.2 9.4V20a1 1 0 0 0 1 1h11.6a1 1 0 0 0 1-1V9.4"/><path d="M9.4 21v-5.6h5.2V21"/></symbol>
+  <symbol id="i-tent" viewBox="0 0 24 24"><path d="M3.2 20.5 12 5l8.8 15.5"/><path d="M12 5v15.5"/><path d="M2 20.5h20"/></symbol>
+  <symbol id="i-buoy" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.6"/><path d="m5.6 5.6 3.3 3.3M15.1 15.1l3.3 3.3M18.4 5.6l-3.3 3.3M8.9 15.1l-3.3 3.3"/></symbol>
+  <symbol id="i-set" viewBox="0 0 24 24"><path d="M4 6h9M19 6h1M4 12h1M11 12h9M4 18h5M15 18h5"/><circle cx="16" cy="6" r="2.1"/><circle cx="8" cy="12" r="2.1"/><circle cx="12" cy="18" r="2.1"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.3 3.9 2.5 18a1.7 1.7 0 0 0 1.5 2.5h16a1.7 1.7 0 0 0 1.5-2.5L13.7 3.9a1.7 1.7 0 0 0-3 0Z"/><path d="M12 9v4.4"/><circle cx="12" cy="17" r=".5" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-phone" viewBox="0 0 24 24"><path d="M15.6 13.4a11 11 0 0 1-5-5l1.6-1.6a1 1 0 0 0 .2-1.1L11 2.7A1 1 0 0 0 10 2H5.2a1 1 0 0 0-1 1A16 16 0 0 0 20 18.8a1 1 0 0 0 1-1V14a1 1 0 0 0-.6-1l-2.6-1.2a1 1 0 0 0-1.1.2Z"/></symbol>
+  <symbol id="i-nav" viewBox="0 0 24 24"><path d="m3 11 18-8-8 18-2-8-8-2Z"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+  <symbol id="i-arr" viewBox="0 0 24 24"><path d="M4 12h15"/><path d="m13 5 7 7-7 7"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+  <symbol id="i-wind" viewBox="0 0 24 24"><path d="M3 8h10a2.4 2.4 0 1 0-2.4-2.4"/><path d="M3 12h15a2.4 2.4 0 1 1-2.4 2.4"/><path d="M3 16h7a2 2 0 1 1-2 2"/></symbol>
+  <symbol id="i-drop" viewBox="0 0 24 24"><path d="M12 3.3c3 3.6 5.6 6.4 5.6 9.6a5.6 5.6 0 0 1-11.2 0c0-3.2 2.6-6 5.6-9.6Z"/></symbol>
+  <symbol id="i-bed" viewBox="0 0 24 24"><path d="M3 6v12"/><path d="M3 12h16a2 2 0 0 1 2 2v4"/><path d="M3 17.5h18"/><path d="M6.5 12v-1.4a1.5 1.5 0 0 1 1.5-1.5h4v2.9"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.4"/><path d="M12 7.4V12l3 1.8"/></symbol>
+  <symbol id="i-userx" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 20a5.6 5.6 0 0 1 11 0"/><path d="m16.5 8.5 4 4M20.5 8.5l-4 4"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.3M12 19.2v2.3M2.5 12h2.3M19.2 12h2.3M5 5l1.6 1.6M17.4 17.4 19 19M19 5l-1.6 1.6M6.6 17.4 5 19"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.6A8 8 0 1 1 9.4 4 6.5 6.5 0 0 0 20 14.6Z"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="12" cy="5.5" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="18.5" r="1.3" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-pill" viewBox="0 0 24 24"><path d="M10.5 20.5a4.95 4.95 0 0 1-7-7l6-6a4.95 4.95 0 0 1 7 7Z"/><path d="m8.5 8.5 7 7"/></symbol>
+  <symbol id="i-card" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/></symbol>
+  <symbol id="i-route" viewBox="0 0 24 24"><circle cx="6" cy="19" r="2.4"/><circle cx="18" cy="5" r="2.4"/><path d="M8.4 19H14a3.5 3.5 0 0 0 0-7H9.5a3.5 3.5 0 0 1 0-7h6"/></symbol>
+</svg>
+
+<div class="app">
+  <!-- ───────── sidebar ───────── -->
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="logo"><svg class="ic"><use href="#i-activity"/></svg></span>
+      <span><b>สุขภาพหน้าด่าน</b><span>Spatial Health · EOC</span></span>
+    </div>
+    <nav class="nav" aria-label="เมนูหลัก">
+      <a class="on" href="#" aria-current="page"><svg class="ic"><use href="#i-dash"/></svg><span>ภาพรวม</span></a>
+      <a href="#"><svg class="ic"><use href="#i-map"/></svg><span>แผนที่ปฏิบัติการ</span></a>
+      <a href="#"><svg class="ic"><use href="#i-home"/></svg><span>กลุ่มเปราะบาง</span><span class="count">38</span></a>
+      <a href="#"><svg class="ic"><use href="#i-tent"/></svg><span>ศูนย์พักพิง</span><span class="count q">5</span></a>
+      <a href="#"><svg class="ic"><use href="#i-buoy"/></svg><span>ทีม &amp; คำร้อง</span><span class="count q">7</span></a>
+      <a href="#"><svg class="ic"><use href="#i-set"/></svg><span>ตั้งค่า</span></a>
+    </nav>
+    <div class="foot">
+      <div class="incpill">
+        <span class="dot"></span>
+        <span><b>น้ำท่วมน่าน</b><span>โหมดวิกฤต · กำลังจัดการ</span></span>
+      </div>
+      <div class="usr">
+        <span class="av">ใจ</span>
+        <span><b>นางสาวใจดี</b><span>รพ.สต. ในเวียง · officer</span></span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ───────── main ───────── -->
+  <div class="main">
+    <header class="topbar">
+      <div>
+        <div class="eyebrow">ศูนย์บัญชาการ EOC · จ.น่าน</div>
+        <h1>ภาพรวมสถานการณ์</h1>
+      </div>
+      <div class="tb-right">
+        <span class="conn"><span class="dot"></span>JHCIS เชื่อมต่อ</span>
+        <button class="inc-switch" title="เปลี่ยนเหตุการณ์">
+          <span class="dot"></span><b>น้ำท่วมน่าน ก.ย. 2567</b><svg class="ic"><use href="#i-chev"/></svg>
+        </button>
+        <div class="modetoggle" role="tablist" aria-label="โหมดระบบ">
+          <button class="crisis on" data-mode="crisis" role="tab">วิกฤต</button>
+          <button data-mode="normal" role="tab">ปกติ</button>
+        </div>
+        <button class="iconbtn" id="theme" title="สลับโหมดมืด" aria-label="สลับโหมดมืด"><svg class="ic"><use href="#i-moon"/></svg></button>
+      </div>
+    </header>
+
+    <div class="content">
+      <!-- ── action banner ── -->
+      <div class="banner hero-crisis" role="alert">
+        <span class="bell"><svg class="ic"><use href="#i-alert"/></svg></span>
+        <div class="btxt">
+          <b>ผู้ป่วยพึ่งอุปกรณ์พยุงชีพในเขตน้ำท่วม ยังไม่อพยพ <span class="n mono">5</span> ราย</b>
+          <span>ออกซิเจน/ฟอกไต · อยู่ในเขตน้ำท่วม · ยังไม่มีทีมเข้ารับ · ระดับน้ำกำลังขึ้น</span>
+        </div>
+        <button class="go">เปิดคิวสั่งการ <svg class="ic"><use href="#i-arr"/></svg></button>
+      </div>
+      <div class="banner normal hero-normal">
+        <span class="bell"><svg class="ic"><use href="#i-check"/></svg></span>
+        <div class="btxt">
+          <b>โหมดปกติ · ดูแลทะเบียนสุขภาพชุมชน</b>
+          <span>ไม่มีเหตุการณ์ที่กำลังจัดการ · ระบบกำลังติดตามความครอบคลุมการเยี่ยมและความพร้อมรับภัย</span>
+        </div>
+        <button class="go">เริ่มเฝ้าระวังเหตุการณ์ <svg class="ic"><use href="#i-arr"/></svg></button>
+      </div>
+
+      <!-- ── status ribbon (crisis) ── -->
+      <div class="ribbon ribbon-crisis">
+        <div class="stat"><span class="k">เปราะบางทั้งหมด</span><span class="v mono">248</span><span class="trend">ในพื้นที่เหตุการณ์</span></div>
+        <div class="stat"><span class="k"><i style="background:var(--flood)"></i>ในเขตน้ำท่วม</span><span class="v flood mono">38</span><span class="trend"><b>+6</b> ใน 3 ชม.</span></div>
+        <div class="stat"><span class="k"><i style="background:var(--flood)"></i>พึ่งอุปกรณ์พยุงชีพ</span><span class="v flood mono">22</span><span class="trend">O2 14 · ฟอกไต 8</span></div>
+        <div class="stat"><span class="k"><i style="background:var(--near)"></i>รอส่งต่อ รพ.</span><span class="v near mono">7</span><span class="trend">เกิน 2 ชม. <b>2</b> ราย</span></div>
+        <div class="stat"><span class="k"><i style="background:var(--evac)"></i>อพยพเข้าศูนย์</span><span class="v evac mono">96</span><span class="trend">5 ศูนย์เปิดรับ</span></div>
+        <div class="stat"><span class="k"><i style="background:var(--safe)"></i>ทีมปฏิบัติการ</span><span class="v safe mono">9</span><span class="trend">เรือ 4 · GMC 2 · EMS 3</span></div>
+      </div>
+      <!-- ── status ribbon (normal) ── -->
+      <div class="ribbon ribbon-normal">
+        <div class="stat"><span class="k">เปราะบางทั้งหมด</span><span class="v mono">248</span><span class="trend">ในความดูแล</span></div>
+        <div class="stat"><span class="k"><i style="background:var(--safe)"></i>เยี่ยมครบใน 90 วัน</span><span class="v safe mono">78<small>%</small></span><span class="trend">194 / 248 ราย</span></div>
+        <div class="stat"><span class="k"><i style="background:var(--near)"></i>ค้างการเยี่ยม</span><span class="v near mono">54</span><span class="trend">เกิน 120 วัน <b>19</b></span></div>
+        <div class="stat"><span class="k"><i style="background:var(--flood)"></i>เฝ้าระวังพิเศษ</span><span class="v mono">31</span><span class="trend">บ้านเคยน้ำท่วม</span></div>
+        <div class="stat"><span class="k"><i style="background:var(--evac)"></i>อสม. ปฏิบัติงาน</span><span class="v evac mono">22</span><span class="trend">ครอบคลุม 7 หมู่บ้าน</span></div>
+        <div class="stat"><span class="k">อัปเดตล่าสุด</span><span class="v mono">วันนี้</span><span class="trend">ข้อมูลสด JHCIS</span></div>
+      </div>
+
+      <!-- ── two-column ── -->
+      <div class="grid">
+        <!-- LEFT: hero -->
+        <div>
+          <!-- crisis: survivability queue -->
+          <section class="panel hero-crisis">
+            <header>
+              <div>
+                <div class="ttl">เคสร้อน · คิวสั่งการ</div>
+                <div class="sub">เรียงอัตโนมัติตามความเสี่ยงถึงชีวิต (อุปกรณ์พยุงชีพ × ระยะน้ำ × เวลาติดต่อ × ผู้ดูแล)</div>
+              </div>
+              <span class="auto"><span class="d"></span>คำนวณสด</span>
+            </header>
+            <div style="padding:12px 18px 0;display:flex;justify-content:flex-end">
+              <div class="seg" id="qfilter" role="tablist" aria-label="กรองคิว">
+                <button class="on" data-f="all" role="tab">ทั้งหมด <span class="c">5</span></button>
+                <button data-f="life" role="tab">พึ่งอุปกรณ์ <span class="c">2</span></button>
+                <button data-f="wait" role="tab">รอเรือ <span class="c">2</span></button>
+              </div>
+            </div>
+            <div class="queue">
+              <!-- row 1 -->
+              <article class="qrow open" data-cat="life">
+                <div class="qhead" tabindex="0" role="button" aria-expanded="true">
+                  <span class="score p1"><b>P1</b><span class="mono">O2</span></span>
+                  <div class="qident">
+                    <div class="who">
+                      <span class="st" style="color:var(--flood)"><span class="d" style="background:var(--flood)"></span>วิกฤต</span>
+                      <span class="name">บ้านนายสมชาย ใจดี</span>
+                      <span class="house">บ้านเลขที่ 42 ม.4 ต.ในเวียง · 4 คนในบ้าน</span>
+                    </div>
+                    <div class="meta">
+                      <span class="tag life"><svg class="ic"><use href="#i-wind"/></svg>พึ่งออกซิเจน</span>
+                      <span class="tag dist"><svg class="ic"><use href="#i-drop"/></svg>ห่างน้ำ 120 ม.</span>
+                      <span class="tag warn"><svg class="ic"><use href="#i-userx"/></svg>ไม่มีผู้ดูแลในทะเบียน</span>
+                      <span class="tag time"><svg class="ic"><use href="#i-clock"/></svg>ติดต่อล่าสุด 9 ชม.</span>
+                    </div>
+                  </div>
+                  <div class="qright">
+                    <span class="team"><svg class="ic"><use href="#i-nav"/></svg>เสนอ <b>เรือ ก-2</b> · โซน 4</span>
+                    <div class="qact">
+                      <button class="btn primary"><svg class="ic"><use href="#i-nav"/></svg>จัดทีม</button>
+                      <button class="btn ghost"><svg class="ic"><use href="#i-phone"/></svg>โทร อสม.</button>
+                      <svg class="ic chev"><use href="#i-chev"/></svg>
+                    </div>
+                  </div>
+                </div>
+                <div class="qdetail"><div><div class="hh">
+                  <div>
+                    <h4>สมาชิกในครัวเรือน (อพยพพร้อมกัน)</h4>
+                    <div class="member"><span class="mav">สม</span><div><div class="mn">นายสมชาย ใจดี</div><div class="mr">74 ปี · ติดเตียง · ใช้ออกซิเจนต่อเนื่อง</div></div><span class="mtag o2">O2</span></div>
+                    <div class="member"><span class="mav">พิ</span><div><div class="mn">นางพิกุล ใจดี</div><div class="mr">70 ปี · ผู้ดูแลหลัก · เบาหวาน</div></div><span class="mtag care">ผู้ดูแล</span></div>
+                    <div class="member"><span class="mav">มะ</span><div><div class="mn">น.ส.มะลิ ใจดี</div><div class="mr">32 ปี · 08x-xxx-4521</div></div></div>
+                    <div class="member"><span class="mav">ต้</span><div><div class="mn">ด.ช.ต้น ใจดี</div><div class="mr">8 ปี</div></div></div>
+                  </div>
+                  <div>
+                    <h4>รายการต้องนำติดตัวเมื่ออพยพ</h4>
+                    <div class="bringlist">
+                      <div class="item"><svg class="ic"><use href="#i-wind"/></svg><b>ถัง O2 สำรอง ×1</b> + สายให้ออกซิเจน</div>
+                      <div class="item"><svg class="ic"><use href="#i-pill"/></svg><b>ยาเบาหวาน</b> (ผู้ดูแล) 5 วัน</div>
+                      <div class="item"><svg class="ic"><use href="#i-card"/></svg><b>บัตรประชาชน + บัตรทอง</b> ทุกคน</div>
+                    </div>
+                  </div>
+                  <div class="hh-act">
+                    <button class="btn primary"><svg class="ic"><use href="#i-nav"/></svg>จัดเรือ ก-2 ไปบ้านนี้</button>
+                    <button class="btn ghost"><svg class="ic"><use href="#i-route"/></svg>ดูเส้นทางบนแผนที่</button>
+                    <button class="btn ghost"><svg class="ic"><use href="#i-phone"/></svg>โทร อสม.สมหญิง (ม.4)</button>
+                  </div>
+                </div></div></div>
+              </article>
+
+              <!-- row 2 -->
+              <article class="qrow" data-cat="life">
+                <div class="qhead" tabindex="0" role="button" aria-expanded="false">
+                  <span class="score p1"><b>P1</b><span class="mono">ฟอกไต</span></span>
+                  <div class="qident">
+                    <div class="who">
+                      <span class="st" style="color:var(--flood)"><span class="d" style="background:var(--flood)"></span>วิกฤต</span>
+                      <span class="name">บ้านนางบุญมา แสงทอง</span>
+                      <span class="house">บ้านเลขที่ 7 ม.3 ต.ดู่ใต้ · 2 คนในบ้าน</span>
+                    </div>
+                    <div class="meta">
+                      <span class="tag life"><svg class="ic"><use href="#i-drop"/></svg>ฟอกไต (CAPD)</span>
+                      <span class="tag dist"><svg class="ic"><use href="#i-drop"/></svg>ห่างน้ำ 60 ม.</span>
+                      <span class="tag time"><svg class="ic"><use href="#i-clock"/></svg>ติดต่อล่าสุด 3 ชม.</span>
+                    </div>
+                  </div>
+                  <div class="qright">
+                    <span class="team"><svg class="ic"><use href="#i-nav"/></svg>เสนอ <b>เรือ ข-1</b> · โซน 3</span>
+                    <div class="qact">
+                      <button class="btn primary"><svg class="ic"><use href="#i-nav"/></svg>จัดทีม</button>
+                      <button class="btn ghost"><svg class="ic"><use href="#i-phone"/></svg>โทร อสม.</button>
+                      <svg class="ic chev"><use href="#i-chev"/></svg>
+                    </div>
+                  </div>
+                </div>
+                <div class="qdetail"><div><div class="hh">
+                  <div>
+                    <h4>สมาชิกในครัวเรือน</h4>
+                    <div class="member"><span class="mav">บุ</span><div><div class="mn">นางบุญมา แสงทอง</div><div class="mr">68 ปี · ฟอกไตทางช่องท้อง (CAPD) วันละ 4 รอบ</div></div><span class="mtag o2">ฟอกไต</span></div>
+                    <div class="member"><span class="mav">สา</span><div><div class="mn">นายสาคร แสงทอง</div><div class="mr">71 ปี · ผู้ดูแล · 08x-xxx-7788</div></div><span class="mtag care">ผู้ดูแล</span></div>
+                  </div>
+                  <div>
+                    <h4>รายการต้องนำติดตัวเมื่ออพยพ</h4>
+                    <div class="bringlist">
+                      <div class="item"><svg class="ic"><use href="#i-drop"/></svg><b>น้ำยาฟอกไต CAPD</b> 2 วัน (8 ถุง)</div>
+                      <div class="item"><svg class="ic"><use href="#i-pill"/></svg><b>ชุดต่อสายปลอดเชื้อ</b> + แอลกอฮอล์</div>
+                      <div class="item"><svg class="ic"><use href="#i-card"/></svg><b>สมุดนัดฟอกไต</b> รพ.น่าน</div>
+                    </div>
+                  </div>
+                  <div class="hh-act">
+                    <button class="btn primary"><svg class="ic"><use href="#i-nav"/></svg>จัดเรือ ข-1 ไปบ้านนี้</button>
+                    <button class="btn ghost"><svg class="ic"><use href="#i-route"/></svg>ส่งต่อ รพ.น่าน (แจ้งล่วงหน้า)</button>
+                  </div>
+                </div></div></div>
+              </article>
+
+              <!-- row 3 -->
+              <article class="qrow" data-cat="wait">
+                <div class="qhead" tabindex="0" role="button" aria-expanded="false">
+                  <span class="score p2"><b>P2</b><span class="mono">ยา</span></span>
+                  <div class="qident">
+                    <div class="who">
+                      <span class="st" style="color:oklch(0.5 0.16 65)"><span class="d" style="background:var(--near)"></span>เร่งด่วน</span>
+                      <span class="name">บ้านยายพิน คำมูล</span>
+                      <span class="house">บ้านเลขที่ 19 ม.1 ต.บ่อ · 3 คนในบ้าน</span>
+                    </div>
+                    <div class="meta">
+                      <span class="tag life"><svg class="ic"><use href="#i-pill"/></svg>ยากันชัก</span>
+                      <span class="tag dist"><svg class="ic"><use href="#i-drop"/></svg>ห่างน้ำ 240 ม.</span>
+                      <span class="tag warn"><svg class="ic"><use href="#i-userx"/></svg>ผู้ดูแลเป็นผู้สูงอายุ</span>
+                    </div>
+                  </div>
+                  <div class="qright">
+                    <span class="team"><svg class="ic"><use href="#i-nav"/></svg>เสนอ <b>GMC 2</b> · โซน 1</span>
+                    <div class="qact">
+                      <button class="btn primary"><svg class="ic"><use href="#i-nav"/></svg>จัดทีม</button>
+                      <button class="btn ghost"><svg class="ic"><use href="#i-phone"/></svg>โทร อสม.</button>
+                      <svg class="ic chev"><use href="#i-chev"/></svg>
+                    </div>
+                  </div>
+                </div>
+                <div class="qdetail"><div><div class="hh">
+                  <div>
+                    <h4>สมาชิกในครัวเรือน</h4>
+                    <div class="member"><span class="mav">ธ</span><div><div class="mn">ด.ช.ธนา คำมูล</div><div class="mr">9 ปี · ลมชัก · ต้องกินยาตรงเวลา</div></div><span class="mtag o2">ยากันชัก</span></div>
+                    <div class="member"><span class="mav">พิ</span><div><div class="mn">นางพิน คำมูล</div><div class="mr">70 ปี · ยาย/ผู้ดูแล</div></div><span class="mtag care">ผู้ดูแล</span></div>
+                    <div class="member"><span class="mav">นา</span><div><div class="mn">ด.ญ.นา คำมูล</div><div class="mr">12 ปี</div></div></div>
+                  </div>
+                  <div>
+                    <h4>รายการต้องนำติดตัวเมื่ออพยพ</h4>
+                    <div class="bringlist">
+                      <div class="item"><svg class="ic"><use href="#i-pill"/></svg><b>ยากันชัก</b> สำรอง 7 วัน (พกไปด้วย)</div>
+                      <div class="item"><svg class="ic"><use href="#i-card"/></svg><b>ใบนัด + ประวัติยา</b> รพ.สต.</div>
+                    </div>
+                  </div>
+                  <div class="hh-act">
+                    <button class="btn primary"><svg class="ic"><use href="#i-nav"/></svg>จัด GMC 2 + เตรียมยากันชักจาก รพ.สต.</button>
+                    <button class="btn ghost"><svg class="ic"><use href="#i-phone"/></svg>โทรยายพิน</button>
+                  </div>
+                </div></div></div>
+              </article>
+
+              <!-- row 4 -->
+              <article class="qrow" data-cat="wait">
+                <div class="qhead" tabindex="0" role="button" aria-expanded="false">
+                  <span class="score p2"><b>P2</b><span class="mono">เตียง</span></span>
+                  <div class="qident">
+                    <div class="who">
+                      <span class="st" style="color:oklch(0.5 0.16 65)"><span class="d" style="background:var(--near)"></span>เร่งด่วน</span>
+                      <span class="name">บ้านนายคำ ดวงดี</span>
+                      <span class="house">บ้านเลขที่ 88 ม.6 ต.ม่วงตึ๊ด · 2 คนในบ้าน</span>
+                    </div>
+                    <div class="meta">
+                      <span class="tag life"><svg class="ic"><use href="#i-bed"/></svg>ติดเตียง · แผลกดทับ</span>
+                      <span class="tag dist"><svg class="ic"><use href="#i-drop"/></svg>ห่างน้ำ 300 ม.</span>
+                      <span class="tag warn">รอส่งต่อ รพ. 2 ชม.</span>
+                    </div>
+                  </div>
+                  <div class="qright">
+                    <span class="team"><svg class="ic"><use href="#i-nav"/></svg>เสนอ <b>EMS 1</b> · โซน 6</span>
+                    <div class="qact">
+                      <button class="btn primary"><svg class="ic"><use href="#i-nav"/></svg>จัดทีม</button>
+                      <button class="btn ghost"><svg class="ic"><use href="#i-phone"/></svg>โทร อสม.</button>
+                      <svg class="ic chev"><use href="#i-chev"/></svg>
+                    </div>
+                  </div>
+                </div>
+                <div class="qdetail"><div><div class="hh">
+                  <div><h4>สมาชิกในครัวเรือน</h4>
+                    <div class="member"><span class="mav">คำ</span><div><div class="mn">นายคำ ดวงดี</div><div class="mr">81 ปี · ติดเตียง · แผลกดทับระดับ 2</div></div><span class="mtag o2">ติดเตียง</span></div>
+                    <div class="member"><span class="mav">บัว</span><div><div class="mn">นางบัว ดวงดี</div><div class="mr">76 ปี · ภรรยา/ผู้ดูแล</div></div><span class="mtag care">ผู้ดูแล</span></div>
+                  </div>
+                  <div><h4>รายการต้องนำติดตัวเมื่ออพยพ</h4>
+                    <div class="bringlist">
+                      <div class="item"><svg class="ic"><use href="#i-pill"/></svg><b>ชุดทำแผล</b> + ที่นอนลม</div>
+                      <div class="item"><svg class="ic"><use href="#i-card"/></svg><b>ใบส่งตัว รพ.</b></div>
+                    </div>
+                  </div>
+                  <div class="hh-act"><button class="btn primary"><svg class="ic"><use href="#i-nav"/></svg>จัด EMS 1 + เปลตัก</button><button class="btn ghost"><svg class="ic"><use href="#i-route"/></svg>ส่งต่อ รพ.น่าน</button></div>
+                </div></div></div>
+              </article>
+
+              <!-- row 5 -->
+              <article class="qrow" data-cat="all">
+                <div class="qhead" tabindex="0" role="button" aria-expanded="false">
+                  <span class="score p3"><b>P3</b><span class="mono">เฝ้า</span></span>
+                  <div class="qident">
+                    <div class="who">
+                      <span class="st" style="color:oklch(0.55 0.13 72)"><span class="d" style="background:var(--near)"></span>เฝ้าระวัง</span>
+                      <span class="name">บ้านนางสาคร พรหมมา</span>
+                      <span class="house">บ้านเลขที่ 25 ม.2 ต.ในเวียง · 3 คนในบ้าน</span>
+                    </div>
+                    <div class="meta">
+                      <span class="tag warn">ตั้งครรภ์ 36 สัปดาห์</span>
+                      <span class="tag dist"><svg class="ic"><use href="#i-drop"/></svg>ใกล้เขต 520 ม.</span>
+                      <span class="tag time"><svg class="ic"><use href="#i-clock"/></svg>ติดต่อล่าสุด 1 ชม.</span>
+                    </div>
+                  </div>
+                  <div class="qright">
+                    <span class="team" style="background:var(--bg-sunken);border-color:var(--border)"><svg class="ic" style="color:var(--fg-subtle)"><use href="#i-clock"/></svg>เตรียมแผน · ยังไม่จัดทีม</span>
+                    <div class="qact">
+                      <button class="btn ghost"><svg class="ic"><use href="#i-nav"/></svg>เตรียมทีม</button>
+                      <button class="btn ghost"><svg class="ic"><use href="#i-phone"/></svg>โทร อสม.</button>
+                      <svg class="ic chev"><use href="#i-chev"/></svg>
+                    </div>
+                  </div>
+                </div>
+                <div class="qdetail"><div><div class="hh">
+                  <div><h4>สมาชิกในครัวเรือน</h4>
+                    <div class="member"><span class="mav">สา</span><div><div class="mn">นางสาคร พรหมมา</div><div class="mr">28 ปี · ตั้งครรภ์ 36 สัปดาห์ · ครรภ์เสี่ยง</div></div><span class="mtag o2">ครรภ์เสี่ยง</span></div>
+                    <div class="member"><span class="mav">วี</span><div><div class="mn">นายวีระ พรหมมา</div><div class="mr">31 ปี · สามี</div></div></div>
+                    <div class="member"><span class="mav">น้</span><div><div class="mn">ด.ญ.น้ำ พรหมมา</div><div class="mr">4 ปี</div></div></div>
+                  </div>
+                  <div><h4>คำแนะนำระบบ</h4>
+                    <div class="bringlist">
+                      <div class="item"><svg class="ic"><use href="#i-clock"/></svg>ระดับน้ำห่าง 520 ม. · ยังไม่ถึงเกณฑ์อพยพ</div>
+                      <div class="item"><svg class="ic"><use href="#i-check"/></svg><b>เฝ้าระวัง</b> หากน้ำเข้าใกล้ 300 ม. ยกเป็น P2 อัตโนมัติ</div>
+                    </div>
+                  </div>
+                </div></div></div>
+              </article>
+            </div>
+          </section>
+
+          <!-- normal: coverage worklist (L6 moat) -->
+          <section class="panel hero-normal">
+            <header>
+              <div>
+                <div class="ttl">หมู่บ้านที่ควรเยี่ยม</div>
+                <div class="sub">เรียงตาม ค้างเยี่ยมนานสุด × จำนวนเปราะบาง × ประวัติน้ำท่วม</div>
+              </div>
+              <span class="auto"><span class="d" style="background:var(--safe)"></span>เตรียมพร้อม</span>
+            </header>
+            <div>
+              <div class="cov">
+                <div><div class="cvn">ม.6 ต.ม่วงตึ๊ด · อ.ภูเพียง</div>
+                  <div class="cvm"><span class="tag dist"><svg class="ic"><use href="#i-home"/></svg>เปราะบาง 8</span><span class="tag life"><svg class="ic"><use href="#i-bed"/></svg>ติดเตียง 2</span><span class="tag warn">เคยน้ำท่วม 2566</span></div>
+                </div>
+                <div style="text-align:right"><div class="days old mono">142 วัน</div><button class="btn ghost" style="margin-top:7px">มอบหมาย อสม.</button></div>
+              </div>
+              <div class="cov">
+                <div><div class="cvn">ม.2 ต.บ่อ · อ.เมืองน่าน</div>
+                  <div class="cvm"><span class="tag dist"><svg class="ic"><use href="#i-home"/></svg>เปราะบาง 6</span><span class="tag life"><svg class="ic"><use href="#i-drop"/></svg>ฟอกไต 1</span></div>
+                </div>
+                <div style="text-align:right"><div class="days old mono">131 วัน</div><button class="btn ghost" style="margin-top:7px">มอบหมาย อสม.</button></div>
+              </div>
+              <div class="cov">
+                <div><div class="cvn">ม.4 ต.ในเวียง · อ.เมืองน่าน</div>
+                  <div class="cvm"><span class="tag dist"><svg class="ic"><use href="#i-home"/></svg>เปราะบาง 11</span><span class="tag warn">เคยน้ำท่วม 2566</span></div>
+                </div>
+                <div style="text-align:right"><div class="days mono">96 วัน</div><button class="btn ghost" style="margin-top:7px">มอบหมาย อสม.</button></div>
+              </div>
+              <div class="cov">
+                <div><div class="cvn">ม.1 ต.ดู่ใต้ · อ.เมืองน่าน</div>
+                  <div class="cvm"><span class="tag dist"><svg class="ic"><use href="#i-home"/></svg>เปราะบาง 5</span></div>
+                </div>
+                <div style="text-align:right"><div class="days mono">72 วัน</div><button class="btn ghost" style="margin-top:7px">มอบหมาย อสม.</button></div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <!-- RIGHT: rail -->
+        <div class="rail">
+          <!-- donut -->
+          <section class="panel">
+            <header><div class="ttl">สถานะการอพยพ</div><span class="auto" style="background:color-mix(in oklch,var(--evac) 10%,transparent);color:var(--evac)"><span class="d" style="background:var(--evac)"></span>248 ราย</span></header>
+            <div class="donutwrap">
+              <div class="donut">
+                <svg width="140" height="140" viewBox="0 0 144 144">
+                  <circle cx="72" cy="72" r="54" fill="none" stroke="var(--bg-sunken)" stroke-width="16"/>
+                  <circle cx="72" cy="72" r="54" fill="none" stroke="var(--flood)" stroke-width="16" stroke-dasharray="52 287" stroke-dashoffset="0"/>
+                  <circle cx="72" cy="72" r="54" fill="none" stroke="var(--near)" stroke-width="16" stroke-dasharray="56 283" stroke-dashoffset="-52"/>
+                  <circle cx="72" cy="72" r="54" fill="none" stroke="var(--evac)" stroke-width="16" stroke-dasharray="131 208" stroke-dashoffset="-108"/>
+                  <circle cx="72" cy="72" r="54" fill="none" stroke="var(--safe)" stroke-width="16" stroke-dasharray="100 239" stroke-dashoffset="-239"/>
+                </svg>
+                <div class="ctr"><b class="mono">248</b><span>เปราะบาง</span></div>
+              </div>
+              <div class="legend">
+                <div class="lr"><i style="background:var(--flood)"></i><span class="lt">ยังอยู่ในเขตเสี่ยง</span><span class="lv mono">38</span><span class="lp mono">15%</span></div>
+                <div class="lr"><i style="background:var(--near)"></i><span class="lt">ใกล้เขตเสี่ยง</span><span class="lv mono">41</span><span class="lp mono">17%</span></div>
+                <div class="lr"><i style="background:var(--evac)"></i><span class="lt">อพยพเข้าศูนย์แล้ว</span><span class="lv mono">96</span><span class="lp mono">39%</span></div>
+                <div class="lr"><i style="background:var(--safe)"></i><span class="lt">ปลอดภัย/นอกเขต</span><span class="lv mono">73</span><span class="lp mono">29%</span></div>
+              </div>
+            </div>
+          </section>
+
+          <!-- bars -->
+          <section class="panel">
+            <header><div><div class="ttl">กลุ่มเปราะบาง</div><div class="sub">แถบแดง = อยู่ในเขตน้ำท่วม</div></div></header>
+            <div class="bars">
+              <div class="bar"><div class="blab"><span class="bn"><svg class="ic"><use href="#i-bed"/></svg>ติดเตียง</span><span class="bv"><b class="mono">34</b><span class="inf mono">9 ในเขตน้ำ</span></span></div>
+                <div class="track"><div class="total" style="width:35%"><div class="inf" style="width:26%"></div></div></div></div>
+              <div class="bar"><div class="blab"><span class="bn"><svg class="ic"><use href="#i-home"/></svg>ผู้สูงอายุติดบ้าน</span><span class="bv"><b class="mono">96</b><span class="inf mono">14</span></span></div>
+                <div class="track"><div class="total" style="width:100%"><div class="inf" style="width:15%"></div></div></div></div>
+              <div class="bar"><div class="blab"><span class="bn"><svg class="ic"><use href="#i-buoy"/></svg>พิการ</span><span class="bv"><b class="mono">41</b><span class="inf mono">6</span></span></div>
+                <div class="track"><div class="total" style="width:43%"><div class="inf" style="width:15%"></div></div></div></div>
+              <div class="bar"><div class="blab"><span class="bn"><svg class="ic"><use href="#i-drop"/></svg>โรคเรื้อรัง (ฟอกไต/หัวใจ)</span><span class="bv"><b class="mono">65</b><span class="inf mono">6</span></span></div>
+                <div class="track"><div class="total" style="width:68%"><div class="inf" style="width:9%"></div></div></div></div>
+              <div class="bar"><div class="blab"><span class="bn"><svg class="ic"><use href="#i-activity"/></svg>ตั้งครรภ์</span><span class="bv"><b class="mono">12</b><span class="inf mono">3</span></span></div>
+                <div class="track"><div class="total" style="width:13%"><div class="inf" style="width:25%"></div></div></div></div>
+            </div>
+          </section>
+
+          <!-- shelters near full -->
+          <section class="panel">
+            <header><div><div class="ttl">ศูนย์พักพิงใกล้เต็ม</div><div class="sub">ความจุ + ความพร้อมด้านสุขภาพ</div></div></header>
+            <div class="shl">
+              <div class="srow">
+                <div class="stop"><span class="sn">รร.ศรีนวล</span><span class="smgr">นางเพชรทิพย์</span><span class="scap">264/280<span class="pct">94%</span></span></div>
+                <div class="captrack"><div class="capfill hot" style="width:94%"></div></div>
+                <div class="health"><span class="hchip ok"><svg class="ic"><use href="#i-bed"/></svg>เตียงพยาบาล 6/8</span><span class="hchip ok"><svg class="ic"><use href="#i-wind"/></svg>มีออกซิเจน</span></div>
+              </div>
+              <div class="srow">
+                <div class="stop"><span class="sn">วัดพรหมวิหาร</span><span class="smgr">พระมหาสมชาย</span><span class="scap">168/180<span class="pct">93%</span></span></div>
+                <div class="captrack"><div class="capfill hot" style="width:93%"></div></div>
+                <div class="health"><span class="hchip full"><svg class="ic"><use href="#i-bed"/></svg>เตียงเต็ม 4/4</span><span class="hchip ok"><svg class="ic"><use href="#i-wind"/></svg>มีออกซิเจน</span></div>
+              </div>
+              <div class="srow">
+                <div class="stop"><span class="sn">รพ.สต.ภูเพียง</span><span class="smgr">นายอิชาติ</span><span class="scap">78/90<span class="pct">87%</span></span></div>
+                <div class="captrack"><div class="capfill warm" style="width:87%"></div></div>
+                <div class="health"><span class="hchip ok"><svg class="ic"><use href="#i-bed"/></svg>เตียงพยาบาล 2/4</span><span class="hchip no"><svg class="ic"><use href="#i-x"/></svg>ไม่มีออกซิเจน</span></div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <p class="foot-note">
+        ข้อมูลแสดงเฉพาะผู้มีสิทธิ์ตาม พ.ร.บ.คุ้มครองข้อมูลส่วนบุคคล (PDPA) · ทุกการเข้าถึงถูกบันทึก audit log<br/>
+        mockup · ระบบภูมิสารสนเทศสุขภาพระดับหน้าด่าน · north star สำหรับหน้า "ภาพรวมผู้บัญชาการ" (เทียบ HEART)
+      </p>
+    </div>
+  </div>
+</div>
+
+<script>
+// theme toggle
+const themeBtn=document.getElementById('theme');
+themeBtn.addEventListener('click',()=>{
+  const dark=document.documentElement.classList.toggle('dark');
+  themeBtn.querySelector('use').setAttribute('href',dark?'#i-sun':'#i-moon');
+});
+// mode toggle
+document.querySelectorAll('.modetoggle button').forEach(b=>{
+  b.addEventListener('click',()=>{
+    document.querySelectorAll('.modetoggle button').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');
+    document.body.classList.toggle('mode-normal',b.dataset.mode==='normal');
+    document.body.classList.toggle('mode-crisis',b.dataset.mode==='crisis');
+  });
+});
+// queue row expand
+document.querySelectorAll('.qhead').forEach(h=>{
+  const toggle=()=>{
+    const row=h.closest('.qrow');const open=row.classList.toggle('open');
+    h.setAttribute('aria-expanded',open);
+  };
+  h.addEventListener('click',e=>{if(e.target.closest('.btn'))return;toggle();});
+  h.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggle();}});
+});
+// queue filter
+document.querySelectorAll('#qfilter button').forEach(b=>{
+  b.addEventListener('click',()=>{
+    document.querySelectorAll('#qfilter button').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');const f=b.dataset.f;
+    document.querySelectorAll('.queue .qrow').forEach(r=>{
+      const show=f==='all'||r.dataset.cat===f;
+      r.classList.toggle('hide',!show);
+    });
+  });
+});
+</script>
+</body>
+</html>

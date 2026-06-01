@@ -1,14 +1,23 @@
 import { auth } from '@/lib/auth'
 import { cookies } from 'next/headers'
-import { Plus, ShieldCheck } from 'lucide-react'
+import { ShieldCheck } from 'lucide-react'
 import { VulnerableTable } from './VulnerableTable'
-import type { Incident } from '@/types'
+import { AddVulnerableButton } from '@/components/forms/AddVulnerableButton'
+import { canWriteFieldData } from '@/lib/field-api'
+import { getActiveIncident, isNationalRole } from '@/lib/incident-scope'
+import { ALLOWED_PROVINCES } from '@/lib/provinces'
+import { FLOOD_CENTROID } from '@/lib/flood-area'
+import type { Incident, UserRole } from '@/types'
 
 export const metadata = { title: 'จัดการกลุ่มเปราะบาง — GIS Health Intelligence' }
 
 export default async function VulnerablePage() {
   const session = await auth()
-  const canEdit = ['admin', 'officer'].includes(session?.user?.role ?? '')
+  const role = (session?.user?.role ?? 'viewer') as UserRole
+  const province = session?.user?.province ?? null
+  const canEdit = canWriteFieldData(role)
+  const national = isNationalRole(role)
+  const scopeIncident = await getActiveIncident(role, province)
 
   // forward session cookie ให้ API เห็น role จริง (officer/admin → ข้อมูลเต็ม + uuid id)
   const base = process.env.NEXTAUTH_URL ?? 'http://localhost:3003'
@@ -38,10 +47,14 @@ export default async function VulnerablePage() {
         </div>
 
         {canEdit && (
-          <button type="button" className="gx-btn gx-btn-primary">
-            <Plus size={16} strokeWidth={2} />
-            เพิ่มรายการ
-          </button>
+          <AddVulnerableButton
+            area={{ village: null, tambon: scopeIncident?.tambon ?? null, amphoe: scopeIncident?.amphoe ?? null }}
+            province={province}
+            isNational={national}
+            provinceOptions={national ? [...ALLOWED_PROVINCES] : []}
+            defaultCenter={FLOOD_CENTROID}
+            incidentName={scopeIncident?.name ?? null}
+          />
         )}
       </div>
 

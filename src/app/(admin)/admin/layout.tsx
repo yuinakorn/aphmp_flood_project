@@ -1,29 +1,40 @@
 import { auth } from '@/lib/auth'
+import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { Masthead } from '@/components/shell/Masthead'
+import { AppSidebar } from '@/components/shell/AppSidebar'
+import { SidebarProvider, SIDEBAR_COOKIE } from '@/components/shell/SidebarProvider'
 import { RoleViewProvider } from '@/components/shell/RoleViewProvider'
 import { IncidentScopeProvider } from '@/components/shell/IncidentScopeProvider'
-import { IncidentBanner } from '@/components/shell/IncidentBanner'
 import { getActiveIncident, getSelectableIncidents } from '@/lib/incident-scope'
+import { canManageStaff } from '@/lib/field-api'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await auth()
   if (!session) redirect('/login')
 
   const role = session.user?.role ?? 'viewer'
+  const province = session.user?.province ?? null
   const [activeIncident, selectableIncidents] = await Promise.all([
-    getActiveIncident(role),
-    getSelectableIncidents(role),
+    getActiveIncident(role, province),
+    getSelectableIncidents(role, province),
   ])
+  const sidebarCollapsed = (await cookies()).get(SIDEBAR_COOKIE)?.value === '1'
 
   return (
     <RoleViewProvider realRole={role}>
       <IncidentScopeProvider active={activeIncident} selectable={selectableIncidents}>
+        <SidebarProvider initialCollapsed={sidebarCollapsed}>
         <div className="flex min-h-screen flex-col bg-[var(--bg)] text-[var(--fg)]">
           <Masthead session={{ role, name: session.user?.name ?? '' }} />
-          <IncidentBanner />
-          <main className="flex-1 px-8 py-8">{children}</main>
+          <div className="flex flex-1">
+            <AppSidebar canManageStaff={canManageStaff(role)} />
+            <div className="flex min-w-0 flex-1 flex-col">
+              <main className="flex-1 px-8 py-8">{children}</main>
+            </div>
+          </div>
         </div>
+        </SidebarProvider>
       </IncidentScopeProvider>
     </RoleViewProvider>
   )

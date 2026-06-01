@@ -16,7 +16,7 @@ export default async function SheltersPage() {
   if (!session) redirect('/login')
 
   const role = session.user?.role ?? 'viewer'
-  const scope = await getActiveIncident(role)
+  const scope = await getActiveIncident(role, session.user?.province ?? null)
 
   const db = getDb()
   const shelters = await db

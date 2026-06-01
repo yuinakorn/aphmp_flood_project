@@ -129,7 +129,7 @@ export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, 
   const [search, setSearch] = useState('')
   const [drill, setDrill] = useState<{ amphoe?: string; tambon?: string; vil?: string }>({})
   const [selected, setSelected] = useState<VulnerablePerson | null>(null)
-  const [action, setAction] = useState<{ id: string; name: string; mode: FieldActionMode } | null>(null)
+  const [action, setAction] = useState<{ id: string; name: string; mode: FieldActionMode; lifeSupport: string[] } | null>(null)
 
   const counts = useMemo(() => {
     const flood = persons.filter((p) => p.risk === 'flood').length
@@ -743,11 +743,11 @@ export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, 
                             </div>
                           </div>
                           <div className="flex shrink-0 gap-1.5" onClick={(e) => e.stopPropagation()}>
-                            <button type="button" onClick={() => setAction({ id: String(p.id), name: p.name, mode: 'visit' })} className="gx-btn gx-btn-ghost gx-btn-sm" title="บันทึกเยี่ยม">
+                            <button type="button" onClick={() => setAction({ id: String(p.id), name: p.name, mode: 'visit', lifeSupport: p.lifeSupport ?? [] })} className="gx-btn gx-btn-ghost gx-btn-sm" title="บันทึกเยี่ยม">
                               <Stethoscope size={14} />
                             </button>
                             {canCommand && (
-                              <button type="button" onClick={() => setAction({ id: String(p.id), name: p.name, mode: 'help' })} className="gx-btn gx-btn-ghost gx-btn-sm hover:!border-[var(--risk-flood)] hover:!text-[var(--risk-flood)]" title="ขอช่วยเหลือ">
+                              <button type="button" onClick={() => setAction({ id: String(p.id), name: p.name, mode: 'help', lifeSupport: p.lifeSupport ?? [] })} className="gx-btn gx-btn-ghost gx-btn-sm hover:!border-[var(--risk-flood)] hover:!text-[var(--risk-flood)]" title="ขอช่วยเหลือ">
                                 <LifeBuoy size={14} />
                               </button>
                             )}
@@ -831,8 +831,8 @@ export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, 
                   <div><dt className="text-[var(--fg-subtle)]">อุปกรณ์พยุงชีพ</dt><dd className="text-[var(--risk-flood)]">{selected.eq || '—'}</dd></div>
                 </dl>
                 <div className="mt-3 flex gap-2">
-                  <button type="button" onClick={() => setAction({ id: String(selected.id), name: selected.name, mode: 'visit' })} className="gx-btn gx-btn-ghost gx-btn-sm flex-1"><Stethoscope size={14} />เยี่ยม</button>
-                  {canCommand && <button type="button" onClick={() => setAction({ id: String(selected.id), name: selected.name, mode: 'help' })} className="gx-btn gx-btn-primary gx-btn-sm flex-1"><LifeBuoy size={14} />ขอช่วยเหลือ</button>}
+                  <button type="button" onClick={() => setAction({ id: String(selected.id), name: selected.name, mode: 'visit', lifeSupport: selected.lifeSupport ?? [] })} className="gx-btn gx-btn-ghost gx-btn-sm flex-1"><Stethoscope size={14} />เยี่ยม</button>
+                  {canCommand && <button type="button" onClick={() => setAction({ id: String(selected.id), name: selected.name, mode: 'help', lifeSupport: selected.lifeSupport ?? [] })} className="gx-btn gx-btn-primary gx-btn-sm flex-1"><LifeBuoy size={14} />ขอช่วยเหลือ</button>}
                 </div>
               </div>
             ) : (
@@ -849,6 +849,7 @@ export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, 
         <FieldActionSheet
           target={{ id: action.id, name: action.name }}
           mode={action.mode}
+          currentLifeSupport={action.lifeSupport}
           activeIncidents={activeIncidents}
           onClose={() => setAction(null)}
           onDone={() => { setAction(null); router.refresh() }}

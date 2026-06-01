@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
   if (!session?.user) return unauthorized()
   if (!canWriteFieldData(session.user.role)) return forbidden()
 
-  const scopeIncident = await getActiveIncident(session.user.role)
+  const scopeIncident = await getActiveIncident(session.user.role, session.user.province ?? null)
   if (!scopeIncident) return badRequest('no active incident scope')
   const incidentId = scopeIncident.id
 

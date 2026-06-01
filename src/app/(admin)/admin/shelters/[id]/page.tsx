@@ -28,7 +28,7 @@ export default async function ShelterDetailPage({ params }: { params: Promise<{ 
     notFound()
   }
 
-  const scope = await getActiveIncident(session.user?.role)
+  const scope = await getActiveIncident(session.user?.role, session.user?.province ?? null)
   const [zones, teamsRaw] = await Promise.all([
     db.select().from(shelterZones).where(eq(shelterZones.shelterId, id)).orderBy(asc(shelterZones.sortOrder), asc(shelterZones.createdAt)),
     db.select().from(rescueTeams)

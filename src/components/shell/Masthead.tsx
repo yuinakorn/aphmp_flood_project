@@ -3,6 +3,7 @@
 import {
   Waves,
   Activity,
+  MapPinned,
   ChevronDown,
   LayoutDashboard,
   FolderHeart,
@@ -15,6 +16,7 @@ import {
   Eye,
   Check,
   LogOut,
+  Menu,
 } from 'lucide-react'
 import { signOut } from 'next-auth/react'
 import {
@@ -26,6 +28,8 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { IncidentSwitcher } from '@/components/shell/IncidentSwitcher'
+import { useIncidentScope } from '@/components/shell/IncidentScopeProvider'
+import { useSidebar } from '@/components/shell/SidebarProvider'
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -125,15 +129,38 @@ export function Masthead({ session }: Props) {
   const pathname = usePathname() ?? ''
   const isActive = (href: string) =>
     href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(href + '/')
+  // หน้า /admin มี AppSidebar เป็น nav ถาวรแล้ว → ซ่อน nav บน masthead (กันซ้ำ)
+  const isAdmin = pathname.startsWith('/admin')
+  const { setMobileOpen } = useSidebar()
+  const { active } = useIncidentScope()
+
+  // แถบสีด้านบน navbar = สัญญาณโหมดวิกฤต (แทน banner เต็มแถบเดิม)
+  const crisisAccent = active
+    ? active.status === 'active'
+      ? 'border-t-[3px] border-t-red-600'
+      : active.status === 'monitoring'
+        ? 'border-t-[3px] border-t-amber-500'
+        : 'border-t-[3px] border-t-slate-500'
+    : ''
 
   return (
-    <header className="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-3 border-b border-slate-800 bg-slate-900 px-4 text-white md:gap-6">
+    <header className={`sticky top-0 z-40 flex h-16 shrink-0 items-center gap-3 border-b border-slate-800 bg-slate-900 px-4 text-white md:gap-6 ${crisisAccent}`}>
+      {isAdmin && (
+        <button
+          type="button"
+          onClick={() => setMobileOpen(true)}
+          aria-label="เปิดเมนู"
+          className="grid size-9 shrink-0 place-items-center rounded-md text-slate-300 transition-colors hover:bg-slate-800 hover:text-white md:hidden"
+        >
+          <Menu className="size-5" strokeWidth={1.75} />
+        </button>
+      )}
       <Link
         href="/map"
         className="flex items-center gap-2.5 transition-opacity hover:opacity-90 md:gap-3"
       >
         <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[var(--color-risk-safe)] text-white shadow-sm">
-          <Activity aria-hidden strokeWidth={2} className="size-5" />
+          <MapPinned aria-hidden strokeWidth={2} className="size-5" />
         </span>
         <span className="leading-tight">
           <span className="block text-[15px] font-bold tracking-tight">
@@ -145,6 +172,8 @@ export function Masthead({ session }: Props) {
         </span>
       </Link>
 
+      {!isAdmin && (
+      <>
       <span className="hidden h-6 w-px bg-slate-700 lg:block" aria-hidden />
 
       <nav className="hidden items-center gap-1 text-[13px] lg:flex">
@@ -177,7 +206,15 @@ export function Masthead({ session }: Props) {
                 <LayoutDashboard className="size-4 shrink-0 opacity-70" />
                 <span>แดชบอร์ดผู้ดูแลระบบ</span>
               </DropdownMenuItem>
-              
+
+              <DropdownMenuItem
+                render={<Link href="/admin/overview" />}
+                className="gap-2 px-2.5 py-2 text-[12.5px] cursor-pointer"
+              >
+                <Activity className="size-4 shrink-0 opacity-70" />
+                <span>ภาพรวมสถานการณ์</span>
+              </DropdownMenuItem>
+
               <DropdownMenuSeparator className="my-1 border-t border-[var(--border)]" />
 
               <DropdownMenuItem
@@ -239,6 +276,8 @@ export function Masthead({ session }: Props) {
           </DropdownMenu>
         )}
       </nav>
+      </>
+      )}
 
       <div className="ml-auto flex items-center gap-3 text-[11px] text-slate-400 md:gap-4">
         <span className="hidden font-mono uppercase tracking-[0.12em] xl:inline">

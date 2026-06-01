@@ -32,6 +32,8 @@ interface Props {
   target: FieldActionTarget
   mode: FieldActionMode
   activeIncidents: Incident[]
+  /** อุปกรณ์พยุงชีพปัจจุบันของคนนี้ — prefill checkbox (กันเขียนทับเป็นค่าว่าง) */
+  currentLifeSupport?: string[]
   onClose: () => void
   onDone: () => void
 }
@@ -75,10 +77,19 @@ const PRIORITY: { value: HelpRequestPriority; label: string }[] = [
   { value: 'low', label: 'ต่ำ' },
 ]
 
+const LIFE_SUPPORT: { value: string; label: string }[] = [
+  { value: 'oxygen', label: 'ออกซิเจน' },
+  { value: 'dialysis_capd', label: 'ฟอกไต (CAPD)' },
+  { value: 'dialysis_hd', label: 'ฟอกไตเลือด (HD)' },
+  { value: 'ventilator', label: 'เครื่องช่วยหายใจ' },
+  { value: 'anti_seizure', label: 'ยากันชัก' },
+  { value: 'feeding_tube', label: 'สายให้อาหาร' },
+]
+
 const selectCls =
   'h-9 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 text-[13px] outline-none focus:border-[var(--accent)]'
 
-export function FieldActionSheet({ target, mode, activeIncidents, onClose, onDone }: Props) {
+export function FieldActionSheet({ target, mode, activeIncidents, currentLifeSupport, onClose, onDone }: Props) {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -88,6 +99,9 @@ export function FieldActionSheet({ target, mode, activeIncidents, onClose, onDon
   const [needsHelp, setNeedsHelp] = useState(false)
   const [helpTypeVisit, setHelpTypeVisit] = useState('medicine')
   const [notes, setNotes] = useState('')
+  const [lifeSupport, setLifeSupport] = useState<string[]>(currentLifeSupport ?? [])
+  const toggleLS = (code: string) =>
+    setLifeSupport((v) => (v.includes(code) ? v.filter((x) => x !== code) : [...v, code]))
 
   // help fields
   const [requestType, setRequestType] = useState<HelpRequestType>('medical')
@@ -130,6 +144,19 @@ export function FieldActionSheet({ target, mode, activeIncidents, onClose, onDon
       })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(json.error ?? 'บันทึกไม่สำเร็จ')
+
+      // อัปเดตอุปกรณ์พยุงชีพของคน (เฉพาะตอนเยี่ยม + เมื่อมีการเปลี่ยน)
+      if (mode === 'visit') {
+        const a = [...lifeSupport].sort().join(',')
+        const b = [...(currentLifeSupport ?? [])].sort().join(',')
+        if (a !== b) {
+          await fetch(`/api/vulnerable/${target.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ lifeSupport }),
+          }).catch(() => {})
+        }
+      }
       onDone()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'เกิดข้อผิดพลาด')
@@ -176,6 +203,32 @@ export function FieldActionSheet({ target, mode, activeIncidents, onClose, onDon
                 <select className={selectCls} value={personStatus} onChange={(e) => setPersonStatus(e.target.value as PersonFieldStatus)}>
                   {PERSON_STATUS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                 </select>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label>อุปกรณ์พยุงชีพที่ต้องใช้ <span className="font-normal text-[var(--fg-subtle)]">(สำคัญต่อการอพยพ)</span></Label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {LIFE_SUPPORT.map((o) => {
+                    const on = lifeSupport.includes(o.value)
+                    return (
+                      <label
+                        key={o.value}
+                        className={`flex cursor-pointer items-center gap-2 rounded-md border px-2.5 py-1.5 text-[12.5px] transition-colors ${
+                          on
+                            ? 'border-[color-mix(in_oklch,var(--risk-flood)_45%,transparent)] bg-[color-mix(in_oklch,var(--risk-flood)_10%,transparent)] font-medium text-[var(--risk-flood)]'
+                            : 'border-[var(--border)] text-[var(--fg-muted)] hover:border-[var(--border-strong)]'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={on}
+                          onChange={() => toggleLS(o.value)}
+                          className="accent-[var(--risk-flood)]"
+                        />
+                        {o.label}
+                      </label>
+                    )
+                  })}
+                </div>
               </div>
               <label className="flex items-center gap-2 text-[13px]">
                 <input type="checkbox" checked={needsHelp} onChange={(e) => setNeedsHelp(e.target.checked)} />

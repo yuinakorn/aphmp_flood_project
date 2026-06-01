@@ -20,7 +20,7 @@ export default async function EocPage() {
   const mapHiddenDefault = cookieStore.get(MAP_HIDDEN_COOKIE)?.value === '1'
   const init = { cache: 'no-store' as const, headers: { cookie } }
 
-  const scope = await getActiveIncident(role)
+  const scope = await getActiveIncident(role, session?.user?.province ?? null)
   const db = getDb()
 
   const teamWhere = scope ? eq(rescueTeams.incidentId, scope.id) : undefined

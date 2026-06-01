@@ -130,7 +130,19 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" --max-time 5 http://localhost:3003/admin/eoc/roster)",
       "Bash(curl -s --max-time 5 http://localhost:3003/api/eoc/roster)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" --max-time 5 http://localhost:3003/api/eoc/roster/export)",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" --max-time 5 http://localhost:3003/api/household-members/00000000-0000-4000-8000-000000000000/national-id)"
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" --max-time 5 http://localhost:3003/api/household-members/00000000-0000-4000-8000-000000000000/national-id)",
+      "Bash(npx tsx *)",
+      "Bash(cat)",
+      "Bash(node /tmp/check_nid.cjs)",
+      "Bash(node ./check_nid.mjs)",
+      "Bash(node ./chk2.mjs)",
+      "Bash(node ./chk3.mjs)",
+      "Bash(node .claude/skills/impeccable/scripts/load-context.mjs)",
+      "Bash(open \"overview-commander-mockup.html\")",
+      "Bash(xargs -I{} sh -c 'echo \"{}:\"; cat \"{}\"')",
+      "Bash(cat src/app/\\\\\\(admin\\\\\\)/layout.tsx)",
+      "Bash(cat src/app/\\\\\\(admin\\\\\\)/admin/layout.tsx)",
+      "Bash(echo \"exit-errors: $\\(npx tsc --noEmit 2>&1)"
     ],
     "additionalDirectories": [
       "/private/tmp/s2c_extract",

@@ -27,6 +27,7 @@ import {
   sessionUserId,
   unauthorized,
 } from '@/lib/field-api'
+import { isNationalRole } from '@/lib/incident-scope'
 import { accessLog, householdMembers } from '@/db/schema'
 import type { UserRole } from '@/types'
 import floodPointsData from '../../../../public/data/flood-points.json'
@@ -56,8 +57,17 @@ export async function GET(req: NextRequest) {
   const bbox = parseBbox(searchParams.get('bbox'))
   const status = searchParams.get('status')
   const priority = searchParams.get('priority')
-  const province = searchParams.get('province')
+  const queryProvince = searchParams.get('province')
   const limit = Math.min(Number(searchParams.get('limit')) || 200, 1000)
+
+  // province scope: เจ้าหน้าที่ที่ login (non-national) เห็นเฉพาะจังหวัดสังกัดเสมอ
+  // — national เลือก filter เองได้ผ่าน query · anonymous/public ใช้ query param ตามเดิม (ข้อมูล mask แล้ว)
+  const national = isNationalRole(role)
+  const sessionProvince = session?.user?.province ?? null
+  if (session?.user && !national && !sessionProvince) {
+    return NextResponse.json([]) // เจ้าหน้าที่ไม่มีจังหวัดสังกัด → ไม่เห็นทะเบียน
+  }
+  const scopedProvince = session?.user && !national ? sessionProvince : queryProvince
 
   const db = getDb()
 
@@ -65,7 +75,7 @@ export async function GET(req: NextRequest) {
   const conditions = [isNotNull(householdMembers.type), isNull(householdMembers.deletedAt)]
   if (status) conditions.push(eq(householdMembers.followUpStatus, status))
   if (priority) conditions.push(eq(householdMembers.medicalPriority, priority))
-  if (province) conditions.push(eq(householdMembers.province, province))
+  if (scopedProvince) conditions.push(eq(householdMembers.province, scopedProvince))
 
   const rows = await db
     .select()
@@ -135,6 +145,7 @@ export async function GET(req: NextRequest) {
         sourceSystem: p.sourceSystem,
         sourceUnit: p.sourceUnit,
         sourceSyncedAt: p.sourceSyncedAt?.toISOString() ?? null,
+        lifeSupport: p.lifeSupport ?? null,
         risk,
       }
     })
@@ -162,6 +173,7 @@ export async function GET(req: NextRequest) {
 
 const VALID_TYPES = new Set(['bedridden', 'elderly', 'disabled', 'pregnant', 'other'])
 const VALID_PRIORITIES = new Set(['A', 'B', 'C'])
+const LIFE_SUPPORT_CODES = new Set(['oxygen', 'ventilator', 'dialysis_capd', 'dialysis_hd', 'anti_seizure', 'feeding_tube'])
 
 export async function POST(req: NextRequest) {
   const session = await auth()
@@ -193,6 +205,18 @@ export async function POST(req: NextRequest) {
     return badRequest('assignedVhvId must be a UUID')
   }
 
+  // อุปกรณ์พยุงชีพ — สำคัญต่อคะแนน survivability ในโหมดวิกฤต
+  const lifeSupport = Array.isArray(body.lifeSupport)
+    ? (body.lifeSupport as unknown[]).filter((x): x is string => typeof x === 'string' && LIFE_SUPPORT_CODES.has(x))
+    : null
+
+  // จังหวัด: non-national ล็อกเป็นจังหวัดสังกัดเสมอ (สอดคล้อง province scope) · national ระบุได้เอง
+  const national = isNationalRole(session.user.role)
+  const province = national
+    ? (typeof body.province === 'string' ? body.province : null)
+    : (session.user.province ?? null)
+  if (!national && !province) return badRequest('ไม่พบจังหวัดสังกัดของผู้ใช้ — ติดต่อผู้ดูแลระบบ')
+
   const db = getDb()
   const [created] = await db
     .insert(householdMembers)
@@ -205,10 +229,11 @@ export async function POST(req: NextRequest) {
       age: body.age != null ? Number(body.age) || null : null,
       cond: typeof body.cond === 'string' ? body.cond : null,
       equipment: typeof body.equipment === 'string' ? body.equipment : null,
+      lifeSupport,
       village: typeof body.village === 'string' ? body.village : null,
       tambon: typeof body.tambon === 'string' ? body.tambon : null,
       amphoe: typeof body.amphoe === 'string' ? body.amphoe : null,
-      province: typeof body.province === 'string' ? body.province : null,
+      province,
       lat: String(lat),
       lng: String(lng),
       caregiverPhone: typeof body.caregiverPhone === 'string' ? body.caregiverPhone : null,

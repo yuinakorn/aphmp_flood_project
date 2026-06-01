@@ -77,13 +77,24 @@ export const floodPolygons = pgTable('flood_polygons', {
 })
 
 // Users
+// ทะเบียนเจ้าหน้าที่ (system users) — ยืนยันตัวตนผ่าน ThaiD แล้ว match ด้วย CID hash
+// ดู docs/new/AUTH-SPEC.md — แยก authentication (ThaiD) ออกจาก authorization (ตารางนี้)
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
-  email: text('email').unique().notNull(),
-  passwordHash: text('password_hash').notNull(),
-  name: text('name').notNull(),
-  role: text('role').notNull().default('viewer'), // admin | officer | viewer
+  cidHash: text('cid_hash').unique(),       // SHA-256 ของ CID 13 หลัก (PDPA — ไม่เก็บ raw) · match กับ ThaiD
+  name: text('name').notNull(),             // เติมจาก ThaiD ได้
+  role: text('role').notNull().default('viewer'), // admin | eoc | officer | vhv | ems | rescue | ddpm | shelter_manager | viewer
+  province: text('province'),               // จังหวัดสังกัด — กุญแจ scope ทั้งระบบ
+  unitCode: text('unit_code'),              // รหัสหน่วยงาน/รพ.สต.
+  unitName: text('unit_name'),              // ชื่อหน่วยงาน
+  status: text('status').notNull().default('active'),          // pending | active | suspended
+  registeredVia: text('registered_via').notNull().default('credentials'), // thaid | whitelist | credentials
+  approvedBy: uuid('approved_by'),          // ผู้อนุมัติ (self-register)
+  approvedAt: timestamp('approved_at', { withTimezone: true }),
+  email: text('email').unique(),            // null ได้ — คงไว้รองรับ flow shelter-staff เดิม
+  passwordHash: text('password_hash'),      // null ได้ — ThaiD ไม่ต้องมี password
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
 })
 
 // API keys สำหรับหน่วยบริการ (รพ.สต./อปท.) ที่ส่งข้อมูลเข้าระบบ
@@ -173,7 +184,11 @@ export const householdMembers = pgTable('household_members', {
   type: text('type'),                // bedridden | elderly | disabled | pregnant | other — null = ไม่อยู่ในทะเบียนดูแล
   label: text('label'),
   cond: text('cond'),
-  equipment: text('equipment'),
+  equipment: text('equipment'),                    // freeform เดิม (อุปกรณ์/เครื่องมือ) — คงไว้
+  // อุปกรณ์พยุงชีพ/ภาวะพึ่งพา = flag คงที่ที่ อสม.กรอก (ไม่มี HIS countdown)
+  // ค่า: 'oxygen' | 'dialysis_capd' | 'dialysis_hd' | 'ventilator' | 'anti_seizure' | 'feeding_tube'
+  // ใช้คำนวณ ribbon "พึ่งอุปกรณ์พยุงชีพ", banner, คะแนน survivability, bring-list
+  lifeSupport: jsonb('life_support').$type<string[]>(),
   village: text('village'),
   tambon: text('tambon'),
   amphoe: text('amphoe'),

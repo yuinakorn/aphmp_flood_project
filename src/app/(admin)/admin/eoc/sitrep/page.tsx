@@ -15,7 +15,7 @@ export const metadata = { title: 'ใบสรุปสถานการณ์ 
 export default async function SitRepPage() {
   const session = await auth()
   const role = (session?.user?.role ?? 'viewer') as UserRole
-  const scope = await getActiveIncident(role)
+  const scope = await getActiveIncident(role, session?.user?.province ?? null)
 
   if (!scope) {
     return (

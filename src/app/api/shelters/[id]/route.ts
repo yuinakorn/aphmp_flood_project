@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 import { getDb } from '@/lib/db'
 import { badRequest, canTriage, forbidden, isUuid, unauthorized } from '@/lib/field-api'
+import { isNationalRole } from '@/lib/incident-scope'
 import { infrastructures } from '@/db/schema'
 
 const SHELTER_TYPES = new Set(['shelter', 'assembly'])
@@ -44,11 +45,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   patch.updatedAt = new Date()
 
+  // province guard — non-national แก้ได้เฉพาะศูนย์ในจังหวัดสังกัด
+  const national = isNationalRole(session.user.role)
+  const where = national
+    ? eq(infrastructures.id, id)
+    : and(eq(infrastructures.id, id), eq(infrastructures.province, session.user.province ?? '__none__'))
+
   const db = getDb()
   const [updated] = await db
     .update(infrastructures)
     .set(patch)
-    .where(eq(infrastructures.id, id))
+    .where(where)
     .returning()
 
   if (!updated) return NextResponse.json({ error: 'not found' }, { status: 404 })

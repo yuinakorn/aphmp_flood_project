@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import dynamic from 'next/dynamic'
-import { UserPlus, MapPin, Crosshair, Lock, Loader2, Wind } from 'lucide-react'
+import { UserPlus, MapPin, Crosshair, Lock, Loader2, Wind, Maximize2, X, Check } from 'lucide-react'
 import {
   Sheet,
   SheetContent,
@@ -49,7 +50,7 @@ const TYPES = [
   { value: 'other', label: 'อื่นๆ' },
 ]
 
-const PREFIXES = ['นาย', 'นาง', 'นางสาว', 'ด.ช.', 'ด.ญ.']
+const PREFIXES = ['ไม่ระบุ', 'นาย', 'นาง', 'นางสาว', 'ด.ช.', 'ด.ญ.']
 
 const PRIORITIES = [
   { value: 'A', label: 'A · วิกฤต' },
@@ -67,10 +68,16 @@ const LIFE_SUPPORT = [
 ]
 
 const selectCls =
-  'h-9 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 text-[13px] outline-none focus:border-[var(--accent)]'
+  'h-9 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 text-[13px] outline-none focus:border-[var(--accent)] disabled:cursor-not-allowed disabled:bg-[var(--bg-sunken)] disabled:opacity-60'
+
+interface GeoOpt {
+  id: number
+  nameTh: string
+  zipCode?: number | null
+}
 
 export function AddVulnerableSheet({
-  open, onClose, onDone, area, province, isNational, provinceOptions, defaultCenter, incidentName,
+  open, onClose, onDone, area, province, isNational, defaultCenter, incidentName,
 }: Props) {
   const [prefix, setPrefix] = useState('นาย')
   const [firstName, setFirstName] = useState('')
@@ -85,14 +92,99 @@ export function AddVulnerableSheet({
   const [tambon, setTambon] = useState(area.tambon ?? '')
   const [amphoe, setAmphoe] = useState(area.amphoe ?? '')
   const [formProvince, setFormProvince] = useState(isNational ? '' : (province ?? ''))
+  // cascading จังหวัด → อำเภอ → ตำบล
+  const [provinces, setProvinces] = useState<GeoOpt[]>([])
+  const [districts, setDistricts] = useState<GeoOpt[]>([])
+  const [subdistricts, setSubdistricts] = useState<GeoOpt[]>([])
+  const [provinceId, setProvinceId] = useState<number | ''>('')
+  const [districtId, setDistrictId] = useState<number | ''>('')
+  const [subdistrictId, setSubdistrictId] = useState<number | ''>('')
+  const prefillDone = useRef(false)
   const [lat, setLat] = useState(defaultCenter.lat)
   const [lng, setLng] = useState(defaultCenter.lng)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [geoBusy, setGeoBusy] = useState(false)
+  const [mapExpanded, setMapExpanded] = useState(false)
+
+  // ปิด modal แผนที่ด้วยปุ่ม Escape
+  useEffect(() => {
+    if (!mapExpanded) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMapExpanded(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [mapExpanded])
 
   const toggleLS = (code: string) =>
     setLifeSupport((v) => (v.includes(code) ? v.filter((x) => x !== code) : [...v, code]))
+
+  function loadDistricts(pid: number) {
+    fetch(`/api/geo/districts?provinceId=${pid}`)
+      .then((r) => r.json())
+      .then((d) => { if (Array.isArray(d)) setDistricts(d) })
+      .catch(() => {})
+  }
+  function loadSubdistricts(did: number) {
+    fetch(`/api/geo/subdistricts?districtId=${did}`)
+      .then((r) => r.json())
+      .then((d) => { if (Array.isArray(d)) setSubdistricts(d) })
+      .catch(() => {})
+  }
+
+  // โหลดจังหวัด (ครั้งเดียว)
+  useEffect(() => {
+    fetch('/api/geo/provinces', { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((d) => { if (Array.isArray(d)) setProvinces(d) })
+      .catch(() => {})
+  }, [])
+
+  // resolve จังหวัดตั้งต้น (สังกัด non-national / ค่า prefill) → id + โหลดอำเภอ
+  useEffect(() => {
+    if (provinces.length === 0 || provinceId !== '') return
+    const targetName = isNational ? formProvince : (province ?? '')
+    if (!targetName) return
+    const p = provinces.find((o) => o.nameTh === targetName)
+    if (p) { setProvinceId(p.id); loadDistricts(p.id) }
+  }, [provinces]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // prefill อำเภอจากพื้นที่เหตุการณ์ เมื่อรายการอำเภอพร้อม
+  useEffect(() => {
+    if (prefillDone.current || districts.length === 0) return
+    if (area.amphoe && districtId === '') {
+      const d = districts.find((o) => o.nameTh === area.amphoe)
+      if (d) { setDistrictId(d.id); setAmphoe(d.nameTh); loadSubdistricts(d.id) }
+    }
+  }, [districts]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // prefill ตำบล เมื่อรายการตำบลพร้อม
+  useEffect(() => {
+    if (prefillDone.current || subdistricts.length === 0) return
+    if (area.tambon && subdistrictId === '') {
+      const s = subdistricts.find((o) => o.nameTh === area.tambon)
+      if (s) { setSubdistrictId(s.id); setTambon(s.nameTh) }
+    }
+    prefillDone.current = true
+  }, [subdistricts]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function onSelectProvince(id: number | '') {
+    setProvinceId(id)
+    setDistrictId(''); setSubdistrictId('')
+    setDistricts([]); setSubdistricts([])
+    setAmphoe(''); setTambon('')
+    setFormProvince(id === '' ? '' : (provinces.find((o) => o.id === id)?.nameTh ?? ''))
+    if (id !== '') loadDistricts(id)
+  }
+  function onSelectDistrict(id: number | '') {
+    setDistrictId(id)
+    setSubdistrictId(''); setSubdistricts([]); setTambon('')
+    setAmphoe(id === '' ? '' : (districts.find((o) => o.id === id)?.nameTh ?? ''))
+    if (id !== '') loadSubdistricts(id)
+  }
+  function onSelectSubdistrict(id: number | '') {
+    setSubdistrictId(id)
+    setTambon(id === '' ? '' : (subdistricts.find((o) => o.id === id)?.nameTh ?? ''))
+  }
 
   function useGps() {
     if (!navigator.geolocation) return
@@ -114,7 +206,8 @@ export function AddVulnerableSheet({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          prefix, firstName, lastName,
+          prefix: prefix === 'ไม่ระบุ' ? null : prefix,
+          firstName, lastName,
           age: age ? Number(age) : null,
           type, lifeSupport, medicalPriority,
           caregiverPhone: caregiverPhone.trim() || null,
@@ -139,7 +232,7 @@ export function AddVulnerableSheet({
 
   return (
     <Sheet open={open} onOpenChange={(o) => { if (!o) onClose() }}>
-      <SheetContent side="right" className="w-full gap-0 sm:max-w-md">
+      <SheetContent side="right" className="w-full gap-0 sm:!w-[40vw] sm:!max-w-none sm:min-w-[480px]">
         <SheetHeader className="border-b border-[var(--border)]">
           <SheetTitle className="flex items-center gap-2">
             <UserPlus size={16} /> เพิ่มกลุ่มเปราะบาง
@@ -226,27 +319,17 @@ export function AddVulnerableSheet({
             </div>
           </div>
 
-          {/* ที่อยู่ */}
-          <div className="grid grid-cols-3 gap-2">
-            <div className="flex flex-col gap-1.5">
-              <Label>หมู่บ้าน/หมู่</Label>
-              <Input value={village} onChange={(e) => setVillage(e.target.value)} placeholder="ม." />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>ตำบล</Label>
-              <Input value={tambon} onChange={(e) => setTambon(e.target.value)} placeholder="ตำบล" />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>อำเภอ</Label>
-              <Input value={amphoe} onChange={(e) => setAmphoe(e.target.value)} placeholder="อำเภอ" />
-            </div>
-          </div>
+          {/* ที่อยู่ — จังหวัด → อำเภอ → ตำบล (เชื่อมกัน) */}
           <div className="flex flex-col gap-1.5">
             <Label>จังหวัด</Label>
             {isNational ? (
-              <select className={selectCls} value={formProvince} onChange={(e) => setFormProvince(e.target.value)}>
+              <select
+                className={selectCls}
+                value={provinceId === '' ? '' : String(provinceId)}
+                onChange={(e) => onSelectProvince(e.target.value === '' ? '' : Number(e.target.value))}
+              >
                 <option value="">— เลือกจังหวัด —</option>
-                {provinceOptions.map((p) => <option key={p} value={p}>{p}</option>)}
+                {provinces.map((p) => <option key={p.id} value={String(p.id)}>{p.nameTh}</option>)}
               </select>
             ) : (
               <div className="flex h-9 items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--bg-sunken)] px-3 text-[13px] text-[var(--fg-muted)]">
@@ -254,15 +337,51 @@ export function AddVulnerableSheet({
               </div>
             )}
           </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="flex flex-col gap-1.5">
+              <Label>อำเภอ</Label>
+              <select
+                className={selectCls}
+                value={districtId === '' ? '' : String(districtId)}
+                disabled={provinceId === ''}
+                onChange={(e) => onSelectDistrict(e.target.value === '' ? '' : Number(e.target.value))}
+              >
+                <option value="">{provinceId === '' ? 'เลือกจังหวัดก่อน' : '— เลือกอำเภอ —'}</option>
+                {districts.map((d) => <option key={d.id} value={String(d.id)}>{d.nameTh}</option>)}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>ตำบล</Label>
+              <select
+                className={selectCls}
+                value={subdistrictId === '' ? '' : String(subdistrictId)}
+                disabled={districtId === ''}
+                onChange={(e) => onSelectSubdistrict(e.target.value === '' ? '' : Number(e.target.value))}
+              >
+                <option value="">{districtId === '' ? 'เลือกอำเภอก่อน' : '— เลือกตำบล —'}</option>
+                {subdistricts.map((s) => <option key={s.id} value={String(s.id)}>{s.nameTh}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label>หมู่บ้าน/หมู่</Label>
+            <Input value={village} onChange={(e) => setVillage(e.target.value)} placeholder="เช่น ม.3 บ้านกลางเวียง" />
+          </div>
 
           {/* พิกัด */}
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between">
               <Label className="flex items-center gap-1.5"><MapPin size={13} className="text-[var(--accent)]" /> พิกัด (คลิก/ลากหมุด)</Label>
-              <button type="button" onClick={useGps} disabled={geoBusy}
-                className="inline-flex items-center gap-1 rounded-md border border-[var(--border)] px-2 py-1 text-[11.5px] text-[var(--fg-muted)] hover:border-[var(--border-strong)] hover:text-[var(--fg)] disabled:opacity-50">
-                {geoBusy ? <Loader2 size={12} className="animate-spin" /> : <Crosshair size={12} />} ใช้ GPS
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button type="button" onClick={() => setMapExpanded(true)}
+                  className="inline-flex items-center gap-1 rounded-md border border-[var(--border)] px-2 py-1 text-[11.5px] text-[var(--fg-muted)] hover:border-[var(--border-strong)] hover:text-[var(--fg)]">
+                  <Maximize2 size={12} /> ขยายแผนที่
+                </button>
+                <button type="button" onClick={useGps} disabled={geoBusy}
+                  className="inline-flex items-center gap-1 rounded-md border border-[var(--border)] px-2 py-1 text-[11.5px] text-[var(--fg-muted)] hover:border-[var(--border-strong)] hover:text-[var(--fg)] disabled:opacity-50">
+                  {geoBusy ? <Loader2 size={12} className="animate-spin" /> : <Crosshair size={12} />} ใช้ GPS
+                </button>
+              </div>
             </div>
             <LocationPicker lat={lat} lng={lng} onChange={(la, ln) => { setLat(la); setLng(ln) }} />
             <p className="font-mono text-[10.5px] text-[var(--fg-subtle)]">{lat.toFixed(5)}, {lng.toFixed(5)}</p>
@@ -278,6 +397,46 @@ export function AddVulnerableSheet({
           </Button>
         </SheetFooter>
       </SheetContent>
+
+      {/* Modal ขยายแผนที่ — portal ไป body ให้หลุดจาก stacking ของ sheet (ผูก state เดียวกับแผนที่เล็ก) */}
+      {mapExpanded && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[2000] flex flex-col bg-black/60 p-4 sm:p-8" onClick={() => setMapExpanded(false)}>
+          <div
+            className="mx-auto flex h-full w-full max-w-4xl flex-col overflow-hidden rounded-xl bg-[var(--bg)] shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
+              <div className="flex items-center gap-2">
+                <MapPin size={16} className="text-[var(--accent)]" />
+                <span className="text-[14px] font-semibold text-[var(--fg)]">ปักหมุดตำแหน่ง</span>
+                <span className="text-[12px] text-[var(--fg-subtle)]">คลิกบนแผนที่หรือลากหมุด</span>
+              </div>
+              <button type="button" onClick={() => setMapExpanded(false)}
+                className="rounded-md p-1.5 text-[var(--fg-muted)] hover:bg-[var(--bg-sunken)] hover:text-[var(--fg)]">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="relative flex-1 p-3">
+              <LocationPicker lat={lat} lng={lng} onChange={(la, ln) => { setLat(la); setLng(ln) }} heightClass="h-full" />
+            </div>
+
+            <div className="flex items-center justify-between gap-3 border-t border-[var(--border)] px-4 py-3">
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={useGps} disabled={geoBusy}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-[var(--border)] px-2.5 py-1.5 text-[12px] text-[var(--fg-muted)] hover:border-[var(--border-strong)] hover:text-[var(--fg)] disabled:opacity-50">
+                  {geoBusy ? <Loader2 size={13} className="animate-spin" /> : <Crosshair size={13} />} ใช้ GPS
+                </button>
+                <span className="font-mono text-[12px] text-[var(--fg-subtle)]">{lat.toFixed(5)}, {lng.toFixed(5)}</span>
+              </div>
+              <Button type="button" onClick={() => setMapExpanded(false)}>
+                <Check size={15} /> ใช้ตำแหน่งนี้
+              </Button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
     </Sheet>
   )
 }

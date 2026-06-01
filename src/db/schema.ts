@@ -264,6 +264,9 @@ export const infrastructures = pgTable('infrastructures', {
   electricitySupport: boolean('electricity_support').notNull().default(false),
   waterSanitationStatus: text('water_sanitation_status'),
   healthResources: jsonb('health_resources').$type<Record<string, unknown>>(),
+  tambon: text('tambon'),
+  amphoe: text('amphoe'),
+  province: text('province'),         // จังหวัดที่ตั้ง — ใช้ scope ตามสังกัดเจ้าหน้าที่
   lat: numeric('lat', { precision: 10, scale: 6 }).notNull(),
   lng: numeric('lng', { precision: 10, scale: 6 }).notNull(),
   icon: text('icon'),
@@ -287,6 +290,18 @@ export const incidents = pgTable('incidents', {
   createdBy: uuid('created_by'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+})
+
+// พื้นที่ที่ได้รับผลกระทบของเหตุการณ์ (1 incident → N พื้นที่) — รองรับน้ำท่วมหลายอำเภอ/ตำบล + ขยายพื้นที่เมื่อสถานการณ์ลาม
+// แต่ละแถวเป็น hierarchical: tambon=null → ทั้งอำเภอ, amphoe=null → ทั้งจังหวัด
+// incidents.province/amphoe/tambon คงไว้เป็น "พื้นที่หลัก" (display + guard) — areas คือ scope จริงในการกรองข้อมูล
+export const incidentAreas = pgTable('incident_areas', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  incidentId: uuid('incident_id').notNull().references(() => incidents.id, { onDelete: 'cascade' }),
+  province: text('province'),
+  amphoe: text('amphoe'),
+  tambon: text('tambon'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 })
 
 // ทีมกู้ภัย / หน่วยเคลื่อนที่เร็ว — ขึ้นทะเบียน + แบ่งโซนรับผิดชอบ (กันเข้าช่วยซ้ำซ้อน/บ้านถูกทิ้งร้าง)

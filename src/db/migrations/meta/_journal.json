@@ -169,6 +169,20 @@
       "when": 1780296187105,
       "tag": "0023_shallow_lilandra",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1780327297191,
+      "tag": "0024_curly_captain_midlands",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1780337507455,
+      "tag": "0025_productive_thaddeus_ross",
+      "breakpoints": true
     }
   ]
 }

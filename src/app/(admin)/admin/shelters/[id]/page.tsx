@@ -1,9 +1,9 @@
 import { notFound, redirect } from 'next/navigation'
-import { and, asc, desc, eq, inArray } from 'drizzle-orm'
+import { and, asc, desc, eq } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 import { getDb } from '@/lib/db'
 import { infrastructures, rescueTeams, shelterZones } from '@/db/schema'
-import { getActiveIncident } from '@/lib/incident-scope'
+import { getActiveIncident, isNationalRole } from '@/lib/incident-scope'
 import { canAccessShelter } from '@/lib/shelter-access'
 import { ShelterDetail } from './ShelterDetail'
 import { ShelterStaffPanel } from './ShelterStaffPanel'
@@ -18,7 +18,12 @@ export default async function ShelterDetailPage({ params }: { params: Promise<{ 
 
   const db = getDb()
   const [shelter] = await db.select().from(infrastructures).where(eq(infrastructures.id, id))
-  if (!shelter || !inArray(infrastructures.type, ['shelter', 'assembly'])) {
+  if (!shelter || !['shelter', 'assembly'].includes(shelter.type)) {
+    notFound()
+  }
+
+  // province guard — เจ้าหน้าที่ (non-national) เปิดศูนย์ข้ามจังหวัดไม่ได้
+  if (!isNationalRole(session.user?.role) && shelter.province !== (session.user?.province ?? null)) {
     notFound()
   }
 

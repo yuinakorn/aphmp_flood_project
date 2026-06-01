@@ -12,7 +12,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { and, eq, isNotNull, isNull } from 'drizzle-orm'
+import { and, asc, eq, isNotNull, isNull } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 import { getDb } from '@/lib/db'
 import { classifyRisk } from '@/lib/geo'
@@ -22,6 +22,7 @@ import {
   composeName,
   forbidden,
   isUuid,
+  maskNationalId,
   numberFromDb,
   parseBbox,
   sessionUserId,
@@ -81,6 +82,7 @@ export async function GET(req: NextRequest) {
     .select()
     .from(householdMembers)
     .where(and(...conditions))
+    .orderBy(asc(householdMembers.amphoe), asc(householdMembers.tambon), asc(householdMembers.firstName))
     .limit(limit)
 
   const data = rows
@@ -119,6 +121,7 @@ export async function GET(req: NextRequest) {
       return {
         id: p.id,
         name: composeName(p.prefix, p.firstName, p.lastName),
+        nationalId: maskNationalId(p.nationalId),
         prefix: p.prefix,
         firstName: p.firstName,
         lastName: p.lastName,

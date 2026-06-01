@@ -5,7 +5,7 @@ import { and, eq, inArray, sql } from 'drizzle-orm'
 import { Tent, Users, ArrowUpRight, Flag } from 'lucide-react'
 import { getDb } from '@/lib/db'
 import { infrastructures, shelterAdmissions, shelterZones } from '@/db/schema'
-import { getActiveIncident } from '@/lib/incident-scope'
+import { getActiveIncident, isNationalRole } from '@/lib/incident-scope'
 import { CreateShelterButton } from './CreateShelterButton'
 
 export const metadata = { title: 'ศูนย์พักพิง — GIS Health Intelligence' }
@@ -16,13 +16,22 @@ export default async function SheltersPage() {
   if (!session) redirect('/login')
 
   const role = session.user?.role ?? 'viewer'
-  const scope = await getActiveIncident(role, session.user?.province ?? null)
+  const province = session.user?.province ?? null
+  const national = isNationalRole(role)
+  const scope = await getActiveIncident(role, province)
 
   const db = getDb()
-  const shelters = await db
-    .select()
-    .from(infrastructures)
-    .where(inArray(infrastructures.type, ['shelter', 'assembly']))
+  // province scope — เจ้าหน้าที่ (non-national) เห็นเฉพาะศูนย์ในจังหวัดสังกัด
+  const shelters = !national && !province
+    ? []
+    : await db
+        .select()
+        .from(infrastructures)
+        .where(
+          national
+            ? inArray(infrastructures.type, ['shelter', 'assembly'])
+            : and(inArray(infrastructures.type, ['shelter', 'assembly']), eq(infrastructures.province, province!)),
+        )
 
   const ids = shelters.map((s) => s.id)
   const occWhere = scope

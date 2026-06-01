@@ -394,12 +394,12 @@ export function FloodMap({
             iconSize: [28, 28],
             iconAnchor: [14, 14],
           })
-          L.marker([i.lat, i.lng], { icon })
+          L.marker([Number(i.lat), Number(i.lng)], { icon })
             .bindPopup(
               `<div>
               <div style="font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--fg-subtle);margin-bottom:4px">${INFRA_LABEL[i.type] ?? i.type}</div>
               <div style="font-size:14px;font-weight:600;margin-bottom:4px">${i.name}</div>
-              <div style="font-size:12px;color:var(--fg-muted)">ความจุ: <span style="font-family:var(--font-mono)">${i.cap}</span></div>
+              <div style="font-size:12px;color:var(--fg-muted)">ความจุ: <span style="font-family:var(--font-mono)">${i.capacity ?? i.cap ?? '—'}</span></div>
             </div>`,
             )
             .addTo(ig)

@@ -245,6 +245,7 @@ export interface IncidentCounters {
 export interface VulnerablePerson {
   id: number
   name: string
+  nationalId?: string | null  // masked (เห็นเฉพาะ 4 หลักท้าย) — server mask ตาม PDPA
   type: VulnerableType
   label: string
   age: number
@@ -297,22 +298,27 @@ export interface VulnerableHouseholdMarker {
 }
 
 export interface Infrastructure {
-  id?: number
+  id?: number | string
   name: string
   type: InfraType
-  lat: number
-  lng: number
-  icon: string
-  cap: string
+  lat: number | string
+  lng: number | string
+  icon?: string
+  cap?: string            // legacy static JSON field
+  capacity?: number | null // DB field (แทน cap)
   occupancy?: number
   readinessStatus?: ShelterReadinessStatus
   healthCapacity?: number
-  bedriddenCapacity?: number
+  bedriddenCapacity?: number | null
   wheelchairSupport?: boolean
   oxygenSupport?: boolean
   electricitySupport?: boolean
   waterSanitationStatus?: string
   healthResources?: Record<string, unknown>
+  province?: string | null
+  amphoe?: string | null
+  tambon?: string | null
+  contact?: string | null
 }
 
 export type VitalStatus = 'normal' | 'monitoring' | 'unstable'

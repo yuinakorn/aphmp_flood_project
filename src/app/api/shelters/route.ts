@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 import { getDb } from '@/lib/db'
 import { badRequest, canTriage, forbidden, unauthorized } from '@/lib/field-api'
+import { isNationalRole } from '@/lib/incident-scope'
 import { infrastructures, shelterAdmissions, shelterZones } from '@/db/schema'
 
 const SHELTER_TYPES = new Set(['shelter', 'assembly'])
@@ -12,12 +13,21 @@ export async function GET() {
   const session = await auth()
   if (!session?.user) return unauthorized()
 
+  // province scope — เจ้าหน้าที่ (non-national) เห็นเฉพาะศูนย์ในจังหวัดสังกัด
+  const national = isNationalRole(session.user.role)
+  const province = session.user.province ?? null
+  if (!national && !province) return NextResponse.json({ data: [] })
+
   const db = getDb()
 
   const shelters = await db
     .select()
     .from(infrastructures)
-    .where(inArray(infrastructures.type, ['shelter', 'assembly']))
+    .where(
+      national
+        ? inArray(infrastructures.type, ['shelter', 'assembly'])
+        : and(inArray(infrastructures.type, ['shelter', 'assembly']), eq(infrastructures.province, province!)),
+    )
 
   if (shelters.length === 0) return NextResponse.json({ data: [] })
 
@@ -87,6 +97,13 @@ export async function POST(req: NextRequest) {
   const lng = Number(body.lng)
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return badRequest('lat/lng required')
 
+  // จังหวัด: non-national ล็อกเป็นจังหวัดสังกัด · national ระบุได้เอง
+  const national = isNationalRole(session.user.role)
+  const province = national
+    ? (typeof body.province === 'string' ? body.province : null)
+    : (session.user.province ?? null)
+  if (!national && !province) return badRequest('ไม่พบจังหวัดสังกัดของผู้ใช้')
+
   const db = getDb()
   const [created] = await db
     .insert(infrastructures)
@@ -99,6 +116,9 @@ export async function POST(req: NextRequest) {
       wheelchairSupport: Boolean(body.wheelchairSupport),
       electricitySupport: Boolean(body.electricitySupport),
       contact: typeof body.contact === 'string' ? body.contact : null,
+      tambon: typeof body.tambon === 'string' ? body.tambon : null,
+      amphoe: typeof body.amphoe === 'string' ? body.amphoe : null,
+      province,
       lat: String(lat),
       lng: String(lng),
       readinessStatus: 'open',

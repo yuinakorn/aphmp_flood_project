@@ -1,7 +1,7 @@
 import { auth } from '@/lib/auth'
 import { cookies } from 'next/headers'
 import { ShieldCheck } from 'lucide-react'
-import { VulnerableTable } from './VulnerableTable'
+import { VulnerableClientView } from './VulnerableClientView'
 import { AddVulnerableButton } from '@/components/forms/AddVulnerableButton'
 import { canWriteFieldData } from '@/lib/field-api'
 import { getActiveIncident, isNationalRole } from '@/lib/incident-scope'
@@ -72,7 +72,7 @@ export default async function VulnerablePage() {
       </div>
 
       <div className="mt-6">
-        <VulnerableTable persons={persons} canEdit={canEdit} activeIncidents={activeIncidents} />
+        <VulnerableClientView persons={persons} canEdit={canEdit} activeIncidents={activeIncidents} />
       </div>
     </div>
   )

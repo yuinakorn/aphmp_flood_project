@@ -371,7 +371,8 @@ export async function getOverviewData(
   }
   queue.sort((a, b) => b.score - a.score)
 
-  // ── 6) ศูนย์พักพิงใกล้เต็ม + health-readiness ──
+  // ── 6) ศูนย์พักพิงใกล้เต็ม + health-readiness (scope จังหวัดของเหตุการณ์/สังกัด) ──
+  const shelterProvince = incident?.province ?? province ?? null
   const shelters = await db
     .select({
       id: infrastructures.id,
@@ -383,7 +384,11 @@ export async function getOverviewData(
       oxygenSupport: infrastructures.oxygenSupport,
     })
     .from(infrastructures)
-    .where(inArray(infrastructures.type, SHELTER_TYPES))
+    .where(
+      shelterProvince
+        ? and(inArray(infrastructures.type, SHELTER_TYPES), eq(infrastructures.province, shelterProvince))
+        : inArray(infrastructures.type, SHELTER_TYPES),
+    )
 
   // เตียงติดเตียงที่ใช้จริง ต่อศูนย์ = admissions active ของสมาชิก type='bedridden'
   const bedRows = incident

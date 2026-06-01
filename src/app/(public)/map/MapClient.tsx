@@ -124,11 +124,12 @@ export function MapClient({ session }: Props) {
           console.error('Failed to load vulnerable persons:', e)
           return []
         }),
-      fetch('/data/infrastructure.json')
+      fetch('/api/infra')
         .then((r) => {
           if (!r.ok) throw new Error(`API error: ${r.status}`)
           return r.json()
         })
+        .then((json) => json.data ?? [])
         .catch((e) => {
           console.error('Failed to load infrastructure:', e)
           return []
@@ -367,7 +368,7 @@ export function MapClient({ session }: Props) {
   }, [])
 
   const flyToInfra = useCallback((item: Infrastructure) => {
-    mapRef.current?.flyTo([item.lat, item.lng], 16, { duration: 0.6 })
+    mapRef.current?.flyTo([Number(item.lat), Number(item.lng)], 16, { duration: 0.6 })
   }, [])
 
   const onProvinceChange = useCallback((p: ProvinceId) => {

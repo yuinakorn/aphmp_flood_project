@@ -34,8 +34,8 @@ export function nearestShelter(
 ): Infrastructure | null {
   if (!shelters.length) return null
   return shelters.reduce((best, s) => {
-    const dBest = haversineKm(person.lat, person.lng, best.lat, best.lng)
-    const dS = haversineKm(person.lat, person.lng, s.lat, s.lng)
+    const dBest = haversineKm(person.lat, person.lng, Number(best.lat), Number(best.lng))
+    const dS = haversineKm(person.lat, person.lng, Number(s.lat), Number(s.lng))
     return dS < dBest ? s : best
   })
 }
@@ -110,17 +110,19 @@ export async function buildEvacRouteOSRM(
 }
 
 export function buildEvacRoute(person: VulnerablePerson, shelter: Infrastructure): EvacRoute {
-  const midLat = (person.lat + shelter.lat) / 2 + (Math.random() - 0.5) * 0.003
-  const midLng = (person.lng + shelter.lng) / 2 + (Math.random() - 0.5) * 0.003
+  const sLat = Number(shelter.lat)
+  const sLng = Number(shelter.lng)
+  const midLat = (person.lat + sLat) / 2 + (Math.random() - 0.5) * 0.003
+  const midLng = (person.lng + sLng) / 2 + (Math.random() - 0.5) * 0.003
   return {
     personId: person.id,
     personName: person.name,
     shelterName: shelter.name,
-    distanceKm: +haversineKm(person.lat, person.lng, shelter.lat, shelter.lng).toFixed(1),
+    distanceKm: +haversineKm(person.lat, person.lng, sLat, sLng).toFixed(1),
     coords: [
       [person.lat, person.lng],
       [midLat, midLng],
-      [shelter.lat, shelter.lng],
+      [sLat, sLng],
     ],
   }
 }

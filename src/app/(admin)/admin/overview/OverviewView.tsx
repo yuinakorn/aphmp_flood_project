@@ -116,7 +116,8 @@ function QueueRow({ h }: { h: QueueHousehold }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [dispatching, setDispatching] = useState(false)
-  const [dispatched, setDispatched] = useState(false)
+  // เริ่มจาก openRequest ของจริง — มีคำขออพยพค้างอยู่แล้วหรือยัง (คงสถานะหลัง reload)
+  const [dispatched, setDispatched] = useState(h.openRequest)
   const p = PRIORITY[h.priority]
   const dl = distLabel(h.distanceM)
 
@@ -131,7 +132,7 @@ function QueueRow({ h }: { h: QueueHousehold }) {
           memberId: h.headMemberId,
           requestType: 'evacuation',
           priority: 'critical',
-          description: `สั่งจัดทีมอพยพจากภาพรวม · ${h.suggestedTeam?.name ?? ''}`.trim(),
+          description: `ขออพยพด่วนจากภาพรวม${h.suggestedTeam?.name ? ` · เสนอทีม ${h.suggestedTeam.name}` : ''}`,
         }),
       })
       if (res.ok) {
@@ -206,23 +207,31 @@ function QueueRow({ h }: { h: QueueHousehold }) {
             </span>
           ) : (
             <span className="inline-flex items-center gap-1 text-[11px] text-[var(--fg-subtle)]">
-              <Clock className="size-3 shrink-0" strokeWidth={1.75} />ยังไม่จัดทีม
+              <Clock className="size-3 shrink-0" strokeWidth={1.75} />ยังไม่ส่งคำขอ
             </span>
           )}
           <span className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); dispatch() }}
-              disabled={dispatching || dispatched}
-              className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[12.5px] font-semibold shadow-[var(--shadow-sm)] transition-[filter,background-color] disabled:cursor-default ${
-                dispatched
-                  ? 'bg-[color-mix(in_oklch,var(--risk-safe)_15%,var(--bg-elevated))] text-[var(--risk-safe)]'
-                  : 'bg-[var(--accent)] text-[var(--accent-fg)] hover:brightness-110'
-              }`}
-            >
-              {dispatched ? <Check className="size-3.5" strokeWidth={2} /> : <Navigation className="size-3.5" strokeWidth={1.75} />}
-              {dispatched ? 'สั่งแล้ว' : dispatching ? 'กำลังสั่ง…' : 'จัดทีม'}
-            </button>
+            {dispatched ? (
+              <a
+                href="/admin/eoc"
+                onClick={(e) => e.stopPropagation()}
+                title="คำขออพยพถูกส่งเข้าคิว EOC แล้ว — คลิกเพื่อไปมอบหมายทีม"
+                className="inline-flex items-center gap-1.5 rounded-md bg-[color-mix(in_oklch,var(--risk-safe)_15%,var(--bg-elevated))] px-3 py-1.5 text-[12.5px] font-semibold text-[var(--risk-safe)] shadow-[var(--shadow-sm)] hover:brightness-105"
+              >
+                <Check className="size-3.5" strokeWidth={2} />ส่งเข้าคิว EOC แล้ว
+                <ArrowRight className="size-3.5" strokeWidth={2} />
+              </a>
+            ) : (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); dispatch() }}
+                disabled={dispatching}
+                className="inline-flex items-center gap-1.5 rounded-md bg-[var(--accent)] px-3 py-1.5 text-[12.5px] font-semibold text-[var(--accent-fg)] shadow-[var(--shadow-sm)] transition-[filter] hover:brightness-110 disabled:cursor-default disabled:opacity-70"
+              >
+                <Navigation className="size-3.5" strokeWidth={1.75} />
+                {dispatching ? 'กำลังส่ง…' : 'ขออพยพด่วน'}
+              </button>
+            )}
             {h.contactPhone ? (
               <a
                 href={`tel:${h.contactPhone}`}

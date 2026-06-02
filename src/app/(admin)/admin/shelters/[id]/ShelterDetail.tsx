@@ -56,6 +56,7 @@ export function ShelterDetail({ shelter, zones, teams, canEdit }: Props) {
   const [activeZoneId, setActiveZoneId] = useState<string | 'all'>('all')
   const [statusFilter, setStatusFilter] = useState<'current' | 'all'>('current')
   const [intakeOpen, setIntakeOpen] = useState(false)
+  const [transferTarget, setTransferTarget] = useState<AdmissionRow | null>(null)
 
   async function loadAdmissions() {
     setLoading(true)
@@ -91,23 +92,18 @@ export function ShelterDetail({ shelter, zones, teams, canEdit }: Props) {
         <ArrowLeft size={13} /> ย้อนกลับ
       </Link>
 
-      <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
+      <div className="mt-1.5 flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="gx-eyebrow">ปฏิบัติการ · ศูนย์พักพิง</p>
-          <h1 className="gx-title mt-1.5 flex items-center gap-2.5">
-            <Tent size={26} strokeWidth={1.75} className="text-[var(--infra-shelter)]" />
+          <h1 className="gx-title flex items-center gap-2">
+            <Tent size={22} strokeWidth={1.75} className="text-[var(--infra-shelter)]" />
             {shelter.name}
           </h1>
-          <p className="mt-1.5 text-sm text-[var(--fg-muted)]">
-            {shelter.type === 'assembly' ? 'จุดรวมพล' : 'ศูนย์อพยพ'}
-            {shelter.contact && <> · {shelter.contact}</>}
-            {(shelter.oxygenSupport || shelter.wheelchairSupport || shelter.electricitySupport) && (
-              <span className="ml-2 inline-flex gap-1.5">
-                {shelter.oxygenSupport && <span className="rounded bg-[var(--bg-sunken)] px-1.5 py-0.5 text-[10px]">ออกซิเจน</span>}
-                {shelter.wheelchairSupport && <span className="rounded bg-[var(--bg-sunken)] px-1.5 py-0.5 text-[10px]">whc</span>}
-                {shelter.electricitySupport && <span className="rounded bg-[var(--bg-sunken)] px-1.5 py-0.5 text-[10px]">ไฟฟ้า</span>}
-              </span>
-            )}
+          <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-[var(--fg-muted)]">
+            <span>{shelter.type === 'assembly' ? 'จุดรวมพล' : 'ศูนย์อพยพ'}</span>
+            {shelter.contact && <span>· {shelter.contact}</span>}
+            {shelter.oxygenSupport && <span className="rounded bg-[var(--bg-sunken)] px-1.5 py-0.5 text-[10px]">ออกซิเจน</span>}
+            {shelter.wheelchairSupport && <span className="rounded bg-[var(--bg-sunken)] px-1.5 py-0.5 text-[10px]">whc</span>}
+            {shelter.electricitySupport && <span className="rounded bg-[var(--bg-sunken)] px-1.5 py-0.5 text-[10px]">ไฟฟ้า</span>}
           </p>
         </div>
         {canEdit && (
@@ -121,7 +117,7 @@ export function ShelterDetail({ shelter, zones, teams, canEdit }: Props) {
       </div>
 
       {/* Status ribbon */}
-      <div className="mt-5 flex flex-wrap items-stretch overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)]">
+      <div className="mt-3 flex flex-wrap items-stretch overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)]">
         {[
           { label: 'สะสมทั้งหมด', value: counts.total, tone: 'var(--fg)' },
           { label: 'พักอยู่ตอนนี้', value: counts.current, tone: 'var(--signal-data)' },
@@ -138,7 +134,7 @@ export function ShelterDetail({ shelter, zones, teams, canEdit }: Props) {
       </div>
 
       {/* Filters: zone segmented + status toggle */}
-      <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-1.5 rounded-lg bg-[var(--bg-sunken)] p-1 text-sm">
           <SegBtn active={activeZoneId === 'all'} onClick={() => setActiveZoneId('all')}>ทั้งหมด</SegBtn>
           {zones.map((z) => (
@@ -206,6 +202,11 @@ export function ShelterDetail({ shelter, zones, teams, canEdit }: Props) {
 
               <div className="flex shrink-0 flex-col items-end gap-1">
                 <span className={statusBadgeCls(a.status)}><span className="gx-badge-dot" />{statusLabel(a.status)}</span>
+                {a.status === 'transferred' && a.exitDestination && (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--risk-near)]">
+                    <Hospital size={11} /> {a.exitDestination}
+                  </span>
+                )}
                 <span className="font-mono text-[10.5px] text-[var(--fg-subtle)]">
                   เข้า {fmt(a.admittedAt)}{a.dischargedAt && ` · ออก ${fmt(a.dischargedAt)}`}
                 </span>
@@ -214,7 +215,7 @@ export function ShelterDetail({ shelter, zones, teams, canEdit }: Props) {
 
               {canEdit && a.status === 'admitted' && (
                 <div className="flex shrink-0 gap-1.5">
-                  <button type="button" onClick={() => patchStatus(a.id, { status: 'transferred', exitReason: 'admitted_hospital' })} className="gx-btn gx-btn-ghost gx-btn-sm hover:!border-[var(--risk-near)] hover:!text-[var(--risk-near)]">
+                  <button type="button" onClick={() => setTransferTarget(a)} className="gx-btn gx-btn-ghost gx-btn-sm hover:!border-[var(--risk-near)] hover:!text-[var(--risk-near)]">
                     <Hospital size={14} /> ส่ง รพ.
                   </button>
                   <button type="button" onClick={() => patchStatus(a.id, { status: 'discharged', exitReason: 'moved_home' })} className="gx-btn gx-btn-ghost gx-btn-sm">
@@ -236,6 +237,122 @@ export function ShelterDetail({ shelter, zones, teams, canEdit }: Props) {
           onSaved={() => { setIntakeOpen(false); loadAdmissions() }}
         />
       )}
+
+      {transferTarget && (
+        <TransferModal
+          admission={transferTarget}
+          onClose={() => setTransferTarget(null)}
+          onSaved={() => { setTransferTarget(null); loadAdmissions() }}
+        />
+      )}
+    </div>
+  )
+}
+
+interface FacilityOpt { id: string; name: string; type: string }
+
+function TransferModal({ admission, onClose, onSaved }: { admission: AdmissionRow; onClose: () => void; onSaved: () => void }) {
+  const [facilities, setFacilities] = useState<FacilityOpt[]>([])
+  const [facilityId, setFacilityId] = useState('')
+  const [facilityText, setFacilityText] = useState('')
+  const [priority, setPriority] = useState('normal')
+  const [reason, setReason] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch('/api/infra?types=hospital,clinic')
+      .then((r) => r.json())
+      .then((j) => setFacilities((j.data ?? []).filter((f: FacilityOpt) => f.type === 'hospital' || f.type === 'clinic')))
+      .catch(() => {})
+  }, [])
+
+  async function submit() {
+    if (!facilityId && !facilityText.trim()) { setError('เลือกหรือพิมพ์โรงพยาบาลปลายทาง'); return }
+    setSaving(true); setError(null)
+    const res = await fetch('/api/referrals', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        admissionId: admission.id,
+        toFacilityId: facilityId || undefined,
+        toFacilityText: facilityId ? undefined : facilityText.trim() || undefined,
+        priority,
+        reason: reason.trim() || undefined,
+      }),
+    })
+    setSaving(false)
+    if (!res.ok) { setError((await res.json().catch(() => ({})))?.error ?? 'ส่งต่อไม่สำเร็จ'); return }
+    onSaved()
+  }
+
+  const fieldCls = 'h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 text-sm outline-none focus:border-[var(--accent)]'
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+      <div className="flex w-full max-w-lg flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] shadow-2xl">
+        <div className="flex items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--bg-sunken)] px-5 py-3.5">
+          <div className="flex items-center gap-2.5">
+            <Hospital size={18} className="text-[var(--risk-near)]" />
+            <h2 className="text-base font-semibold">ส่งต่อโรงพยาบาล</h2>
+          </div>
+          <button type="button" onClick={onClose} className="flex size-8 items-center justify-center rounded-md text-[var(--fg-muted)] hover:bg-[var(--bg)] hover:text-[var(--fg)]">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="space-y-3 p-5">
+          <p className="text-sm text-[var(--fg-muted)]">
+            ผู้ป่วย: <strong className="text-[var(--fg)]">{admission.person?.name ?? 'ไม่ระบุชื่อ'}</strong>
+          </p>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-[var(--fg-muted)]">โรงพยาบาลปลายทาง</label>
+            <select className={fieldCls} value={facilityId} onChange={(e) => setFacilityId(e.target.value)}>
+              <option value="">— เลือกจากระบบ —</option>
+              {facilities.map((f) => <option key={f.id} value={f.id}>{f.name}{f.type === 'clinic' ? ' (รพ.สต./คลินิก)' : ''}</option>)}
+            </select>
+            {!facilityId && (
+              <input
+                className={`${fieldCls} mt-2`}
+                placeholder="หรือพิมพ์ชื่อ รพ. นอกระบบ"
+                value={facilityText}
+                onChange={(e) => setFacilityText(e.target.value)}
+              />
+            )}
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-[var(--fg-muted)]">ความเร่งด่วน</label>
+            <select className={fieldCls} value={priority} onChange={(e) => setPriority(e.target.value)}>
+              <option value="low">ไม่เร่งด่วน</option>
+              <option value="normal">ปกติ</option>
+              <option value="high">เร่งด่วน</option>
+              <option value="critical">วิกฤต</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-[var(--fg-muted)]">เหตุผล / อาการ</label>
+            <textarea
+              className="min-h-[64px] w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm outline-none focus:border-[var(--accent)]"
+              placeholder="เช่น หายใจลำบาก ต้องการออกซิเจน"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 border-t border-[var(--border)] bg-[var(--bg-sunken)] px-5 py-3">
+          {error ? <span className="text-xs text-[var(--risk-flood)]">{error}</span> : <span />}
+          <div className="flex gap-2">
+            <button type="button" onClick={onClose} className="gx-btn gx-btn-ghost gx-btn-sm">ยกเลิก</button>
+            <button type="button" onClick={submit} disabled={saving} className="gx-btn gx-btn-primary gx-btn-sm disabled:opacity-50">
+              {saving ? <Loader2 size={14} className="animate-spin" /> : <Hospital size={14} />} ยืนยันส่งต่อ
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
@@ -300,11 +417,14 @@ function IntakeModal({ shelterId, zones, teams, onClose, onSaved }: IntakeModalP
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (tab !== 'search' || query.trim().length < 3) { setResults([]); return }
+    if (tab !== 'search' || query.trim().length < 3) { setResults([]); setPicked(null); return }
     const t = setTimeout(async () => {
       setSearching(true)
       const res = await fetch(`/api/household-members/search?q=${encodeURIComponent(query.trim())}`).then((r) => r.json()).catch(() => ({ data: [] }))
-      setResults(res.data ?? [])
+      const list = res.data ?? []
+      setResults(list)
+      // เจอคนเดียว (เช่น ค้นด้วยเลขบัตร 13 หลัก) → เลือกให้อัตโนมัติ
+      setPicked(list.length === 1 ? list[0] : null)
       setSearching(false)
     }, 250)
     return () => clearTimeout(t)
@@ -460,7 +580,13 @@ function IntakeModal({ shelterId, zones, teams, onClose, onSaved }: IntakeModalP
 
         {/* Footer */}
         <div className="flex items-center justify-between gap-3 border-t border-[var(--border)] bg-[var(--bg-sunken)] px-5 py-3">
-          {error ? <span className="text-xs text-[var(--risk-flood)]">{error}</span> : <span />}
+          {error ? (
+            <span className="text-xs text-[var(--risk-flood)]">{error}</span>
+          ) : tab === 'search' && !picked ? (
+            <span className="text-xs text-[var(--fg-subtle)]">เลือกรายชื่อจากผลการค้นหาก่อน</span>
+          ) : (
+            <span />
+          )}
           <div className="flex gap-2">
             <button type="button" onClick={onClose} className="gx-btn gx-btn-ghost gx-btn-sm">ยกเลิก</button>
             <button type="button" onClick={submit} disabled={saving || (tab === 'search' && !picked)} className="gx-btn gx-btn-primary gx-btn-sm disabled:opacity-50">

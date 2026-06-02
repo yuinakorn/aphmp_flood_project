@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { AlertTriangle, CircleDot, Archive, Siren, Crosshair, Check, Lock, ShieldAlert } from 'lucide-react'
-import type { Incident, IncidentType } from '@/types'
+import { AlertTriangle, CircleDot, Archive, Siren, Crosshair, Check, Lock, ShieldAlert, MapPinned } from 'lucide-react'
+import type { Incident, IncidentArea, IncidentType } from '@/types'
 import { useIncidentScope } from '@/components/shell/IncidentScopeProvider'
+import { AreaPicker } from './AreaPicker'
 
 interface IncidentsClientProps {
   canCreate: boolean
@@ -30,6 +31,21 @@ function fmt(iso?: string | null) {
   return new Date(iso).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' })
 }
 
+/** สรุปพื้นที่ผลกระทบ — รองรับหลายอำเภอ/ตำบล */
+function summarizeAreas(inc: Incident): string {
+  const areas = inc.areas ?? []
+  if (areas.length === 0) {
+    return [inc.tambon, inc.amphoe, inc.province].filter(Boolean).join(' · ')
+  }
+  const province = areas[0].province ?? inc.province ?? null
+  const labels = areas.map((a) =>
+    a.tambon ? `${a.amphoe ?? ''}/${a.tambon}` : a.amphoe ? `อ.${a.amphoe}` : 'ทั้งจังหวัด',
+  )
+  const head = labels.slice(0, 2).join(', ')
+  const more = labels.length > 2 ? ` +${labels.length - 2}` : ''
+  return [province, `${head}${more}`].filter(Boolean).join(' · ')
+}
+
 export function IncidentsClient({ canCreate, province: myProvince, isNational, provinceOptions }: IncidentsClientProps) {
   const router = useRouter()
   const scope = useIncidentScope()
@@ -42,8 +58,7 @@ export function IncidentsClient({ canCreate, province: myProvince, isNational, p
   const [type, setType] = useState<IncidentType>('flood')
   // non-national: ล็อกเป็นจังหวัดสังกัด · national: เลือกเองจาก dropdown
   const [province, setProvince] = useState(isNational ? '' : (myProvince ?? ''))
-  const [amphoe, setAmphoe] = useState('')
-  const [tambon, setTambon] = useState('')
+  const [areas, setAreas] = useState<IncidentArea[]>([])
   const [description, setDescription] = useState('')
 
   async function load() {
@@ -69,17 +84,45 @@ export function IncidentsClient({ canCreate, province: myProvince, isNational, p
   async function create(e: React.FormEvent) {
     e.preventDefault()
     if (!name.trim() || busy) return
+    const filledAreas = areas.filter((a) => a.amphoe || a.tambon)
+    if (filledAreas.length === 0) { setError('ระบุพื้นที่ผลกระทบอย่างน้อย 1 อำเภอ'); return }
     setBusy(true)
     setError(null)
     try {
       const res = await fetch('/api/incidents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, type, province, amphoe, tambon, description }),
+        body: JSON.stringify({ name, type, province, areas: filledAreas, description }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error ?? 'เปิดเหตุการณ์ไม่สำเร็จ')
-      setName(''); setProvince(''); setAmphoe(''); setTambon(''); setDescription('')
+      setName(''); setProvince(isNational ? '' : (myProvince ?? '')); setAreas([]); setDescription('')
+      await load()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'เกิดข้อผิดพลาด')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // แก้ไขพื้นที่ผลกระทบของเหตุการณ์ที่มีอยู่ (ขยาย/ถอนพื้นที่)
+  const [editAreasId, setEditAreasId] = useState<string | null>(null)
+  const [editAreas, setEditAreas] = useState<IncidentArea[]>([])
+
+  async function saveAreas(id: string, incProvince: string) {
+    const filled = editAreas.filter((a) => a.amphoe || a.tambon)
+    if (filled.length === 0) { setError('ต้องมีพื้นที่อย่างน้อย 1 อำเภอ'); return }
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/incidents/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ areas: filled.map((a) => ({ ...a, province: incProvince })) }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'บันทึกพื้นที่ไม่สำเร็จ')
+      setEditAreasId(null)
       await load()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'เกิดข้อผิดพลาด')
@@ -119,21 +162,18 @@ export function IncidentsClient({ canCreate, province: myProvince, isNational, p
   return (
     <div className="mx-auto max-w-5xl">
       {activeCount > 0 && (
-        <div className="gx-banner-crisis mb-5">
-          <AlertTriangle size={18} className="shrink-0" />
+        <div className="gx-banner-crisis mb-3 py-2 text-[13px]">
+          <AlertTriangle size={15} className="shrink-0" />
           <span>
-            ระบบอยู่ใน <strong>โหมดวิกฤต</strong> · กำลังเกิด {activeCount} เหตุการณ์ ข้อมูลภาคสนามใหม่จะถูกผูกกับเหตุการณ์ที่ active โดยอัตโนมัติ
+            <strong>โหมดวิกฤต</strong> · กำลังเกิด {activeCount} เหตุการณ์ — ข้อมูลภาคสนามใหม่ผูกกับเหตุการณ์ที่ active อัตโนมัติ
           </span>
         </div>
       )}
 
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="gx-eyebrow">โหมดวิกฤต · เหตุการณ์ภัยพิบัติ</p>
-          <h1 className="gx-title mt-1.5">เหตุการณ์ (Incidents)</h1>
-          <p className="mt-1.5 text-sm text-[var(--fg-muted)]">
-            เปิดเหตุการณ์เพื่อเข้าสู่โหมดวิกฤต — ข้อมูลภาคสนามใหม่จะถูกผูกกับเหตุการณ์ที่กำลังเกิด
-          </p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-baseline gap-2.5">
+          <h1 className="gx-title">เหตุการณ์ (Incidents)</h1>
+          <p className="text-xs text-[var(--fg-subtle)]">เปิดเหตุการณ์เพื่อเข้าสู่โหมดวิกฤต</p>
         </div>
         <div className="flex gap-2 text-xs">
           <span className="gx-badge gx-badge-flood"><span className="gx-badge-dot" />active {activeCount}</span>
@@ -142,12 +182,12 @@ export function IncidentsClient({ canCreate, province: myProvince, isNational, p
       </div>
 
       {canCreate ? (
-        <form onSubmit={create} className="gx-card mt-6 p-5" style={{ ['--tile' as string]: 'var(--risk-flood)' }}>
-          <div className="mb-4 flex items-center gap-3">
-            <span className="gx-icon-tile size-10"><Siren size={18} strokeWidth={1.75} /></span>
+        <form onSubmit={create} className="gx-card mt-3 p-4" style={{ ['--tile' as string]: 'var(--risk-flood)' }}>
+          <div className="mb-3 flex items-center gap-2.5">
+            <span className="gx-icon-tile size-9"><Siren size={16} strokeWidth={1.75} /></span>
             <div>
               <p className="text-sm font-semibold text-[var(--fg)]">เปิดเหตุการณ์ใหม่</p>
-              <p className="text-xs text-[var(--fg-muted)]">การเปิดเหตุการณ์จะกระตุ้นโหมดวิกฤตทันที ทุกระบบที่เกี่ยวข้องจะตอบสนอง</p>
+              <p className="text-xs text-[var(--fg-muted)]">กระตุ้นโหมดวิกฤตทันที ทุกระบบที่เกี่ยวข้องจะตอบสนอง</p>
             </div>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -176,8 +216,9 @@ export function IncidentsClient({ canCreate, province: myProvince, isNational, p
                 <span className="truncate">{myProvince ?? 'ไม่พบจังหวัดสังกัด'}</span>
               </div>
             )}
-            <input className={inputCls} placeholder="อำเภอ" value={amphoe} onChange={(e) => setAmphoe(e.target.value)} />
-            <input className={inputCls} placeholder="ตำบล" value={tambon} onChange={(e) => setTambon(e.target.value)} />
+            <div className="sm:col-span-2">
+              <AreaPicker province={province} value={areas} onChange={setAreas} />
+            </div>
             <input className={`${inputCls} sm:col-span-2`} placeholder="รายละเอียด (ไม่บังคับ)" value={description} onChange={(e) => setDescription(e.target.value)} />
           </div>
           <div className="mt-4 flex items-center gap-3">
@@ -199,7 +240,7 @@ export function IncidentsClient({ canCreate, province: myProvince, isNational, p
         </div>
       )}
 
-      <div className="mt-7 flex items-baseline justify-between">
+      <div className="mt-5 flex items-baseline justify-between">
         <h2 className="text-sm font-semibold text-[var(--fg)]">เหตุการณ์ทั้งหมด <span className="ml-1.5 font-mono text-[var(--fg-subtle)]">{incidents.length}</span></h2>
       </div>
 
@@ -210,9 +251,10 @@ export function IncidentsClient({ canCreate, province: myProvince, isNational, p
         )}
         {incidents.map((inc) => {
           const isActive = inc.status === 'active'
-          const place = [inc.tambon, inc.amphoe, inc.province].filter(Boolean).join(' · ')
+          const place = summarizeAreas(inc)
           return (
-            <li key={inc.id} className="flex items-center gap-4 border-b border-[var(--border)] px-4 py-3.5 last:border-b-0">
+            <li key={inc.id} className="border-b border-[var(--border)] px-4 py-3.5 last:border-b-0">
+              <div className="flex items-center gap-4">
               <span
                 aria-hidden
                 className="flex size-10 shrink-0 items-center justify-center rounded-lg"
@@ -254,6 +296,21 @@ export function IncidentsClient({ canCreate, province: myProvince, isNational, p
                   </button>
                 )
               })()}
+              {canCreate && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    if (editAreasId === inc.id) { setEditAreasId(null); return }
+                    setEditAreas(inc.areas ?? [])
+                    setEditAreasId(inc.id)
+                  }}
+                  className={`gx-btn gx-btn-sm disabled:opacity-50 ${editAreasId === inc.id ? 'gx-btn-primary' : 'gx-btn-ghost hover:!border-[var(--accent)] hover:!text-[var(--accent)]'}`}
+                  title="จัดการพื้นที่ผลกระทบ"
+                >
+                  <MapPinned size={13} /> พื้นที่ {inc.areas?.length ? `(${inc.areas.length})` : ''}
+                </button>
+              )}
               {canCreate && (isActive ? (
                 <button
                   type="button"
@@ -273,6 +330,30 @@ export function IncidentsClient({ canCreate, province: myProvince, isNational, p
                   เปิดอีกครั้ง
                 </button>
               ))}
+              </div>
+
+              {editAreasId === inc.id && (
+                <div className="mt-3 rounded-lg border border-[var(--border)] bg-[var(--bg-sunken)] p-3.5">
+                  <AreaPicker
+                    province={inc.areas?.[0]?.province ?? inc.province ?? ''}
+                    value={inc.areas ?? []}
+                    onChange={setEditAreas}
+                  />
+                  <div className="mt-3 flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => saveAreas(inc.id, inc.areas?.[0]?.province ?? inc.province ?? '')}
+                      className="gx-btn gx-btn-primary gx-btn-sm disabled:opacity-50"
+                    >
+                      <Check size={13} /> บันทึกพื้นที่
+                    </button>
+                    <button type="button" onClick={() => setEditAreasId(null)} className="gx-btn gx-btn-ghost gx-btn-sm">
+                      ยกเลิก
+                    </button>
+                  </div>
+                </div>
+              )}
             </li>
           )
         })}

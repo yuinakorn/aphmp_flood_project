@@ -3,7 +3,7 @@ import { cookies } from 'next/headers'
 import { and, desc, eq, isNotNull, isNull, max, sql } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { rescueTeams, helpRequests, householdMembers, healthVisits, incidentCasualties, diseaseSurveillance } from '@/db/schema'
-import { getActiveIncident } from '@/lib/incident-scope'
+import { getActiveIncident, memberMatchesAreas } from '@/lib/incident-scope'
 import { getIncidentCounters } from '@/lib/incident-counters'
 import { EocDashboard, MAP_HIDDEN_COOKIE } from './EocDashboard'
 import type { CasualtyCause, CasualtySeverity, CasualtyType, CoverageRow, Incident, IncidentCasualty, IncidentCounters, RescueTeam, RescueTeamType, RescueTeamStatus, SurveillanceDiseaseCode, SurveillanceEntry, VulnerablePerson } from '@/types'
@@ -69,14 +69,12 @@ export default async function EocPage() {
 
   const allPersons: VulnerablePerson[] = Array.isArray(personsRes) ? personsRes : []
 
-  // กรอง persons ตามพื้นที่ของ incident
-  const persons: VulnerablePerson[] = (() => {
-    if (!scope) return allPersons
-    if (scope.tambon) return allPersons.filter((p) => p.tambon === scope.tambon && p.amphoe === scope.amphoe)
-    if (scope.amphoe) return allPersons.filter((p) => p.amphoe === scope.amphoe)
-    if (scope.province) return allPersons.filter((p) => (p as VulnerablePerson & { province?: string }).province === scope.province)
-    return allPersons
-  })()
+  // กรอง persons ตามพื้นที่ผลกระทบของ incident (รองรับหลายอำเภอ/ตำบล)
+  const persons: VulnerablePerson[] = !scope
+    ? allPersons
+    : allPersons.filter((p) =>
+        memberMatchesAreas(p as VulnerablePerson & { province?: string | null }, scope.areas),
+      )
 
   const activeIncidents: Incident[] = scope ? [scope] : []
 

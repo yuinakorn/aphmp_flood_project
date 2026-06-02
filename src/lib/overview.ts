@@ -10,7 +10,7 @@
 import { and, eq, inArray, isNotNull, isNull, max, sql } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { classifyRisk, haversineKm } from '@/lib/geo'
-import { getActiveIncident } from '@/lib/incident-scope'
+import { getActiveIncident, areaMemberWhere } from '@/lib/incident-scope'
 import {
   householdMembers,
   shelterAdmissions,
@@ -136,15 +136,15 @@ export async function getOverviewData(
   const mode: OverviewMode = incident ? 'crisis' : 'normal'
   const now = Date.now()
 
-  // ── 1) สมาชิกในทะเบียนดูแล (scope ตามพื้นที่ incident ถ้ามี) ──
+  // ── 1) สมาชิกในทะเบียนดูแล (scope ตามพื้นที่ผลกระทบของ incident ถ้ามี — รองรับหลายอำเภอ/ตำบล) ──
   const memberWhere = [isNotNull(householdMembers.type), isNull(householdMembers.deletedAt)]
-  if (incident?.tambon) {
-    memberWhere.push(eq(householdMembers.tambon, incident.tambon))
-    if (incident.amphoe) memberWhere.push(eq(householdMembers.amphoe, incident.amphoe))
-  } else if (incident?.amphoe) {
-    memberWhere.push(eq(householdMembers.amphoe, incident.amphoe))
-  } else if (incident?.province) {
-    memberWhere.push(eq(householdMembers.province, incident.province))
+  if (incident?.areas?.length) {
+    const areaCond = areaMemberWhere(incident.areas, {
+      province: householdMembers.province,
+      amphoe: householdMembers.amphoe,
+      tambon: householdMembers.tambon,
+    })
+    if (areaCond) memberWhere.push(areaCond)
   }
 
   const members = await db

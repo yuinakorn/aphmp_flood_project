@@ -9,9 +9,41 @@ import {
   sessionUserId,
   unauthorized,
 } from '@/lib/field-api'
-import { isNationalRole } from '@/lib/incident-scope'
+import { getIncidentAreas, isNationalRole } from '@/lib/incident-scope'
 import { INCIDENT_STATUSES, INCIDENT_TYPES } from '@/lib/incident'
-import { incidents } from '@/db/schema'
+import { incidents, incidentAreas } from '@/db/schema'
+import type { IncidentArea } from '@/types'
+
+/**
+ * sanitize รายการพื้นที่จาก body
+ * - non-national: ทุก area ถูกล็อก province = จังหวัดสังกัด (กันสร้างนอก scope)
+ * - ตัด area ที่ว่างเปล่า (ไม่มีระดับใดเลย) ทิ้ง
+ * - fallback: ถ้าไม่ส่ง areas[] ใช้ {province, amphoe, tambon} ระดับบนสุดเป็น 1 area
+ */
+function sanitizeAreas(body: Record<string, unknown>, lockedProvince: string | null): IncidentArea[] {
+  const raw: unknown[] = Array.isArray(body.areas)
+    ? (body.areas as unknown[])
+    : [{ province: body.province, amphoe: body.amphoe, tambon: body.tambon }]
+
+  const out: IncidentArea[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue
+    const a = item as Record<string, unknown>
+    const province = lockedProvince ?? (typeof a.province === 'string' && a.province ? a.province : null)
+    const amphoe = typeof a.amphoe === 'string' && a.amphoe ? a.amphoe : null
+    const tambon = typeof a.tambon === 'string' && a.tambon ? a.tambon : null
+    if (!province && !amphoe && !tambon) continue
+    out.push({ province, amphoe, tambon })
+  }
+  // กันซ้ำ
+  const seen = new Set<string>()
+  return out.filter((a) => {
+    const k = `${a.province ?? ''}|${a.amphoe ?? ''}|${a.tambon ?? ''}`
+    if (seen.has(k)) return false
+    seen.add(k)
+    return true
+  })
+}
 
 // GET /api/incidents?status=active — list เหตุการณ์ (scope ตามจังหวัดสังกัด)
 export async function GET(req: NextRequest) {
@@ -37,7 +69,12 @@ export async function GET(req: NextRequest) {
     .where(conds.length ? and(...conds) : undefined)
     .orderBy(desc(incidents.startedAt))
 
-  return NextResponse.json({ data: rows })
+  // แนบพื้นที่ผลกระทบทั้งหมดของแต่ละเหตุการณ์ (multi-อำเภอ/ตำบล)
+  const withAreas = await Promise.all(
+    rows.map(async (r) => ({ ...r, areas: await getIncidentAreas(r.id) })),
+  )
+
+  return NextResponse.json({ data: withAreas })
 }
 
 // POST /api/incidents — เปิดเหตุการณ์วิกฤต (ผู้บัญชาการ: admin/eoc/ddpm)
@@ -65,6 +102,12 @@ export async function POST(req: NextRequest) {
     : (session.user.province ?? null)
   if (!national && !province) return badRequest('ไม่พบจังหวัดสังกัดของผู้ใช้ — ติดต่อผู้ดูแลระบบ')
 
+  // พื้นที่ผลกระทบ (รองรับหลายอำเภอ/ตำบล) — non-national ล็อก province สังกัด
+  const areas = sanitizeAreas(body, national ? null : province)
+  if (areas.length === 0) return badRequest('ต้องระบุพื้นที่ผลกระทบอย่างน้อย 1 พื้นที่')
+  // พื้นที่หลัก (display + guard) = พื้นที่แรก
+  const primary = areas[0]
+
   const db = getDb()
   const [created] = await db
     .insert(incidents)
@@ -72,13 +115,22 @@ export async function POST(req: NextRequest) {
       name,
       type,
       status,
-      province,
-      amphoe: typeof body.amphoe === 'string' ? body.amphoe : null,
-      tambon: typeof body.tambon === 'string' ? body.tambon : null,
+      province: primary.province ?? province,
+      amphoe: primary.amphoe ?? null,
+      tambon: primary.tambon ?? null,
       description: typeof body.description === 'string' ? body.description : null,
       createdBy: sessionUserId(session),
     })
     .returning()
 
-  return NextResponse.json({ data: created }, { status: 201 })
+  await db.insert(incidentAreas).values(
+    areas.map((a) => ({
+      incidentId: created.id,
+      province: a.province ?? null,
+      amphoe: a.amphoe ?? null,
+      tambon: a.tambon ?? null,
+    })),
+  )
+
+  return NextResponse.json({ data: { ...created, areas } }, { status: 201 })
 }

@@ -7,7 +7,7 @@ import { SidebarProvider, SIDEBAR_COOKIE } from '@/components/shell/SidebarProvi
 import { RoleViewProvider } from '@/components/shell/RoleViewProvider'
 import { IncidentScopeProvider } from '@/components/shell/IncidentScopeProvider'
 import { getActiveIncident, getSelectableIncidents } from '@/lib/incident-scope'
-import { canManageStaff } from '@/lib/field-api'
+import { canManageStaff, canTriage } from '@/lib/field-api'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await auth()
@@ -28,7 +28,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <div className="flex min-h-screen flex-col bg-[var(--bg)] text-[var(--fg)]">
           <Masthead session={{ role, name: session.user?.name ?? '' }} />
           <div className="flex flex-1">
-            <AppSidebar canManageStaff={canManageStaff(role)} />
+            <AppSidebar canManageStaff={canManageStaff(role)} canTriage={canTriage(role)} />
             <div className="flex min-w-0 flex-1 flex-col">
               <main className="flex-1 px-8 py-8">{children}</main>
             </div>

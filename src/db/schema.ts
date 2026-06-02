@@ -427,6 +427,29 @@ export const shelterAdmissions = pgTable('shelter_admissions', {
   dischargedAt: timestamp('discharged_at', { withTimezone: true }),
 }, (t) => [index('idx_shelter_admissions_incident_id').on(t.incidentId)])
 
+// การส่งต่อผู้ป่วยจากศูนย์พักพิง → สถานพยาบาล (referral) — ให้ปลายทางเห็นเคสที่กำลังมา + ติดตามสถานะ
+export const hospitalReferrals = pgTable('hospital_referrals', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  incidentId: uuid('incident_id').references(() => incidents.id),
+  admissionId: uuid('admission_id').references(() => shelterAdmissions.id, { onDelete: 'set null' }),
+  memberId: uuid('member_id').references(() => householdMembers.id),
+  fromShelterId: uuid('from_shelter_id').notNull().references(() => infrastructures.id),
+  toFacilityId: uuid('to_facility_id').references(() => infrastructures.id), // รพ.ปลายทางในระบบ
+  toFacilityText: text('to_facility_text'),       // ปลายทางนอกระบบ (ข้อความอิสระ)
+  personName: text('person_name'),                // snapshot ชื่อผู้ป่วย (กัน walk-in/แสดงผล)
+  reason: text('reason'),                          // เหตุผลส่งต่อ / อาการ
+  priority: text('priority').notNull().default('normal'), // low | normal | high | critical
+  status: text('status').notNull().default('pending'),    // pending | accepted | en_route | arrived | admitted | rejected | cancelled
+  notes: text('notes'),
+  referredBy: uuid('referred_by'),
+  referredAt: timestamp('referred_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+}, (t) => [
+  index('idx_hospital_referrals_to_facility').on(t.toFacilityId),
+  index('idx_hospital_referrals_incident').on(t.incidentId),
+  index('idx_hospital_referrals_status').on(t.status),
+])
+
 // ผูกผู้ใช้ (ผู้รับผิดชอบประจำศูนย์) กับศูนย์พักพิง — 1 คนดูแลได้หลายศูนย์
 // ผู้ที่มี role shelter_manager จะเห็น/จัดการได้เฉพาะศูนย์ที่ถูก assign ไว้ในตารางนี้
 export const shelterStaff = pgTable('shelter_staff', {

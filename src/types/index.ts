@@ -45,14 +45,23 @@ export type ShelterReadinessStatus = 'open' | 'near_capacity' | 'full' | 'closed
 export type IncidentType = 'flood' | 'storm' | 'other'
 export type IncidentStatus = 'active' | 'monitoring' | 'closed'
 
+/** พื้นที่ผลกระทบหนึ่งของเหตุการณ์ — hierarchical: tambon=null=ทั้งอำเภอ, amphoe=null=ทั้งจังหวัด */
+export interface IncidentArea {
+  id?: string
+  province?: string | null
+  amphoe?: string | null
+  tambon?: string | null
+}
+
 export interface Incident {
   id: string
   name: string
   type: IncidentType
   status: IncidentStatus
-  province?: string | null
+  province?: string | null   // พื้นที่หลัก (display + province guard)
   amphoe?: string | null
   tambon?: string | null
+  areas?: IncidentArea[]      // พื้นที่ผลกระทบทั้งหมด (scope จริงในการกรองข้อมูล) — multi-อำเภอ/ตำบล
   description?: string | null
   startedAt: string
   endedAt?: string | null
@@ -458,6 +467,54 @@ export interface AdmissionPerson {
   foodAllergy?: string | null
   drugAllergy?: string | null
   isVulnerable?: boolean
+}
+
+// ───────── การส่งต่อผู้ป่วย ศูนย์พักพิง → สถานพยาบาล ─────────
+export type ReferralPriority = 'low' | 'normal' | 'high' | 'critical'
+export type ReferralStatus =
+  | 'pending'    // ส่งต่อแล้ว รอปลายทางรับทราบ
+  | 'accepted'   // รพ.รับทราบ/ตอบรับ
+  | 'en_route'   // กำลังนำส่ง
+  | 'arrived'    // ถึง รพ.แล้ว
+  | 'admitted'   // รับเข้ารักษา
+  | 'rejected'   // ปลายทางปฏิเสธ
+  | 'cancelled'  // ยกเลิก
+
+export const REFERRAL_STATUS_LABEL: Record<ReferralStatus, string> = {
+  pending: 'รอปลายทางรับทราบ',
+  accepted: 'ตอบรับแล้ว',
+  en_route: 'กำลังนำส่ง',
+  arrived: 'ถึงโรงพยาบาลแล้ว',
+  admitted: 'รับเข้ารักษา',
+  rejected: 'ปฏิเสธ',
+  cancelled: 'ยกเลิก',
+}
+
+export const REFERRAL_PRIORITY_LABEL: Record<ReferralPriority, string> = {
+  low: 'ไม่เร่งด่วน',
+  normal: 'ปกติ',
+  high: 'เร่งด่วน',
+  critical: 'วิกฤต',
+}
+
+export interface HospitalReferral {
+  id: string
+  incidentId?: string | null
+  admissionId?: string | null
+  memberId?: string | null
+  fromShelterId: string
+  fromShelterName?: string | null
+  toFacilityId?: string | null
+  toFacilityName?: string | null
+  toFacilityText?: string | null
+  personName?: string | null
+  reason?: string | null
+  priority: ReferralPriority
+  status: ReferralStatus
+  notes?: string | null
+  referredBy?: string | null
+  referredAt: string
+  updatedAt?: string | null
 }
 
 export interface FloodStats {

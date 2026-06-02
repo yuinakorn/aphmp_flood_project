@@ -7,14 +7,27 @@ interface StaffMember {
   id: string
   userId: string
   name: string
-  email: string
+  email?: string | null
   role: string
+  unitName?: string | null
+}
+
+const ROLE_LABEL: Record<string, string> = {
+  admin: 'ผู้ดูแลระบบ',
+  eoc: 'EOC',
+  officer: 'เจ้าหน้าที่',
+  vhv: 'อสม.',
+  ems: 'EMS',
+  rescue: 'กู้ภัย',
+  ddpm: 'ปภ.',
+  shelter_manager: 'ผู้จัดการศูนย์',
+  viewer: 'ผู้ดู',
 }
 
 export function ShelterStaffPanel({ shelterId }: { shelterId: string }) {
   const [staff, setStaff] = useState<StaffMember[]>([])
   const [loading, setLoading] = useState(true)
-  const [email, setEmail] = useState('')
+  const [nationalId, setNationalId] = useState('')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
 
@@ -32,16 +45,17 @@ export function ShelterStaffPanel({ shelterId }: { shelterId: string }) {
 
   async function add(e: React.FormEvent) {
     e.preventDefault()
-    if (!email.trim()) return
+    const cid = nationalId.replace(/\D/g, '')
+    if (cid.length !== 13) { setMsg('กรอกเลขบัตรประชาชน 13 หลัก'); return }
     setBusy(true)
     setMsg(null)
     const res = await fetch(`/api/shelters/${shelterId}/staff`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: email.trim() }),
+      body: JSON.stringify({ nationalId: cid }),
     })
     if (res.ok) {
-      setEmail('')
+      setNationalId('')
       await load()
     } else {
       setMsg((await res.json().catch(() => ({})))?.error ?? 'เพิ่มไม่สำเร็จ')
@@ -61,7 +75,7 @@ export function ShelterStaffPanel({ shelterId }: { shelterId: string }) {
         <h3 className="font-semibold text-[var(--fg)]">ผู้รับผิดชอบประจำศูนย์</h3>
       </div>
       <p className="mb-3 text-xs text-[var(--fg-muted)]">
-        ผู้ใช้ที่เพิ่มที่นี่จะเห็นและจัดการ roster เฉพาะศูนย์นี้ (สำหรับ role ที่ไม่ใช่ระดับสั่งการ)
+        ระบุเจ้าหน้าที่ด้วยเลขบัตรประชาชน 13 หลัก — ผู้ที่เพิ่มจะเห็นและจัดการ roster เฉพาะศูนย์นี้ (สำหรับ role ที่ไม่ใช่ระดับสั่งการ)
       </p>
 
       {loading ? (
@@ -76,7 +90,9 @@ export function ShelterStaffPanel({ shelterId }: { shelterId: string }) {
             <li key={s.id} className="flex items-center justify-between rounded-md bg-[var(--bg-sunken)] px-3 py-2 text-sm">
               <span>
                 <span className="font-medium text-[var(--fg)]">{s.name}</span>
-                <span className="ml-2 text-xs text-[var(--fg-muted)]">{s.email}</span>
+                <span className="ml-2 text-xs text-[var(--fg-muted)]">
+                  {ROLE_LABEL[s.role] ?? s.role}{s.unitName ? ` · ${s.unitName}` : ''}
+                </span>
               </span>
               <button onClick={() => remove(s.userId)} className="text-[var(--fg-subtle)] hover:text-[var(--risk-flood)]" title="ลบ">
                 <X className="size-4" />
@@ -88,11 +104,11 @@ export function ShelterStaffPanel({ shelterId }: { shelterId: string }) {
 
       <form onSubmit={add} className="flex gap-2">
         <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="อีเมลผู้ใช้"
-          className="flex-1 rounded-md border border-[var(--border)] bg-[var(--bg-elevated)] px-3 py-1.5 text-sm"
+          inputMode="numeric"
+          value={nationalId}
+          onChange={(e) => setNationalId(e.target.value.replace(/\D/g, '').slice(0, 13))}
+          placeholder="เลขบัตรประชาชน 13 หลัก"
+          className="flex-1 rounded-md border border-[var(--border)] bg-[var(--bg-elevated)] px-3 py-1.5 font-mono text-sm tracking-wide"
         />
         <button type="submit" disabled={busy} className="gx-btn gx-btn-primary gx-btn-sm">
           {busy ? <Loader2 className="size-4 animate-spin" /> : <UserPlus className="size-4" />} เพิ่ม

@@ -10,6 +10,7 @@ import {
   Users,
   FolderHeart,
   Tent,
+  Hospital,
   Droplets,
   Building2,
   AlertTriangle,
@@ -23,7 +24,7 @@ import { useSidebar } from '@/components/shell/SidebarProvider'
 type Item = { href: string; icon: typeof LayoutDashboard; label: string }
 type Section = { label: string | null; items: Item[] }
 
-function buildSections(canManageStaff: boolean): Section[] {
+function buildSections(canManageStaff: boolean, canTriage: boolean): Section[] {
   const systemItems: Item[] = [
     { href: '/admin/water-level', icon: Droplets, label: 'ระดับน้ำ' },
     { href: '/admin/infra', icon: Building2, label: 'สถานพยาบาล' },
@@ -31,6 +32,14 @@ function buildSections(canManageStaff: boolean): Section[] {
   ]
   if (canManageStaff) {
     systemItems.push({ href: '/admin/staff', icon: UserCog, label: 'จัดการเจ้าหน้าที่' })
+  }
+  const healthItems: Item[] = [
+    { href: '/admin/vulnerable', icon: Users, label: 'กลุ่มเปราะบาง' },
+    { href: '/admin/family-folder', icon: FolderHeart, label: 'Family Folder' },
+    { href: '/admin/shelters', icon: Tent, label: 'ศูนย์พักพิง' },
+  ]
+  if (canTriage) {
+    healthItems.push({ href: '/admin/referrals', icon: Hospital, label: 'ส่งต่อโรงพยาบาล' })
   }
   return [
     {
@@ -43,11 +52,7 @@ function buildSections(canManageStaff: boolean): Section[] {
     },
     {
       label: 'ทะเบียนสุขภาพ',
-      items: [
-        { href: '/admin/vulnerable', icon: Users, label: 'กลุ่มเปราะบาง' },
-        { href: '/admin/family-folder', icon: FolderHeart, label: 'Family Folder' },
-        { href: '/admin/shelters', icon: Tent, label: 'ศูนย์พักพิง' },
-      ],
+      items: healthItems,
     },
     {
       label: 'ข้อมูล & ระบบ',
@@ -106,10 +111,10 @@ function NavList({ sections, showLabels, onNavigate }: { sections: Section[]; sh
   )
 }
 
-export function AppSidebar({ canManageStaff = false }: { canManageStaff?: boolean }) {
+export function AppSidebar({ canManageStaff = false, canTriage = false }: { canManageStaff?: boolean; canTriage?: boolean }) {
   const { collapsed, toggleCollapsed, mobileOpen, setMobileOpen } = useSidebar()
   const pathname = usePathname()
-  const sections = buildSections(canManageStaff)
+  const sections = buildSections(canManageStaff, canTriage)
 
   // ปิด drawer อัตโนมัติเมื่อเปลี่ยนหน้า
   useEffect(() => {

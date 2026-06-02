@@ -3,9 +3,30 @@ import { eq } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 import { getDb } from '@/lib/db'
 import { badRequest, canManageIncident, forbidden, isUuid, unauthorized } from '@/lib/field-api'
-import { isNationalRole } from '@/lib/incident-scope'
+import { getIncidentAreas, isNationalRole } from '@/lib/incident-scope'
 import { INCIDENT_STATUSES, INCIDENT_TYPES } from '@/lib/incident'
-import { incidents } from '@/db/schema'
+import { incidents, incidentAreas } from '@/db/schema'
+import type { IncidentArea } from '@/types'
+
+/** sanitize areas (เหมือนใน POST) — non-national ล็อก province */
+function sanitizeAreas(rawList: unknown, lockedProvince: string | null): IncidentArea[] {
+  if (!Array.isArray(rawList)) return []
+  const out: IncidentArea[] = []
+  const seen = new Set<string>()
+  for (const item of rawList) {
+    if (!item || typeof item !== 'object') continue
+    const a = item as Record<string, unknown>
+    const province = lockedProvince ?? (typeof a.province === 'string' && a.province ? a.province : null)
+    const amphoe = typeof a.amphoe === 'string' && a.amphoe ? a.amphoe : null
+    const tambon = typeof a.tambon === 'string' && a.tambon ? a.tambon : null
+    if (!province && !amphoe && !tambon) continue
+    const k = `${province ?? ''}|${amphoe ?? ''}|${tambon ?? ''}`
+    if (seen.has(k)) continue
+    seen.add(k)
+    out.push({ province, amphoe, tambon })
+  }
+  return out
+}
 
 // PATCH /api/incidents/[id] — แก้ไข/ปิดเหตุการณ์ (ผู้บัญชาการ: admin/eoc/ddpm)
 export async function PATCH(
@@ -60,7 +81,19 @@ export async function PATCH(
     }
   }
 
-  if (Object.keys(patch).length === 1) return badRequest('No updatable fields provided')
+  // จัดการพื้นที่ผลกระทบ (multi-อำเภอ/ตำบล) — replace ทั้งชุดเมื่อส่ง areas[] มา
+  let newAreas: IncidentArea[] | null = null
+  if ('areas' in body) {
+    const locked = isNationalRole(session.user.role) ? null : (session.user.province ?? null)
+    newAreas = sanitizeAreas(body.areas, locked)
+    if (newAreas.length === 0) return badRequest('ต้องมีพื้นที่ผลกระทบอย่างน้อย 1 พื้นที่')
+    // sync พื้นที่หลักจาก area แรก
+    patch.province = newAreas[0].province ?? null
+    patch.amphoe = newAreas[0].amphoe ?? null
+    patch.tambon = newAreas[0].tambon ?? null
+  }
+
+  if (Object.keys(patch).length === 1 && !newAreas) return badRequest('No updatable fields provided')
 
   const [updated] = await db
     .update(incidents)
@@ -69,5 +102,13 @@ export async function PATCH(
     .returning()
 
   if (!updated) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  return NextResponse.json({ data: updated })
+
+  if (newAreas) {
+    await db.delete(incidentAreas).where(eq(incidentAreas.incidentId, id))
+    await db.insert(incidentAreas).values(
+      newAreas.map((a) => ({ incidentId: id, province: a.province ?? null, amphoe: a.amphoe ?? null, tambon: a.tambon ?? null })),
+    )
+  }
+
+  return NextResponse.json({ data: { ...updated, areas: await getIncidentAreas(id) } })
 }

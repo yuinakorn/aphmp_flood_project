@@ -7,8 +7,9 @@ import {
   LogOut, AlertTriangle, ShieldAlert, Loader2,
 } from 'lucide-react'
 import type {
-  AdmissionPerson, AdmissionStatus, RescueTeam, ShelterZone,
+  AdmissionPerson, AdmissionStatus, RescueTeam, ShelterZone, ReferralStatus,
 } from '@/types'
+import { REFERRAL_STATUS_LABEL } from '@/types'
 import { EditShelterButton } from './EditShelterButton'
 
 interface ShelterMeta {
@@ -29,6 +30,7 @@ interface AdmissionRow {
   broughtByTeamId: string | null
   exitReason: string | null
   exitDestination: string | null
+  referralStatus: ReferralStatus | null
   notes: string | null
   admittedAt: string
   dischargedAt: string | null
@@ -49,6 +51,13 @@ const statusBadgeCls = (s: AdmissionStatus) =>
   : 'gx-badge'
 const statusLabel = (s: AdmissionStatus) =>
   s === 'admitted' ? 'พักอยู่' : s === 'transferred' ? 'ส่งต่อ รพ.' : s === 'discharged' ? 'ย้ายออก' : 'ยกเลิก'
+
+// สีสถานะการส่งต่อปลายทาง — รับ/ยัง
+const referralTone = (s: ReferralStatus): string =>
+  s === 'admitted' ? 'var(--risk-safe)'
+  : s === 'rejected' || s === 'cancelled' ? 'var(--risk-flood)'
+  : s === 'pending' ? 'var(--risk-near)'
+  : 'var(--signal-data)' // accepted | en_route | arrived
 
 export function ShelterDetail({ shelter, zones, teams, canEdit }: Props) {
   const [admissions, setAdmissions] = useState<AdmissionRow[]>([])
@@ -205,6 +214,18 @@ export function ShelterDetail({ shelter, zones, teams, canEdit }: Props) {
                 {a.status === 'transferred' && a.exitDestination && (
                   <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--risk-near)]">
                     <Hospital size={11} /> {a.exitDestination}
+                  </span>
+                )}
+                {a.status === 'transferred' && a.referralStatus && (
+                  <span
+                    className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium"
+                    style={{
+                      background: `color-mix(in oklch, ${referralTone(a.referralStatus)} 14%, transparent)`,
+                      color: referralTone(a.referralStatus),
+                    }}
+                  >
+                    <span className="size-1.5 rounded-full" style={{ background: referralTone(a.referralStatus) }} />
+                    {REFERRAL_STATUS_LABEL[a.referralStatus]}
                   </span>
                 )}
                 <span className="font-mono text-[10.5px] text-[var(--fg-subtle)]">

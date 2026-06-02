@@ -16,6 +16,7 @@ import {
 } from '@/lib/field-api'
 import { resolveIncidentId } from '@/lib/incident'
 import { helpRequests, householdMembers } from '@/db/schema'
+import { audit } from '@/lib/audit'
 import type { HelpRequestPriority, MedicalPriority } from '@/types'
 import floodPointsData from '../../../../public/data/flood-points.json'
 
@@ -142,6 +143,13 @@ export async function POST(req: NextRequest) {
       })
       .where(eq(householdMembers.id, memberId))
   }
+
+  void audit(req, session, {
+    action: 'create_help_request',
+    entity: 'help_request',
+    targetId: created.id,
+    metadata: { requestType: created.requestType, priority: created.priority, incidentId: created.incidentId },
+  })
 
   return NextResponse.json({ data: created }, { status: 201 })
 }

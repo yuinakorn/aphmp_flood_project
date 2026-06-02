@@ -12,6 +12,7 @@ import {
 } from '@/lib/field-api'
 import { getSitRepAuto } from '@/lib/sitrep'
 import { sitReports } from '@/db/schema'
+import { audit } from '@/lib/audit'
 import type { SitRepManual } from '@/types'
 
 const isDateStr = (v: unknown): v is string => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)
@@ -108,6 +109,13 @@ export async function POST(
       .values({ incidentId: id, reportDate, createdBy: sessionUserId(session), ...values })
       .returning()
   }
+
+  void audit(req, session, {
+    action: existing ? 'update_sitrep' : 'create_sitrep',
+    entity: 'sit_report',
+    targetId: saved.id,
+    metadata: { incidentId: id, reportDate, status: saved.status },
+  })
 
   return NextResponse.json({ data: rowToReport(saved) }, { status: existing ? 200 : 201 })
 }

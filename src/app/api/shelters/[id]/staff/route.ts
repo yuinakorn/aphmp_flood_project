@@ -4,6 +4,7 @@ import { auth } from '@/lib/auth'
 import { getDb } from '@/lib/db'
 import { badRequest, forbidden, isUuid, unauthorized } from '@/lib/field-api'
 import { hashCid, normalizeCid } from '@/lib/cid'
+import { audit } from '@/lib/audit'
 import { shelterStaff, users } from '@/db/schema'
 
 function isAdmin(role?: string | null) {
@@ -53,6 +54,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!user) return NextResponse.json({ error: 'ไม่พบเจ้าหน้าที่ที่มีเลขบัตรนี้ในระบบ' }, { status: 404 })
 
   await db.insert(shelterStaff).values({ userId: user.id, shelterId: id }).onConflictDoNothing()
+
+  void audit(req, session, {
+    action: 'add_shelter_staff',
+    entity: 'shelter_staff',
+    targetId: id,
+    metadata: { shelterId: id, assignedUserId: user.id },
+  })
+
   return NextResponse.json({ ok: true, user: { id: user.id, name: user.name, role: user.role } })
 }
 
@@ -68,5 +77,13 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
   const db = getDb()
   await db.delete(shelterStaff).where(and(eq(shelterStaff.shelterId, id), eq(shelterStaff.userId, userId)))
+
+  void audit(req, session, {
+    action: 'remove_shelter_staff',
+    entity: 'shelter_staff',
+    targetId: id,
+    metadata: { shelterId: id, removedUserId: userId },
+  })
+
   return NextResponse.json({ ok: true })
 }

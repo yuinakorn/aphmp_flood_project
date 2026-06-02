@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, inArray } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 import { getDb } from '@/lib/db'
 import {
@@ -12,8 +12,9 @@ import {
   sessionUserId,
   unauthorized,
 } from '@/lib/field-api'
-import { householdMembers, shelterAdmissions, shelterZones } from '@/db/schema'
+import { householdMembers, hospitalReferrals, infrastructures, shelterAdmissions, shelterZones } from '@/db/schema'
 import { getActiveIncidentId } from '@/lib/incident-scope'
+import { audit } from '@/lib/audit'
 
 // GET /api/shelters/:id/admissions?zoneId=&status=
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -51,6 +52,29 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     .where(and(...conditions))
     .orderBy(desc(shelterAdmissions.admittedAt))
 
+  // ดึงสถานะการส่งต่อ (referral) ล่าสุดต่อ admission — ให้ฝั่งศูนย์เห็นว่าปลายทางรับหรือยัง
+  const admIds = rows.map((r) => r.adm.id)
+  const refByAdm = new Map<string, { status: string; facility: string | null }>()
+  if (admIds.length > 0) {
+    const refRows = await db
+      .select({
+        admissionId: hospitalReferrals.admissionId,
+        status: hospitalReferrals.status,
+        referredAt: hospitalReferrals.referredAt,
+        facilityName: infrastructures.name,
+        facilityText: hospitalReferrals.toFacilityText,
+      })
+      .from(hospitalReferrals)
+      .leftJoin(infrastructures, eq(hospitalReferrals.toFacilityId, infrastructures.id))
+      .where(inArray(hospitalReferrals.admissionId, admIds))
+      .orderBy(desc(hospitalReferrals.referredAt))
+    for (const rr of refRows) {
+      if (rr.admissionId && !refByAdm.has(rr.admissionId)) {
+        refByAdm.set(rr.admissionId, { status: rr.status, facility: rr.facilityName ?? rr.facilityText ?? null })
+      }
+    }
+  }
+
   const data = rows.map((r) => ({
     id: r.adm.id,
     status: r.adm.status,
@@ -60,7 +84,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     broughtByText: r.adm.broughtByText,
     broughtByTeamId: r.adm.broughtByTeamId,
     exitReason: r.adm.exitReason,
-    exitDestination: r.adm.exitDestination,
+    exitDestination: r.adm.exitDestination ?? refByAdm.get(r.adm.id)?.facility ?? null,
+    referralStatus: refByAdm.get(r.adm.id)?.status ?? null,
     notes: r.adm.notes,
     admittedAt: r.adm.admittedAt,
     dischargedAt: r.adm.dischargedAt,
@@ -155,6 +180,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       admittedBy: sessionUserId(session),
     })
     .returning()
+
+  void audit(req, session, {
+    action: 'create_admission',
+    entity: 'shelter_admission',
+    targetId: created.id,
+    metadata: { shelterId: id, walkin: !body.memberId },
+  })
 
   return NextResponse.json({ data: created }, { status: 201 })
 }

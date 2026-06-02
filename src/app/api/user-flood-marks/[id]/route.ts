@@ -10,6 +10,7 @@ import { getDb } from '@/lib/db'
 import { deriveFloodMarkLevel } from '@/lib/flood-marks'
 import { badRequest, forbidden, isUuid, sessionUserId, unauthorized } from '@/lib/field-api'
 import { userFloodMarks } from '@/db/schema'
+import { audit } from '@/lib/audit'
 import type { UserRole } from '@/types'
 
 async function loadOwned(id: string) {
@@ -69,11 +70,13 @@ export async function PATCH(
     .where(eq(userFloodMarks.id, id))
     .returning()
 
+  void audit(req, session, { action: 'update_flood_mark', entity: 'flood_mark', targetId: id, metadata: { fields: Object.keys(patch) } })
+
   return NextResponse.json({ data: updated })
 }
 
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params
@@ -91,6 +94,8 @@ export async function DELETE(
     .update(userFloodMarks)
     .set({ deletedAt: new Date(), updatedAt: new Date() })
     .where(eq(userFloodMarks.id, id))
+
+  void audit(req, session, { action: 'delete_flood_mark', entity: 'flood_mark', targetId: id })
 
   return NextResponse.json({ ok: true })
 }

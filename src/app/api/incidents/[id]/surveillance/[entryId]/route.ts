@@ -4,10 +4,11 @@ import { auth } from '@/lib/auth'
 import { getDb } from '@/lib/db'
 import { badRequest, canTriage, forbidden, isUuid, unauthorized } from '@/lib/field-api'
 import { diseaseSurveillance } from '@/db/schema'
+import { audit } from '@/lib/audit'
 
 // DELETE /api/incidents/[id]/surveillance/[entryId] — ลบบันทึกโรคเฝ้าระวัง (canTriage)
 export async function DELETE(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string; entryId: string }> },
 ) {
   const { id, entryId } = await params
@@ -24,5 +25,8 @@ export async function DELETE(
     .returning({ id: diseaseSurveillance.id })
 
   if (!deleted) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  void audit(req, session, { action: 'delete_surveillance', entity: 'disease_surveillance', targetId: entryId, metadata: { incidentId: id } })
+
   return NextResponse.json({ data: { id: deleted.id } })
 }

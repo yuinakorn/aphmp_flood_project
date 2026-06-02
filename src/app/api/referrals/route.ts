@@ -11,6 +11,7 @@ import { auth } from '@/lib/auth'
 import { getDb } from '@/lib/db'
 import { badRequest, canTriage, forbidden, isUuid, sessionUserId, unauthorized } from '@/lib/field-api'
 import { isNationalRole } from '@/lib/incident-scope'
+import { audit } from '@/lib/audit'
 import { hospitalReferrals, shelterAdmissions, infrastructures, householdMembers } from '@/db/schema'
 import type { UserRole } from '@/types'
 
@@ -137,6 +138,13 @@ export async function POST(req: NextRequest) {
     .update(shelterAdmissions)
     .set({ status: 'transferred', exitReason: 'admitted_hospital', exitDestination: facilityName, dischargedAt: new Date() })
     .where(eq(shelterAdmissions.id, admissionId))
+
+  void audit(req, session, {
+    action: 'create_referral',
+    entity: 'hospital_referral',
+    targetId: referral.id,
+    metadata: { admissionId, fromShelterId: adm.shelterId, toFacilityId, priority },
+  })
 
   return NextResponse.json({ data: referral }, { status: 201 })
 }

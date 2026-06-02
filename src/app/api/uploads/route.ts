@@ -8,6 +8,7 @@ import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { auth } from '@/lib/auth'
 import { badRequest, canWriteFieldData, forbidden, unauthorized } from '@/lib/field-api'
+import { audit } from '@/lib/audit'
 import type { UserRole } from '@/types'
 
 export const runtime = 'nodejs'
@@ -37,6 +38,8 @@ export async function POST(req: NextRequest) {
   await mkdir(dir, { recursive: true })
   const fileName = `${randomUUID()}.${ext}`
   await writeFile(join(dir, fileName), Buffer.from(await file.arrayBuffer()))
+
+  void audit(req, session, { action: 'upload_file', entity: 'upload', metadata: { fileName, type: file.type, size: file.size } })
 
   return NextResponse.json({ url: `/api/uploads/flood-marks/${fileName}` }, { status: 201 })
 }

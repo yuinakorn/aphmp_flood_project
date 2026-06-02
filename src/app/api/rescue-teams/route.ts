@@ -5,6 +5,7 @@ import { getDb } from '@/lib/db'
 import { badRequest, canTriage, forbidden, sessionUserId, unauthorized } from '@/lib/field-api'
 import { rescueTeams } from '@/db/schema'
 import { getActiveIncidentId } from '@/lib/incident-scope'
+import { audit } from '@/lib/audit'
 
 const TEAM_TYPES = new Set([
   'rescue_boat',
@@ -59,6 +60,13 @@ export async function POST(req: NextRequest) {
       registeredBy: sessionUserId(session),
     })
     .returning()
+
+  void audit(req, session, {
+    action: 'create_rescue_team',
+    entity: 'rescue_team',
+    targetId: created.id,
+    metadata: { teamType: created.teamType, incidentId: created.incidentId },
+  })
 
   return NextResponse.json({ data: created }, { status: 201 })
 }

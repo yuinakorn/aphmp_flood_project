@@ -18,6 +18,7 @@ import { getDb } from '@/lib/db'
 import { householdMembers } from '@/db/schema'
 import { authenticateUnit, extractBearerKey } from '@/lib/unit-auth'
 import { badRequest } from '@/lib/field-api'
+import { audit } from '@/lib/audit'
 
 // -----------------------------------------------------------------------
 // Types & constants
@@ -231,6 +232,12 @@ export async function POST(req: NextRequest) {
 
     deleted = deleteResult.length
   }
+
+  void audit(req, null, {
+    action: 'ingest_vulnerable',
+    entity: 'household_member',
+    metadata: { unit: unit.unitCode, sourceSystem, inserted, updated, deleted, errors: errors.length },
+  })
 
   return NextResponse.json(
     {

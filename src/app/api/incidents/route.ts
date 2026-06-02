@@ -10,6 +10,7 @@ import {
   unauthorized,
 } from '@/lib/field-api'
 import { getIncidentAreas, isNationalRole } from '@/lib/incident-scope'
+import { audit } from '@/lib/audit'
 import { INCIDENT_STATUSES, INCIDENT_TYPES } from '@/lib/incident'
 import { incidents, incidentAreas } from '@/db/schema'
 import type { IncidentArea } from '@/types'
@@ -131,6 +132,13 @@ export async function POST(req: NextRequest) {
       tambon: a.tambon ?? null,
     })),
   )
+
+  void audit(req, session, {
+    action: 'create_incident',
+    entity: 'incident',
+    targetId: created.id,
+    metadata: { type, status, province: created.province, areaCount: areas.length },
+  })
 
   return NextResponse.json({ data: { ...created, areas } }, { status: 201 })
 }

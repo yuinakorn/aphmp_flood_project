@@ -3,6 +3,7 @@ import { asc, eq } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 import { getDb } from '@/lib/db'
 import { badRequest, canTriage, forbidden, isUuid, unauthorized } from '@/lib/field-api'
+import { audit } from '@/lib/audit'
 import { shelterZones } from '@/db/schema'
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -43,6 +44,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       sortOrder: typeof body.sortOrder === 'number' ? body.sortOrder : 0,
     })
     .returning()
+
+  void audit(req, session, { action: 'create_zone', entity: 'shelter_zone', targetId: created.id, metadata: { shelterId: id } })
 
   return NextResponse.json({ data: created }, { status: 201 })
 }

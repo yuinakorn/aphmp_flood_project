@@ -20,6 +20,7 @@ import {
   unauthorized,
 } from '@/lib/field-api'
 import { userFloodMarks, userFloodMarkCodeSeq } from '@/db/schema'
+import { audit } from '@/lib/audit'
 import type { UserFloodMark, UserRole } from '@/types'
 
 export const dynamic = 'force-dynamic'
@@ -151,6 +152,8 @@ export async function POST(req: NextRequest) {
       .returning()
     return row
   })
+
+  void audit(req, session, { action: 'create_flood_mark', entity: 'flood_mark', targetId: created.id, metadata: { level: created.level } })
 
   return NextResponse.json({ data: serialize(created) }, { status: 201 })
 }

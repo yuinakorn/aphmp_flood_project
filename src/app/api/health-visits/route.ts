@@ -13,6 +13,7 @@ import {
 } from '@/lib/field-api'
 import { resolveIncidentId } from '@/lib/incident'
 import { healthVisits, householdMembers } from '@/db/schema'
+import { audit } from '@/lib/audit'
 import type { FollowUpStatus, UserRole } from '@/types'
 
 const VISIT_STATUSES = new Set(['pending', 'completed', 'unreachable', 'needs_follow_up'])
@@ -169,6 +170,13 @@ export async function POST(req: NextRequest) {
       })
       .where(eq(householdMembers.id, memberId))
   }
+
+  void audit(req, session, {
+    action: 'create_health_visit',
+    entity: 'health_visit',
+    targetId: created.id,
+    metadata: { visitStatus: created.visitStatus, needsHelp: created.needsHelp, incidentId: created.incidentId },
+  })
 
   return NextResponse.json({ data: created }, { status: 201 })
 }

@@ -12,6 +12,7 @@ import {
   unauthorized,
 } from '@/lib/field-api'
 import { incidentCasualties } from '@/db/schema'
+import { audit } from '@/lib/audit'
 
 const CASUALTY_TYPES = new Set(['injured', 'dead', 'missing', 'ill'])
 const SEVERITIES = new Set(['minor', 'moderate', 'severe'])
@@ -89,6 +90,13 @@ export async function POST(
       observedAt: isoOrNow(body.observedAt),
     })
     .returning()
+
+  void audit(req, session, {
+    action: 'create_casualty',
+    entity: 'incident_casualty',
+    targetId: created.id,
+    metadata: { incidentId: id, casualtyType, severity },
+  })
 
   return NextResponse.json({ data: created }, { status: 201 })
 }

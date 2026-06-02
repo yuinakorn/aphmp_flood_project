@@ -4,6 +4,7 @@ import { auth } from '@/lib/auth'
 import { getDb } from '@/lib/db'
 import { badRequest, canManageIncident, forbidden, isUuid, unauthorized } from '@/lib/field-api'
 import { getIncidentAreas, isNationalRole } from '@/lib/incident-scope'
+import { audit } from '@/lib/audit'
 import { INCIDENT_STATUSES, INCIDENT_TYPES } from '@/lib/incident'
 import { incidents, incidentAreas } from '@/db/schema'
 import type { IncidentArea } from '@/types'
@@ -109,6 +110,13 @@ export async function PATCH(
       newAreas.map((a) => ({ incidentId: id, province: a.province ?? null, amphoe: a.amphoe ?? null, tambon: a.tambon ?? null })),
     )
   }
+
+  void audit(req, session, {
+    action: newAreas ? 'update_incident_areas' : (patch.status ? 'update_incident_status' : 'update_incident'),
+    entity: 'incident',
+    targetId: id,
+    metadata: { status: patch.status, areaCount: newAreas?.length },
+  })
 
   return NextResponse.json({ data: { ...updated, areas: await getIncidentAreas(id) } })
 }

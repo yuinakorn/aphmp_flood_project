@@ -4,6 +4,7 @@ import { auth } from '@/lib/auth'
 import { getDb } from '@/lib/db'
 import { badRequest, canTriage, forbidden, unauthorized } from '@/lib/field-api'
 import { isNationalRole } from '@/lib/incident-scope'
+import { audit } from '@/lib/audit'
 import { infrastructures, shelterAdmissions, shelterZones } from '@/db/schema'
 
 const SHELTER_TYPES = new Set(['shelter', 'assembly'])
@@ -124,6 +125,13 @@ export async function POST(req: NextRequest) {
       readinessStatus: 'open',
     })
     .returning()
+
+  void audit(req, session, {
+    action: 'create_shelter',
+    entity: 'infrastructure',
+    targetId: created.id,
+    metadata: { type: created.type, province: created.province },
+  })
 
   return NextResponse.json({ data: created }, { status: 201 })
 }

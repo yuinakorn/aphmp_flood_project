@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 import { getDb } from '@/lib/db'
 import { badRequest, canTriage, forbidden, isUuid, unauthorized } from '@/lib/field-api'
+import { audit } from '@/lib/audit'
 import { hospitalReferrals } from '@/db/schema'
 import type { UserRole } from '@/types'
 
@@ -31,5 +32,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const db = getDb()
   const [updated] = await db.update(hospitalReferrals).set(patch).where(eq(hospitalReferrals.id, id)).returning()
   if (!updated) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  void audit(req, session, {
+    action: 'update_referral_status',
+    entity: 'hospital_referral',
+    targetId: id,
+    metadata: { status: patch.status },
+  })
+
   return NextResponse.json({ data: updated })
 }

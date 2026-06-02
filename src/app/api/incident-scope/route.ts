@@ -11,6 +11,7 @@ import {
   setIncidentCookie,
   setNormalScopeCookie,
 } from '@/lib/incident-scope'
+import { audit } from '@/lib/audit'
 
 // DELETE /api/incident-scope — ล้าง scope (ใช้ตอน login ใหม่ → บังคับเลือกใหม่ผ่าน gate)
 export async function DELETE() {
@@ -45,5 +46,6 @@ export async function POST(req: Request) {
   }
 
   await setIncidentCookie(id)
+  void audit(req, session, { action: 'set_incident_scope', entity: 'incident', targetId: row.id })
   return NextResponse.json({ scope: { id: row.id, name: row.name, status: row.status } })
 }

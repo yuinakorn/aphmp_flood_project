@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 import { getDb } from '@/lib/db'
 import { badRequest, canTriage, forbidden, isUuid, unauthorized } from '@/lib/field-api'
+import { audit } from '@/lib/audit'
 import { shelterAdmissions } from '@/db/schema'
 
 const VALID_EXIT_REASONS = new Set(['moved_home', 'admitted_hospital', 'transferred_shelter', 'other'])
@@ -39,6 +40,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ ad
     .set(patch)
     .where(eq(shelterAdmissions.id, admissionId))
     .returning()
+
+  void audit(req, session, {
+    action: patch.status ? `admission_${patch.status}` : 'update_admission',
+    entity: 'shelter_admission',
+    targetId: admissionId,
+    metadata: { status: patch.status, exitReason: patch.exitReason },
+  })
 
   return NextResponse.json({ data: updated })
 }

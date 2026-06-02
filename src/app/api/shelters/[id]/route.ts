@@ -4,6 +4,7 @@ import { auth } from '@/lib/auth'
 import { getDb } from '@/lib/db'
 import { badRequest, canTriage, forbidden, isUuid, unauthorized } from '@/lib/field-api'
 import { isNationalRole } from '@/lib/incident-scope'
+import { audit } from '@/lib/audit'
 import { infrastructures } from '@/db/schema'
 
 const SHELTER_TYPES = new Set(['shelter', 'assembly'])
@@ -59,6 +60,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     .returning()
 
   if (!updated) return NextResponse.json({ error: 'not found' }, { status: 404 })
+
+  void audit(req, session, {
+    action: 'update_shelter',
+    entity: 'infrastructure',
+    targetId: id,
+    metadata: { fields: Object.keys(patch) },
+  })
 
   return NextResponse.json({ data: updated })
 }

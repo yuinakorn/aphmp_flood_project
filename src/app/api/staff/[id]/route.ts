@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { badRequest, canManageStaff, forbidden, isUuid, sessionUserId, unauthorized } from '@/lib/field-api'
 import { isNationalRole } from '@/lib/incident-scope'
 import { getStaffById, setStaffRole, setStaffStatus, type StaffStatus } from '@/lib/staff-auth'
+import { audit } from '@/lib/audit'
 import type { UserRole } from '@/types'
 
 const VALID_STATUS = new Set<StaffStatus>(['pending', 'active', 'suspended'])
@@ -50,5 +51,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   if (!changed) return badRequest('No updatable fields provided')
+
+  void audit(req, session, {
+    action: 'update_staff',
+    entity: 'user',
+    targetId: id,
+    metadata: { status: body.status, role: body.role },
+  })
+
   return NextResponse.json({ ok: true })
 }

@@ -4,6 +4,7 @@ import { badRequest, canManageStaff, forbidden, sessionUserId, unauthorized } fr
 import { isNationalRole } from '@/lib/incident-scope'
 import { isValidThaiCid } from '@/lib/cid'
 import { createWhitelistStaff, listStaff } from '@/lib/staff-auth'
+import { audit } from '@/lib/audit'
 import { ALLOWED_PROVINCES } from '@/lib/provinces'
 import type { UserRole } from '@/types'
 
@@ -67,6 +68,13 @@ export async function POST(req: NextRequest) {
     approverId: sessionUserId(session),
   })
   if (!res.ok) return badRequest('เลขบัตรนี้อยู่ในระบบแล้ว')
+
+  void audit(req, session, {
+    action: 'create_staff',
+    entity: 'user',
+    targetId: res.id,
+    metadata: { role, province },
+  })
 
   return NextResponse.json({ data: { id: res.id } }, { status: 201 })
 }

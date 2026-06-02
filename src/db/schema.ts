@@ -517,12 +517,21 @@ export const sitReports = pgTable('sit_reports', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 }, (t) => [index('idx_sit_reports_incident_id').on(t.incidentId)])
 
-// Audit log (PDPA)
+// Audit log (PDPA) — บันทึกทุกการกระทำที่เปลี่ยนข้อมูล + การเข้าถึงข้อมูลส่วนบุคคล
 export const accessLog = pgTable('access_log', {
   id: bigserial('id', { mode: 'number' }).primaryKey(),
   userId: uuid('user_id'),
-  action: text('action').notNull(),
-  targetId: uuid('target_id'),
+  role: text('role'),                 // role ของผู้กระทำ ณ เวลานั้น
+  action: text('action').notNull(),   // เช่น create_incident | transfer_admission | reveal_national_id
+  entity: text('entity'),             // ชนิด entity เช่น incident | shelter_admission | referral
+  targetId: uuid('target_id'),        // id ของ entity ที่ถูกกระทำ
+  method: text('method'),             // HTTP method (POST/PATCH/DELETE)
+  metadata: jsonb('metadata').$type<Record<string, unknown>>(), // context (id/status/count — ไม่เก็บ PII ดิบ)
   ip: inet('ip'),
+  userAgent: text('user_agent'),
   at: timestamp('at', { withTimezone: true }).defaultNow(),
-})
+}, (t) => [
+  index('idx_access_log_user').on(t.userId),
+  index('idx_access_log_entity_target').on(t.entity, t.targetId),
+  index('idx_access_log_at').on(t.at),
+])

@@ -11,6 +11,7 @@ import {
   unauthorized,
 } from '@/lib/field-api'
 import { diseaseSurveillance } from '@/db/schema'
+import { audit } from '@/lib/audit'
 
 const DISEASE_CODES = new Set([
   'foot_immersion',
@@ -98,6 +99,13 @@ export async function POST(
       reportedBy: sessionUserId(session),
     })
     .returning()
+
+  void audit(req, session, {
+    action: 'create_surveillance',
+    entity: 'disease_surveillance',
+    targetId: created.id,
+    metadata: { incidentId: id, diseaseCode: created.diseaseCode, caseCount: created.caseCount },
+  })
 
   return NextResponse.json({ data: created }, { status: 201 })
 }

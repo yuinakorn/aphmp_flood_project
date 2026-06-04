@@ -208,11 +208,11 @@ export function Masthead({ session }: Props) {
               </DropdownMenuItem>
 
               <DropdownMenuItem
-                render={<Link href="/admin/overview" />}
+                render={<Link href="/admin/eoc" />}
                 className="gap-2 px-2.5 py-2 text-[12.5px] cursor-pointer"
               >
                 <Activity className="size-4 shrink-0 opacity-70" />
-                <span>ภาพรวมสถานการณ์</span>
+                <span>ศูนย์บัญชาการ EOC</span>
               </DropdownMenuItem>
 
               <DropdownMenuSeparator className="my-1 border-t border-[var(--border)]" />

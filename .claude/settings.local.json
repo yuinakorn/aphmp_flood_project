@@ -142,7 +142,9 @@
       "Bash(xargs -I{} sh -c 'echo \"{}:\"; cat \"{}\"')",
       "Bash(cat src/app/\\\\\\(admin\\\\\\)/layout.tsx)",
       "Bash(cat src/app/\\\\\\(admin\\\\\\)/admin/layout.tsx)",
-      "Bash(echo \"exit-errors: $\\(npx tsc --noEmit 2>&1)"
+      "Bash(echo \"exit-errors: $\\(npx tsc --noEmit 2>&1)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3003)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000)"
     ],
     "additionalDirectories": [
       "/private/tmp/s2c_extract",

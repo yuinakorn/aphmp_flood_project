@@ -45,7 +45,6 @@ function buildSections(canManageStaff: boolean, canTriage: boolean): Section[] {
     {
       label: null,
       items: [
-        { href: '/admin/overview', icon: LayoutDashboard, label: 'ภาพรวมสถานการณ์' },
         { href: '/admin/eoc', icon: Siren, label: 'ศูนย์บัญชาการ EOC' },
         { href: '/map', icon: Map, label: 'แผนที่ปฏิบัติการ' },
       ],
@@ -64,7 +63,7 @@ function buildSections(canManageStaff: boolean, canTriage: boolean): Section[] {
 function useIsActive() {
   const pathname = usePathname() ?? ''
   return (href: string) =>
-    href === '/admin/overview' || href === '/map'
+    href === '/map'
       ? pathname === href
       : pathname === href || pathname.startsWith(href + '/')
 }

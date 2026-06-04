@@ -1,12 +1,7 @@
-import { auth } from '@/lib/auth'
-import { getOverviewData } from '@/lib/overview'
-import { OverviewView } from './OverviewView'
+import { redirect } from 'next/navigation'
 
-export const metadata = { title: 'ภาพรวมสถานการณ์ — ศูนย์บัญชาการ EOC' }
-
-export default async function OverviewPage() {
-  const session = await auth()
-  const role = session?.user?.role ?? 'viewer'
-  const data = await getOverviewData(role, session?.user?.province ?? null)
-  return <OverviewView data={data} />
+// หน้า "ภาพรวมสถานการณ์" ถูกรวมเข้า "ศูนย์บัญชาการ EOC" แล้ว (คิวสั่งการ + funnel + บริบทพื้นที่)
+// คง route ไว้เพื่อ redirect ลิงก์/บุ๊กมาร์กเดิม
+export default function OverviewPage() {
+  redirect('/admin/eoc')
 }

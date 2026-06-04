@@ -12,7 +12,7 @@ export default async function ReferralsPage() {
   const session = await auth()
   if (!session) redirect('/login')
   const role = (session.user?.role ?? 'viewer') as UserRole
-  if (!canTriage(role)) redirect('/admin/overview')
+  if (!canTriage(role)) redirect('/admin/eoc')
 
   const base = process.env.NEXTAUTH_URL ?? 'http://localhost:3003'
   const cookie = (await cookies()).toString()

@@ -17,12 +17,30 @@ import {
   Table as TableIcon,
   PanelRightClose,
   PanelRightOpen,
+  Maximize2,
+  Users,
+  CheckCircle2,
+  AlertTriangle,
+  ArrowRight,
+  Hospital,
+  PhoneOff,
 } from 'lucide-react'
 import { useRoleView } from '@/components/shell/RoleViewProvider'
 import { FieldActionSheet, type FieldActionMode } from '@/components/forms/FieldActionSheet'
+import { Button } from '@/components/ui/button'
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet'
 import { OpsPanel } from './OpsPanel'
+import { CommandQueue } from './CommandQueue'
+import type { OverviewData } from '@/lib/overview'
 import type {
   CoverageRow,
+  DispositionSummary,
   Incident,
   IncidentCasualty,
   IncidentCounters,
@@ -61,6 +79,8 @@ interface Props {
   requests: TriageRequest[]
   coverageRows: CoverageRow[]
   counters: IncidentCounters | null
+  dispositionSummary: DispositionSummary | null
+  overview: OverviewData
   casualties: IncidentCasualty[]
   surveillanceEntries: SurveillanceEntry[]
   incidentId: string | null
@@ -68,7 +88,7 @@ interface Props {
   realRole: string
 }
 
-type Segment = 'roster' | 'requests' | 'teams' | 'ops'
+type Segment = 'queue' | 'roster' | 'requests' | 'teams' | 'ops'
 
 export const MAP_HIDDEN_COOKIE = 'gx-eoc-map-hidden'
 
@@ -108,13 +128,15 @@ const priorityMeta = (p: string): { tone: string; label: string } =>
         ? { tone: 'var(--risk-near)', label: 'เฝ้าระวัง' }
         : { tone: 'var(--risk-safe)', label: 'เตรียมแผน' }
 
-export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, coverageRows, counters, casualties, surveillanceEntries, incidentId, mapHiddenDefault, realRole }: Props) {
+export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, coverageRows, counters, dispositionSummary, overview, casualties, surveillanceEntries, incidentId, mapHiddenDefault }: Props) {
   const router = useRouter()
   const { viewRole } = useRoleView()
   const canCommand = viewRole === 'officer' || viewRole === 'admin'
 
-  const [seg, setSeg] = useState<Segment>('roster')
+  // โหมดวิกฤต → เริ่มที่ "คิวสั่งการ" (ไปเอาใครก่อน); โหมดปกติ → "พื้นที่" (ความครอบคลุม)
+  const [seg, setSeg] = useState<Segment>(activeIncidents.length === 0 ? 'roster' : 'queue')
   const [mapHidden, setMapHidden] = useState(mapHiddenDefault)
+  const [mapExpanded, setMapExpanded] = useState(false)
   const [viewMode, setViewMode] = useState<'cards' | 'table-risk' | 'table-type'>('cards')
 
   // จำสถานะซ่อนแผนที่ผ่าน cookie (อ่านฝั่ง server ใน page.tsx — ไม่มี hydration mismatch)
@@ -125,7 +147,7 @@ export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, 
       return next
     })
   // แท็บ Sit Rep ไม่ใช้แผนที่ → กว้างเต็มเสมอ; แท็บอื่นตามปุ่มสลับ
-  const showSidebar = seg !== 'ops' && !mapHidden
+  const showSidebar = seg !== 'ops' && seg !== 'queue' && !mapHidden
   const [search, setSearch] = useState('')
   const [drill, setDrill] = useState<{ amphoe?: string; tambon?: string; vil?: string }>({})
   const [selected, setSelected] = useState<VulnerablePerson | null>(null)
@@ -161,6 +183,7 @@ export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, 
       (!drill.vil    || (p.vil    ?? 'ไม่ระบุ') === drill.vil),
     )
   }, [persons, drill, isSearching, search])
+  const mapPersons = seg === 'roster' ? personsScope : persons
 
   const groupRows = useMemo(() => {
     if (isSearching || drillLevel === 'people') return [] as GeoRow[]
@@ -293,31 +316,22 @@ export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, 
     return { total, visited, pct: total > 0 ? Math.round((visited / total) * 100) : 0, neverVisited }
   }, [coverageRows])
 
-  const ribbon = isNormalMode
-    ? [
-        { label: 'กลุ่มเปราะบาง', value: counts.total, tone: 'var(--fg)' },
-        { label: 'เยี่ยมใน 90 วัน', value: totalCoverage.visited, tone: 'var(--risk-safe)' },
-        { label: 'ครอบคลุม %', value: totalCoverage.pct, tone: totalCoverage.pct < 50 ? 'var(--risk-flood)' : totalCoverage.pct < 80 ? 'var(--risk-near)' : 'var(--risk-safe)' },
-        { label: 'ยังไม่เคยเยี่ยม', value: totalCoverage.neverVisited, tone: totalCoverage.neverVisited > 0 ? 'var(--risk-flood)' : 'var(--fg)' },
-        { label: 'หมู่บ้าน', value: coverageRows.length, tone: 'var(--signal-data)' },
-      ]
-    : [
-        { label: 'กลุ่มเปราะบาง', value: counts.total, tone: 'var(--fg)' },
-        { label: 'ในเขตน้ำท่วม', value: counts.flood, tone: 'var(--risk-flood)' },
-        { label: 'เฝ้าระวัง', value: counts.near, tone: 'var(--risk-near)' },
-        { label: 'เสียชีวิต', value: counters?.casualties.dead ?? 0, tone: (counters?.casualties.dead ?? 0) > 0 ? 'var(--risk-flood)' : 'var(--fg)' },
-        { label: 'บาดเจ็บ', value: counters?.casualties.injured ?? 0, tone: (counters?.casualties.injured ?? 0) > 0 ? 'var(--risk-near)' : 'var(--fg)' },
-        { label: 'คำร้องเปิด', value: counts.open, tone: counts.open ? 'var(--risk-flood)' : 'var(--fg)' },
-        { label: 'ทีมกู้ภัย', value: counts.teams, tone: 'var(--signal-data)' },
-      ]
+  // โหมดปกติ — ribbon ความครอบคลุมการเยี่ยม (โหมดวิกฤตใช้ <DispositionFunnel> แทน)
+  const ribbon = [
+    { label: 'กลุ่มเปราะบาง', value: counts.total, tone: 'var(--fg)' },
+    { label: 'เยี่ยมใน 90 วัน', value: totalCoverage.visited, tone: 'var(--risk-safe)' },
+    { label: 'ครอบคลุม %', value: totalCoverage.pct, tone: totalCoverage.pct < 50 ? 'var(--risk-flood)' : totalCoverage.pct < 80 ? 'var(--risk-near)' : 'var(--risk-safe)' },
+    { label: 'ยังไม่เคยเยี่ยม', value: totalCoverage.neverVisited, tone: totalCoverage.neverVisited > 0 ? 'var(--risk-flood)' : 'var(--fg)' },
+    { label: 'หมู่บ้าน', value: coverageRows.length, tone: 'var(--signal-data)' },
+  ]
 
   return (
-    <div className="mx-auto max-w-7xl">
-      {/* header */}
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="gx-eyebrow">ศูนย์บัญชาการ · {realRole}</p>
-          <h1 className="gx-title mt-1">ศูนย์ตอบโต้ภัยพิบัติสุขภาพ</h1>
+    <div className="mx-auto -mt-4 max-w-7xl">
+      {/* header — กระชับแบบ /overview: ชื่อเหตุการณ์ฝังใน eyebrow, title เล็กลง */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="gx-eyebrow">ศูนย์บัญชาการ EOC{isNormalMode ? ' · โหมดปกติ' : activeIncidents[0] ? ` · ${activeIncidents[0].name}` : ' · โหมดวิกฤต'}</p>
+          <h1 className="gx-title mt-0.5 text-[length:var(--text-xl)] leading-[var(--text-xl--line-height)]">ศูนย์ตอบโต้ภัยพิบัติสุขภาพ</h1>
         </div>
         {/* ป้ายสถานะโหมด — read-only, สะท้อนจาก incident scope (เปลี่ยนโหมดที่ IncidentSwitcher บน Masthead) */}
         <div
@@ -338,28 +352,28 @@ export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, 
         </div>
       </div>
 
-      {/* status ribbon — numbers as typography, not cards */}
-      <div className="mt-5 flex flex-wrap items-stretch overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)]">
-        {ribbon.map((s, i) => (
-          <div key={s.label} className={`flex flex-col px-5 py-3 ${i > 0 ? 'border-l border-[var(--border)]' : ''}`}>
-            <span className="text-[10.5px] font-medium uppercase tracking-[0.08em] text-[var(--fg-subtle)]">{s.label}</span>
-            <span className="font-mono text-[26px] font-semibold leading-tight" style={{ color: s.tone }}>{s.value}</span>
-          </div>
-        ))}
-        <div className="ml-auto flex items-center gap-2 px-5 py-3 text-xs text-[var(--fg-muted)]">
-          {activeIncidents[0] ? (
-            <>
-              <span className="relative flex size-2">
-                <span className="absolute inline-flex size-full animate-ping rounded-full bg-[var(--risk-flood)] opacity-60" />
-                <span className="relative inline-flex size-2 rounded-full bg-[var(--risk-flood)]" />
-              </span>
-              <span className="font-medium text-[var(--fg)]">{activeIncidents[0].name}</span>
-            </>
-          ) : (
+      {/* โหมดวิกฤต → disposition funnel (ตอนนี้ทุกคนอยู่ไหน); โหมดปกติ → ribbon ความครอบคลุม */}
+      {isNormalMode ? (
+        <div className="mt-2.5 flex flex-wrap items-stretch overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)]">
+          {ribbon.map((s, i) => (
+            <div key={s.label} className={`flex flex-col px-5 py-3 ${i > 0 ? 'border-l border-[var(--border)]' : ''}`}>
+              <span className="text-[10.5px] font-medium uppercase tracking-[0.08em] text-[var(--fg-subtle)]">{s.label}</span>
+              <span className="font-mono text-[26px] font-semibold leading-tight" style={{ color: s.tone }}>{s.value}</span>
+            </div>
+          ))}
+          <div className="ml-auto flex items-center gap-2 px-5 py-3 text-xs text-[var(--fg-muted)]">
             <span>ไม่มีเหตุการณ์ที่กำลังเกิด</span>
-          )}
+          </div>
         </div>
-      </div>
+      ) : (
+        <>
+          {overview.banner.lifeSupportNotEvacuated > 0 && (
+            <LifeSupportBanner n={overview.banner.lifeSupportNotEvacuated} />
+          )}
+          <DispositionFunnel summary={dispositionSummary} casualties={counters?.casualties ?? null} />
+          <ContextStrip ribbon={overview.ribbon} />
+        </>
+      )}
 
       {isNormalMode && (
         <div className="mt-3 flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)] px-4 py-2.5 text-sm text-[var(--fg-muted)]">
@@ -374,6 +388,9 @@ export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, 
         <section className={showSidebar ? 'lg:col-span-8' : 'lg:col-span-12'}>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <div className="inline-flex rounded-lg bg-[var(--bg-sunken)] p-1 text-sm">
+              {!isNormalMode && (
+                <SegBtn active={seg === 'queue'} onClick={() => setSeg('queue')} count={overview.queue.length} urgent={overview.queue.length > 0}>คิวสั่งการ</SegBtn>
+              )}
               <SegBtn active={seg === 'roster'} onClick={() => { setSeg('roster') }} count={counts.total}>พื้นที่</SegBtn>
               <SegBtn active={seg === 'requests'} onClick={() => setSeg('requests')} count={counts.open} urgent={counts.open > 0}>คำร้อง / Triage</SegBtn>
               <SegBtn active={seg === 'teams'} onClick={() => setSeg('teams')} count={counts.teams}>ทีมกู้ภัย</SegBtn>
@@ -381,7 +398,7 @@ export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, 
                 <SegBtn active={seg === 'ops'} onClick={() => setSeg('ops')}>ปฏิบัติการ / Sit Rep</SegBtn>
               )}
             </div>
-            {seg !== 'ops' && (
+            {seg !== 'ops' && seg !== 'queue' && (
               <div className="flex items-center gap-2">
                 {seg === 'roster' && activeIncidents.length > 0 && (
                   <>
@@ -425,6 +442,8 @@ export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, 
               </div>
             )}
           </div>
+
+          {seg === 'queue' && <CommandQueue data={overview} />}
 
           {seg === 'roster' && (
             <>
@@ -807,39 +826,33 @@ export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, 
         <aside className="lg:col-span-4">
           <div className="lg:sticky lg:top-20 space-y-3">
             <div className="overflow-hidden rounded-xl border border-[var(--border)]">
-              <div className="flex items-center gap-1.5 border-b border-[var(--border)] bg-[var(--bg-sunken)] px-3.5 py-2 text-xs font-medium">
-                <MapPin size={14} className="text-[var(--accent)]" /> แผนที่ภูมิสารสนเทศสุขภาพ
+              <div className="flex items-center justify-between gap-2 border-b border-[var(--border)] bg-[var(--bg-sunken)] px-3.5 py-2 text-xs font-medium">
+                <span className="inline-flex min-w-0 items-center gap-1.5">
+                  <MapPin size={14} className="shrink-0 text-[var(--accent)]" />
+                  <span className="truncate">แผนที่ภูมิสารสนเทศสุขภาพ</span>
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  onClick={() => setMapExpanded(true)}
+                  title="ขยายแผนที่"
+                  className="shrink-0 border border-[var(--border)] bg-[var(--bg-elevated)] px-2 text-[11.5px] text-[var(--fg-muted)] hover:text-[var(--fg)]"
+                >
+                  <Maximize2 size={13} />
+                  ขยายแผนที่
+                </Button>
               </div>
               <div className="h-[300px] w-full">
-                <EocMap persons={seg === 'roster' ? personsScope : persons} selected={selected} onSelect={setSelected} />
+                <EocMap persons={mapPersons} selected={selected} onSelect={setSelected} />
               </div>
             </div>
 
-            {selected ? (
-              <div className="gx-card p-4" style={{ ['--tile' as string]: riskColor[(selected.risk ?? 'safe') as RiskLevel] }}>
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-[var(--fg)]">{selected.name}</p>
-                    <p className="truncate text-xs text-[var(--fg-muted)]">{selected.fullAddress || `${selected.vil} · ${selected.tambon ?? ''}`}</p>
-                  </div>
-                  <span className="gx-badge shrink-0" style={{ ['--tone' as string]: riskColor[(selected.risk ?? 'safe') as RiskLevel] }}>
-                    <span className="gx-badge-dot" />{riskLabel[(selected.risk ?? 'safe') as RiskLevel]}
-                  </span>
-                </div>
-                <dl className="mt-3 space-y-2 border-t border-[var(--border)] pt-3 text-xs">
-                  <div><dt className="text-[var(--fg-subtle)]">ภาวะสุขภาพ</dt><dd className="text-[var(--fg)]">{selected.cond || selected.label || '—'}</dd></div>
-                  <div><dt className="text-[var(--fg-subtle)]">อุปกรณ์พยุงชีพ</dt><dd className="text-[var(--risk-flood)]">{selected.eq || '—'}</dd></div>
-                </dl>
-                <div className="mt-3 flex gap-2">
-                  <button type="button" onClick={() => setAction({ id: String(selected.id), name: selected.name, mode: 'visit', lifeSupport: selected.lifeSupport ?? [] })} className="gx-btn gx-btn-ghost gx-btn-sm flex-1"><Stethoscope size={14} />เยี่ยม</button>
-                  {canCommand && <button type="button" onClick={() => setAction({ id: String(selected.id), name: selected.name, mode: 'help', lifeSupport: selected.lifeSupport ?? [] })} className="gx-btn gx-btn-primary gx-btn-sm flex-1"><LifeBuoy size={14} />ขอช่วยเหลือ</button>}
-                </div>
-              </div>
-            ) : (
-              <p className="rounded-xl border border-dashed border-[var(--border)] px-4 py-6 text-center text-xs text-[var(--fg-subtle)]">
-                เลือกรายชื่อหรือหมุดบนแผนที่เพื่อดูรายละเอียด + สั่งการ
-              </p>
-            )}
+            <SelectedPersonContext
+              selected={selected}
+              canCommand={canCommand}
+              onAction={(nextAction) => setAction(nextAction)}
+            />
           </div>
         </aside>
         )}
@@ -855,7 +868,173 @@ export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, 
           onDone={() => { setAction(null); router.refresh() }}
         />
       )}
+
+      <Sheet open={mapExpanded} onOpenChange={setMapExpanded}>
+        <SheetContent
+          side="right"
+          className="!inset-2 !h-auto !w-auto !max-w-none gap-0 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] p-0 sm:!inset-4"
+        >
+          <SheetHeader className="border-b border-[var(--border)] px-4 py-3">
+            <SheetTitle className="flex items-center gap-2 text-sm">
+              <MapPin size={16} className="text-[var(--accent)]" />
+              แผนที่ภูมิสารสนเทศสุขภาพ
+            </SheetTitle>
+            <SheetDescription className="text-xs">
+              {mapPersons.length.toLocaleString('th-TH')} รายในขอบเขตที่แสดง
+              {selected ? ` · เลือก: ${selected.name}` : ''}
+            </SheetDescription>
+          </SheetHeader>
+          <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px]">
+            <div className="h-[48dvh] min-h-[360px] w-full lg:h-auto">
+              <EocMap persons={mapPersons} selected={selected} onSelect={setSelected} scrollWheelZoom />
+            </div>
+            <aside className="min-h-0 border-t border-[var(--border)] bg-[var(--bg)] p-4 lg:border-l lg:border-t-0">
+              <div className="lg:sticky lg:top-4">
+                <SelectedPersonContext
+                  selected={selected}
+                  canCommand={canCommand}
+                  onAction={(nextAction) => setAction(nextAction)}
+                />
+              </div>
+            </aside>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
+  )
+}
+
+// ── Disposition funnel (โหมดวิกฤต) — "คนทั้งหมดตอนนี้อยู่ไหน" ──
+// นิยาม/สี/precedence: docs/new/EOC-KPI-DISPOSITION-SPEC.md §2-§3
+function DispositionFunnel({
+  summary,
+  casualties,
+}: {
+  summary: DispositionSummary | null
+  casualties: IncidentCounters['casualties'] | null
+}) {
+  const s = summary ?? { total: 0, safe: 0, atHome: 0, inTransit: 0, referred: 0, unreachable: 0 }
+  const pct = s.total > 0 ? Math.round((s.safe / s.total) * 100) : 0
+
+  const cards: {
+    key: string
+    label: string
+    value: number
+    tone: string
+    icon: React.ReactNode
+    caption: string
+    urgent?: boolean
+  }[] = [
+    { key: 'total', label: 'ทั้งหมด', value: s.total, tone: 'var(--fg)', icon: <Users size={15} />, caption: 'ในเหตุการณ์นี้' },
+    { key: 'safe', label: 'ปลอดภัย / อพยพแล้ว', value: s.safe, tone: 'var(--risk-safe)', icon: <CheckCircle2 size={15} />, caption: `${pct}% ของทั้งหมด` },
+    { key: 'at_home', label: 'ยังอยู่ในบ้าน', value: s.atHome, tone: 'var(--risk-flood)', icon: <AlertTriangle size={15} />, caption: 'ยืนยันแล้ว — ต้องช่วย' },
+    { key: 'in_transit', label: 'กำลังเคลื่อนย้าย', value: s.inTransit, tone: 'var(--risk-near)', icon: <ArrowRight size={15} />, caption: 'ติดตามให้ถึงปลายทาง' },
+    { key: 'referred', label: 'ส่งต่อ รพ.', value: s.referred, tone: 'var(--signal-data)', icon: <Hospital size={15} />, caption: 'ติดตามกับ รพ.ปลายทาง' },
+    { key: 'unreachable', label: 'ติดต่อไม่ได้', value: s.unreachable, tone: 'var(--fg)', icon: <PhoneOff size={15} />, caption: 'ต้องส่งทีมเข้าพื้นที่', urgent: true },
+  ]
+
+  return (
+    <div className="mt-2.5">
+      {/* header — กรอบความคิด (ชื่อเหตุการณ์อยู่ที่ eyebrow ด้านบนแล้ว) */}
+      <div className="mb-1.5 flex flex-wrap items-center gap-2 px-0.5 text-xs text-[var(--fg-muted)]">
+        <span className="font-medium uppercase tracking-[0.06em] text-[var(--fg-subtle)]">การกระจายตัวของคน</span>
+        <span className="ml-auto">ตอนนี้ทุกคนอยู่ไหน · รวม {s.total} ราย</span>
+      </div>
+
+      {/* funnel cards */}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+        {cards.map((c) => {
+          const dark = c.urgent && c.value > 0
+          return (
+            <div
+              key={c.key}
+              className="flex flex-col gap-1 rounded-xl border px-3.5 py-3"
+              style={
+                dark
+                  ? { background: 'var(--fg)', borderColor: 'var(--fg)' }
+                  : { background: 'var(--bg-elevated)', borderColor: 'var(--border)', borderTop: `2px solid ${c.tone}` }
+              }
+            >
+              <div className="flex items-center justify-between">
+                <span
+                  className="text-xs font-medium uppercase tracking-[0.06em]"
+                  style={{ color: dark ? 'rgba(255,255,255,0.7)' : 'var(--fg-subtle)' }}
+                >
+                  {c.label}
+                </span>
+                <span style={{ color: dark ? '#fff' : c.tone }}>{c.icon}</span>
+              </div>
+              <span
+                className="font-mono text-[28px] font-semibold leading-none"
+                style={{ color: dark ? '#fff' : c.tone }}
+              >
+                {c.value}
+              </span>
+              <span
+                className="text-[11px] leading-tight"
+                style={{ color: dark ? 'rgba(255,255,255,0.85)' : 'var(--fg-muted)' }}
+              >
+                {c.caption}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* casualties strip — คนละแกนกับ disposition (เคาะแล้ว §6) */}
+      {casualties && (
+        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-[var(--border)] bg-[var(--bg-sunken)] px-4 py-2 text-xs">
+          <span className="font-medium uppercase tracking-[0.06em] text-[var(--fg-subtle)]">สูญเสีย</span>
+          <CasualtyStat label="เสียชีวิต" value={casualties.dead} tone="var(--risk-flood)" />
+          <CasualtyStat label="บาดเจ็บ" value={casualties.injured} tone="var(--risk-near)" />
+          <CasualtyStat label="สูญหาย" value={casualties.missing} tone="var(--risk-flood)" />
+          <CasualtyStat label="เจ็บป่วย" value={casualties.ill} tone="var(--signal-data)" />
+        </div>
+      )}
+    </div>
+  )
+}
+
+// แบนเนอร์เตือนเคสวิกฤตที่สุด (พึ่งอุปกรณ์พยุงชีพ + อยู่ในเขตน้ำท่วม + ยังไม่อพยพ) — port จากหน้า Overview
+function LifeSupportBanner({ n }: { n: number }) {
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-3.5 rounded-[13px] border border-[color-mix(in_oklch,var(--risk-flood)_32%,transparent)] bg-[color-mix(in_oklch,var(--risk-flood)_11%,var(--bg-elevated))] px-4 py-2.5 shadow-[var(--shadow-sm)]">
+      <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-[var(--risk-flood)] text-white">
+        <AlertTriangle className="size-[18px]" strokeWidth={2} />
+      </span>
+      <div className="min-w-0">
+        <b className="block text-[15px] font-semibold leading-snug text-[var(--risk-flood)]">
+          ผู้ป่วยพึ่งอุปกรณ์พยุงชีพในเขตน้ำท่วม ยังไม่อพยพ <span className="font-mono text-[17px]">{n}</span> ราย
+        </b>
+        <span className="text-[12.5px] text-[var(--fg-muted)]">ออกซิเจน/ฟอกไต · อยู่ในเขตน้ำท่วม · ยังไม่มีทีมเข้ารับ</span>
+      </div>
+    </div>
+  )
+}
+
+// แถบบริบทพื้นที่/ทรัพยากร (risk-zone + พยุงชีพ + ทีม) — คนละแกนกับ disposition funnel
+function ContextStrip({ ribbon }: { ribbon: OverviewData['ribbon'] }) {
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-[var(--border)] bg-[var(--bg-sunken)] px-4 py-2 text-xs">
+      <span className="font-medium uppercase tracking-[0.06em] text-[var(--fg-subtle)]">บริบทพื้นที่</span>
+      <CasualtyStat label="ในเขตน้ำท่วม" value={ribbon.inFlood} tone="var(--risk-flood)" />
+      <span className="flex items-center gap-1.5">
+        <span className="text-[var(--fg-muted)]">พึ่งอุปกรณ์พยุงชีพ</span>
+        <span className="font-mono font-semibold" style={{ color: ribbon.lifeSupport > 0 ? 'var(--risk-flood)' : 'var(--fg)' }}>{ribbon.lifeSupport}</span>
+        <span className="text-[var(--fg-subtle)]">(O2 {ribbon.lifeSupportBreak.oxygen} · ฟอกไต {ribbon.lifeSupportBreak.dialysis})</span>
+      </span>
+      <CasualtyStat label="ทีมพร้อม" value={ribbon.teams} tone="var(--signal-data)" />
+    </div>
+  )
+}
+
+function CasualtyStat({ label, value, tone }: { label: string; value: number | null | undefined; tone: string }) {
+  const v = Number.isFinite(value) ? (value as number) : 0
+  return (
+    <span className="flex items-center gap-1.5">
+      <span className="text-[var(--fg-muted)]">{label}</span>
+      <span className="font-mono font-semibold" style={{ color: v > 0 ? tone : 'var(--fg)' }}>{v}</span>
+    </span>
   )
 }
 
@@ -871,6 +1050,48 @@ function SegBtn({ active, onClick, count, urgent, children }: { active: boolean;
         <span className={`rounded-full px-1.5 text-[10px] font-bold ${urgent ? 'bg-[var(--risk-flood)] text-white' : 'bg-[var(--border)] text-[var(--fg-muted)]'}`}>{count}</span>
       )}
     </button>
+  )
+}
+
+function SelectedPersonContext({
+  selected,
+  canCommand,
+  onAction,
+}: {
+  selected: VulnerablePerson | null
+  canCommand: boolean
+  onAction: (action: { id: string; name: string; mode: FieldActionMode; lifeSupport: string[] }) => void
+}) {
+  if (!selected) {
+    return (
+      <p className="rounded-xl border border-dashed border-[var(--border)] px-4 py-6 text-center text-xs text-[var(--fg-subtle)]">
+        เลือกรายชื่อหรือหมุดบนแผนที่เพื่อดูรายละเอียด + สั่งการ
+      </p>
+    )
+  }
+
+  const risk = (selected.risk ?? 'safe') as RiskLevel
+
+  return (
+    <div className="gx-card p-4" style={{ ['--tile' as string]: riskColor[risk] }}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-[var(--fg)]">{selected.name}</p>
+          <p className="truncate text-xs text-[var(--fg-muted)]">{selected.fullAddress || `${selected.vil} · ${selected.tambon ?? ''}`}</p>
+        </div>
+        <span className="gx-badge shrink-0" style={{ ['--tone' as string]: riskColor[risk] }}>
+          <span className="gx-badge-dot" />{riskLabel[risk]}
+        </span>
+      </div>
+      <dl className="mt-3 space-y-2 border-t border-[var(--border)] pt-3 text-xs">
+        <div><dt className="text-[var(--fg-subtle)]">ภาวะสุขภาพ</dt><dd className="text-[var(--fg)]">{selected.cond || selected.label || '—'}</dd></div>
+        <div><dt className="text-[var(--fg-subtle)]">อุปกรณ์พยุงชีพ</dt><dd className="text-[var(--risk-flood)]">{selected.eq || '—'}</dd></div>
+      </dl>
+      <div className="mt-3 flex gap-2">
+        <button type="button" onClick={() => onAction({ id: String(selected.id), name: selected.name, mode: 'visit', lifeSupport: selected.lifeSupport ?? [] })} className="gx-btn gx-btn-ghost gx-btn-sm flex-1"><Stethoscope size={14} />เยี่ยม</button>
+        {canCommand && <button type="button" onClick={() => onAction({ id: String(selected.id), name: selected.name, mode: 'help', lifeSupport: selected.lifeSupport ?? [] })} className="gx-btn gx-btn-primary gx-btn-sm flex-1"><LifeBuoy size={14} />ขอช่วยเหลือ</button>}
+      </div>
+    </div>
   )
 }
 

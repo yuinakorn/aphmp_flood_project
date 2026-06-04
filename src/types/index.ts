@@ -26,6 +26,8 @@ export type FollowUpStatus =
   | 'closed'
 export type VisitStatus = 'pending' | 'completed' | 'unreachable' | 'needs_follow_up'
 export type PersonFieldStatus = 'safe' | 'needs_help' | 'evacuated' | 'referred' | 'unknown'
+// สถานะการกระจายตัวของคนในเหตุการณ์ (disposition funnel) — derive ตาม EOC-KPI-DISPOSITION-SPEC §3.2
+export type IncidentDisposition = 'safe' | 'at_home' | 'in_transit' | 'referred' | 'unreachable'
 export type HelpRequestType =
   | 'medical'
   | 'evacuation'
@@ -251,6 +253,16 @@ export interface IncidentCounters {
   }
 }
 
+// สรุป disposition funnel (โหมดวิกฤต) — bucket รวม = total เสมอ; casualties เป็นคนละแกน (ใช้ IncidentCounters.casualties)
+export interface DispositionSummary {
+  total: number
+  safe: number
+  atHome: number
+  inTransit: number
+  referred: number
+  unreachable: number
+}
+
 export interface VulnerablePerson {
   id: number
   name: string
@@ -276,6 +288,7 @@ export interface VulnerablePerson {
   lastVisitedAt?: string
   lastKnownStatus?: string
   lifeSupport?: string[] | null
+  disposition?: IncidentDisposition  // โหมดวิกฤตเท่านั้น — derive ใน page.tsx จาก incident-disposition
 }
 
 export interface HouseholdMapMember {

@@ -5,8 +5,10 @@ import { getDb } from '@/lib/db'
 import { rescueTeams, helpRequests, householdMembers, healthVisits, incidentCasualties, diseaseSurveillance } from '@/db/schema'
 import { getActiveIncident, memberMatchesAreas } from '@/lib/incident-scope'
 import { getIncidentCounters } from '@/lib/incident-counters'
+import { deriveDisposition } from '@/lib/incident-disposition'
+import { getOverviewData, type OverviewData } from '@/lib/overview'
 import { EocDashboard, MAP_HIDDEN_COOKIE } from './EocDashboard'
-import type { CasualtyCause, CasualtySeverity, CasualtyType, CoverageRow, Incident, IncidentCasualty, IncidentCounters, RescueTeam, RescueTeamType, RescueTeamStatus, SurveillanceDiseaseCode, SurveillanceEntry, VulnerablePerson } from '@/types'
+import type { CasualtyCause, CasualtySeverity, CasualtyType, CoverageRow, DispositionSummary, Incident, IncidentCasualty, IncidentCounters, RescueTeam, RescueTeamType, RescueTeamStatus, SurveillanceDiseaseCode, SurveillanceEntry, VulnerablePerson } from '@/types'
 
 export const metadata = { title: 'ศูนย์บัญชาการ EOC — GIS Health Intelligence' }
 
@@ -22,6 +24,9 @@ export default async function EocPage() {
 
   const scope = await getActiveIncident(role, session?.user?.province ?? null)
   const db = getDb()
+
+  // ภาพรวม/คิวสั่งการ — reuse data layer เดิมของหน้า Overview (queue/banner/ribbon/groups/shelters)
+  const overview: OverviewData = await getOverviewData(role, session?.user?.province ?? null)
 
   const teamWhere = scope ? eq(rescueTeams.incidentId, scope.id) : undefined
   const reqWhere = scope ? eq(helpRequests.incidentId, scope.id) : undefined
@@ -80,6 +85,18 @@ export default async function EocPage() {
 
   // ตัวนับปฏิบัติการ (Phase E) — เฉพาะโหมดวิกฤต (มี scope)
   const counters: IncidentCounters | null = scope ? await getIncidentCounters(scope.id) : null
+
+  // disposition funnel (โหมดวิกฤต) — derive สดจาก visits/admissions/referrals/help_requests
+  // แล้วแนบ disposition ลงแต่ละ person; member id = uuid (VulnerablePerson.id เก็บ uuid string ที่ runtime)
+  let dispositionSummary: DispositionSummary | null = null
+  if (scope) {
+    const { byMember, summary } = await deriveDisposition(
+      scope.id,
+      persons.map((p) => String(p.id)),
+    )
+    for (const p of persons) p.disposition = byMember.get(String(p.id))
+    dispositionSummary = summary
+  }
 
   // ประวัติรายการ casualties + surveillance (โหมดวิกฤต)
   const [casualtyRaw, surveillanceRaw] = scope
@@ -172,6 +189,8 @@ export default async function EocPage() {
       }))}
       coverageRows={coverageRows}
       counters={counters}
+      dispositionSummary={dispositionSummary}
+      overview={overview}
       casualties={casualtyList}
       surveillanceEntries={surveillanceList}
       incidentId={scope?.id ?? null}

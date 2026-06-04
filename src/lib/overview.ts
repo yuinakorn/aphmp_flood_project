@@ -1,13 +1,14 @@
 /**
- * Data layer ของหน้า "ภาพรวมผู้บัญชาการ" (/admin/overview)
+ * Data layer ของ "คิวสั่งการ + บริบทสถานการณ์" ในศูนย์บัญชาการ EOC (/admin/eoc)
+ * (เดิมเป็นหน้า /admin/overview ที่ถูกรวมเข้า EOC แล้ว)
  * คำนวณจากตารางจริง — reuse `classifyRisk`/`haversineKm` (geo.ts) + `getActiveIncident` (incident scope)
  *
  * หลัก (ดู docs/new/DATA-SPEC-overview.md):
  *  - คะแนน survivability ใช้เฉพาะ input ที่เก็บได้จริง + confidence + degrade (ไม่มี HIS countdown)
  *  - spatial = point-based ผ่าน flood-points.json เดิม (ไม่แตะ /map, ไม่ใช้ PostGIS)
- *  - ทุกตัวเลข scope ด้วย incident ที่กำลังจัดการ (โหมดวิกฤต) / โหมดปกติ = coverage
+ *  - ทุกตัวเลข scope ด้วย incident ที่กำลังจัดการ (โหมดวิกฤต)
  */
-import { and, eq, inArray, isNotNull, isNull, max, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { classifyRisk, haversineKm } from '@/lib/geo'
 import { getActiveIncident, areaMemberWhere } from '@/lib/incident-scope'
@@ -17,7 +18,6 @@ import {
   helpRequests,
   rescueTeams,
   infrastructures,
-  healthVisits,
 } from '@/db/schema'
 import type { Incident, RiskLevel } from '@/types'
 import floodPointsData from '../../public/data/flood-points.json'
@@ -90,15 +90,6 @@ export interface ShelterRow {
   bedriddenUsed: number
   oxygenSupport: boolean
 }
-export interface CoverageRow {
-  amphoe: string
-  tambon: string
-  village: string
-  total: number
-  vulnerableTypes: Record<string, number>
-  lastVisitAt: string | null
-  daysSince: number | null
-}
 export interface OverviewData {
   mode: OverviewMode
   incident: Pick<Incident, 'id' | 'name' | 'status'> | null
@@ -116,7 +107,6 @@ export interface OverviewData {
   groups: { type: string; label: string; total: number; inFlood: number }[]
   queue: QueueHousehold[]
   sheltersNearFull: ShelterRow[]
-  coverage: CoverageRow[]
 }
 
 const TYPE_LABEL: Record<string, string> = {
@@ -428,48 +418,6 @@ export async function getOverviewData(
     .sort((a, b) => b.pct - a.pct)
     .slice(0, 5)
 
-  // ── 7) coverage (โหมดปกติ) ──
-  const cutoffNow = new Date()
-  const covRows = await db
-    .select({
-      amphoe: householdMembers.amphoe,
-      tambon: householdMembers.tambon,
-      village: householdMembers.village,
-      type: householdMembers.type,
-      total: sql<number>`count(*)`,
-      lastVisit: max(healthVisits.observedAt),
-    })
-    .from(householdMembers)
-    .leftJoin(healthVisits, eq(healthVisits.memberId, householdMembers.id))
-    .where(and(isNotNull(householdMembers.type), isNull(householdMembers.deletedAt)))
-    .groupBy(householdMembers.amphoe, householdMembers.tambon, householdMembers.village, householdMembers.type)
-
-  const covMap = new Map<string, CoverageRow>()
-  for (const r of covRows) {
-    const k = `${r.amphoe ?? '-'}|${r.tambon ?? '-'}|${r.village ?? '-'}`
-    const row =
-      covMap.get(k) ??
-      ({
-        amphoe: r.amphoe ?? 'ไม่ระบุ',
-        tambon: r.tambon ?? 'ไม่ระบุ',
-        village: r.village ?? 'ไม่ระบุ',
-        total: 0,
-        vulnerableTypes: {},
-        lastVisitAt: null,
-        daysSince: null,
-      } as CoverageRow)
-    const c = num(r.total) ?? 0
-    row.total += c
-    if (r.type) row.vulnerableTypes[r.type] = (row.vulnerableTypes[r.type] ?? 0) + c
-    const lv = r.lastVisit ? (r.lastVisit as unknown as Date) : null
-    if (lv && (!row.lastVisitAt || lv.toISOString() > row.lastVisitAt)) {
-      row.lastVisitAt = lv.toISOString()
-      row.daysSince = Math.floor((cutoffNow.getTime() - lv.getTime()) / 86_400_000)
-    }
-    covMap.set(k, row)
-  }
-  const coverage = [...covMap.values()].sort((a, b) => (b.daysSince ?? 9999) - (a.daysSince ?? 9999))
-
   return {
     mode,
     incident: incident ? { id: incident.id, name: incident.name, status: incident.status } : null,
@@ -487,6 +435,5 @@ export async function getOverviewData(
     groups,
     queue: queue.slice(0, 15),
     sheltersNearFull,
-    coverage: coverage.slice(0, 12),
   }
 }

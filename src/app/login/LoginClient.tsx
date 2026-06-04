@@ -6,10 +6,12 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Waves, ArrowLeft, Loader2, ShieldCheck, IdCard, Clock, Ban, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { THAID_SSO_START_PATH } from '@/lib/provider-id-thaid'
 import { resolveCidAction } from './actions'
 
 interface LoginClientProps {
   ssoEnabled: boolean
+  error: string | null
 }
 
 type Notice = { kind: 'error' | 'info'; text: string } | null
@@ -23,14 +25,22 @@ const DEMO_HINTS = [
   { cid: '5901100112238', label: 'ถูกระงับ (เชียงใหม่)' },
 ]
 
-export function LoginClient({ ssoEnabled }: LoginClientProps) {
+export function LoginClient({ ssoEnabled, error: ssoError }: LoginClientProps) {
   const router = useRouter()
   const [cid, setCid] = useState('')
   const [thaidLoading, setThaidLoading] = useState(false)
   const [notice, setNotice] = useState<Notice>(null)
   const [error, setError] = useState('')
+  const [thaiDSsoLoading, setThaiDSsoLoading] = useState(false)
   const [ssoLoading, setSsoLoading] = useState(false)
   const [devLoading, setDevLoading] = useState(false)
+
+  const ssoNotice: Notice =
+    ssoError === 'invalid_sso_state'
+      ? { kind: 'error', text: 'การยืนยันตัวตนหมดอายุหรือ state ไม่ตรงกัน กรุณาลอง Login with ThaiD ใหม่' }
+      : ssoError === 'sso_not_configured' || ssoError === 'sso_start_failed' || ssoError === 'sso_state_missing'
+        ? { kind: 'error', text: 'ไม่สามารถเริ่มต้น ThaiD SSO ได้ในขณะนี้' }
+        : null
 
   const onThaiDLogin = async () => {
     const raw = cid.replace(/\D/g, '')
@@ -67,6 +77,11 @@ export function LoginClient({ ssoEnabled }: LoginClientProps) {
     } finally {
       setThaidLoading(false)
     }
+  }
+
+  const onThaiDSsoLogin = () => {
+    setThaiDSsoLoading(true)
+    window.location.assign(THAID_SSO_START_PATH)
   }
 
   const onSsoLogin = async () => {
@@ -188,18 +203,18 @@ export function LoginClient({ ssoEnabled }: LoginClientProps) {
             {thaidLoading ? 'กำลังยืนยันตัวตน' : 'ยืนยันตัวตนด้วย ThaiD (จำลอง)'}
           </Button>
 
-          {notice && (
+          {(notice ?? ssoNotice) && (
             <div
               role="alert"
               className="mt-4 flex items-start gap-2 rounded-md border px-3 py-2.5 text-[12px] leading-relaxed"
               style={
-                notice.kind === 'error'
+                (notice ?? ssoNotice)?.kind === 'error'
                   ? { borderColor: 'var(--risk-flood)', background: 'color-mix(in oklch, var(--risk-flood) 10%, transparent)', color: 'var(--risk-flood)' }
                   : { borderColor: 'var(--risk-near)', background: 'color-mix(in oklch, var(--risk-near) 10%, transparent)', color: 'var(--risk-near)' }
               }
             >
-              {notice.kind === 'error' ? <Ban size={14} className="mt-px shrink-0" /> : <Clock size={14} className="mt-px shrink-0" />}
-              {notice.text}
+              {(notice ?? ssoNotice)?.kind === 'error' ? <Ban size={14} className="mt-px shrink-0" /> : <Clock size={14} className="mt-px shrink-0" />}
+              {(notice ?? ssoNotice)?.text}
             </div>
           )}
 
@@ -237,15 +252,27 @@ export function LoginClient({ ssoEnabled }: LoginClientProps) {
               </div>
 
               {ssoEnabled && (
-                <Button
-                  type="button"
-                  onClick={onSsoLogin}
-                  disabled={ssoLoading}
-                  className="h-10 w-full border border-[var(--border)] bg-[var(--bg-elevated)] px-4 text-[13px] text-[var(--fg-muted)] hover:text-[var(--fg)]"
-                >
-                  {ssoLoading ? <Loader2 size={15} className="animate-spin" /> : <ShieldCheck size={15} strokeWidth={1.9} />}
-                  Provider ID SSO
-                </Button>
+                <div className="space-y-2">
+                  <Button
+                    type="button"
+                    onClick={onThaiDSsoLogin}
+                    disabled={thaiDSsoLoading}
+                    className="h-10 w-full bg-[var(--accent)] px-4 text-[13px] text-[var(--accent-fg)] hover:opacity-90"
+                  >
+                    {thaiDSsoLoading ? <Loader2 size={15} className="animate-spin" /> : <ShieldCheck size={15} strokeWidth={1.9} />}
+                    Login with ThaiD
+                  </Button>
+
+                  <Button
+                    type="button"
+                    onClick={onSsoLogin}
+                    disabled={ssoLoading}
+                    className="h-10 w-full border border-[var(--border)] bg-[var(--bg-elevated)] px-4 text-[13px] text-[var(--fg-muted)] hover:text-[var(--fg)]"
+                  >
+                    {ssoLoading ? <Loader2 size={15} className="animate-spin" /> : <ShieldCheck size={15} strokeWidth={1.9} />}
+                    Provider ID SSO
+                  </Button>
+                </div>
               )}
 
               <button

@@ -111,7 +111,7 @@ export function SelectIncidentView({ province, isNational }: { province: string 
         <button
           type="button"
           disabled={!!busy}
-          onClick={() => choose(null, '/admin/overview')}
+          onClick={() => choose(null, '/admin/eoc')}
           className="group flex w-full items-center gap-4 rounded-[14px] border border-[var(--border)] bg-[var(--bg-elevated)] p-4 text-left shadow-[var(--shadow-sm)] transition-colors hover:border-[color-mix(in_oklch,var(--accent)_45%,var(--border))] disabled:opacity-60"
         >
           <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-[color-mix(in_oklch,var(--accent)_13%,transparent)] text-[var(--accent)]">

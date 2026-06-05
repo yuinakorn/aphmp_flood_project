@@ -279,6 +279,12 @@ a {
     border-color: var(--infra-shelter) !important;
     color: var(--infra-shelter) !important;
   }
+
+  .infra-marker-icon-evacuation_point {
+    background: color-mix(in oklch, oklch(0.62 0.2 250) 22%, var(--bg-elevated)) !important;
+    border-color: oklch(0.62 0.2 250) !important;
+    color: oklch(0.62 0.2 250) !important;
+  }
 }
 
 /* ───────── Design system components ───────── */

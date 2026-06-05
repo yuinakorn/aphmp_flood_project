@@ -73,8 +73,23 @@ const INFRA_SVG: Record<string, string> = {
   clinic: `<path d="M11 2v2"/><path d="M5 2v2"/><path d="M5 3H4a2 2 0 0 0-2 2v4a6 6 0 0 0 12 0V5a2 2 0 0 0-2-2h-1"/><path d="M8 15a6 6 0 0 0 12 0v-3"/><circle cx="20" cy="10" r="2"/>`,
   shelter: `<path d="M3.5 21 14 3"/><path d="M20.5 21 10 3"/><path d="M15.5 21 12 15l-3.5 6"/><path d="M2 21h20"/>`,
   assembly: `<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/>`,
-  // Navigation/RV — จุดรับ-ส่งอพยพ
+  // Navigation/RV — จุดรับ-ส่งอพยพ (ค่า default เมื่อไม่ระบุวิธีเข้าถึง)
   evacuation_point: `<path d="M3 11l19-9-9 19-2-8-8-2z"/>`,
+}
+
+// ไอคอนจุดรับ-ส่งอพยพ ตามวิธีเข้าถึง (รถ/เรือ/เดินเท้า) — lucide paths
+const EVAC_MODE_SVG: Record<string, string> = {
+  vehicle: `<path d="M10 10H6"/><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.28a1 1 0 0 0-.684-.948l-1.923-.641a1 1 0 0 1-.578-.502l-1.539-3.076A1 1 0 0 0 16.382 8H14"/><path d="M8 8v4"/><path d="M9 18h6"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/>`,
+  boat: `<path d="M10 2v15"/><path d="M7 22a4 4 0 0 1-4-4 1 1 0 0 1 1-1h16a1 1 0 0 1 1 1 4 4 0 0 1-4 4z"/><path d="M9.159 2.46a1 1 0 0 1 1.521-.193l9.977 8.98A1 1 0 0 1 20 13H4a1 1 0 0 1-.824-1.567z"/>`,
+  foot: `<path d="M4 16v-2.38C4 11.5 2.97 10.5 3 8c.03-2.72 1.49-6 4.5-6C9.37 2 10 3.8 10 5.5c0 3.11-2 5.66-2 8.68V16a2 2 0 1 1-4 0Z"/><path d="M20 20v-2.38c0-2.12 1.03-3.12 1-5.62-.03-2.72-1.49-6-4.5-6C14.63 6 14 7.8 14 9.5c0 3.11 2 5.66 2 8.68V20a2 2 0 1 0 4 0Z"/><path d="M16 17h4"/><path d="M4 13h4"/>`,
+}
+
+// เลือกไอคอนจุดรับ-ส่งอพยพ — รถมาก่อน แล้วเรือ แล้วเดินเท้า (popup โชว์ครบทุกแบบอยู่แล้ว)
+function evacIconSvg(modes?: string[] | null): string {
+  if (modes?.includes('vehicle')) return EVAC_MODE_SVG.vehicle
+  if (modes?.includes('boat')) return EVAC_MODE_SVG.boat
+  if (modes?.includes('foot')) return EVAC_MODE_SVG.foot
+  return INFRA_SVG.evacuation_point
 }
 
 const GROUP_COLOR: Record<string, string> = {
@@ -221,8 +236,8 @@ function householdPopupHtml(h: VulnerableHouseholdMarker, risk: RiskLevel, canRe
   </div>`
 }
 
-function infraMarkerHtml(type: string): string {
-  const svg = INFRA_SVG[type] ?? ''
+function infraMarkerHtml(type: string, accessModes?: string[] | null): string {
+  const svg = type === 'evacuation_point' ? evacIconSvg(accessModes) : (INFRA_SVG[type] ?? '')
   return `
     <div class="infra-marker-icon infra-marker-icon-${type}">
       <svg
@@ -532,7 +547,7 @@ export function FloodMap({
         infra.forEach((i) => {
           const icon = L.divIcon({
             className: 'infra-marker',
-            html: infraMarkerHtml(i.type),
+            html: infraMarkerHtml(i.type, i.accessModes),
             iconSize: [28, 28],
             iconAnchor: [14, 14],
           })

@@ -6,7 +6,6 @@ import { infrastructures, rescueTeams, shelterZones } from '@/db/schema'
 import { getActiveIncident, isNationalRole } from '@/lib/incident-scope'
 import { canAccessShelter } from '@/lib/shelter-access'
 import { ShelterDetail } from './ShelterDetail'
-import { ShelterStaffPanel } from './ShelterStaffPanel'
 import type { RescueTeam, RescueTeamStatus, RescueTeamType } from '@/types'
 
 export const dynamic = 'force-dynamic'
@@ -55,10 +54,8 @@ export default async function ShelterDetailPage({ params }: { params: Promise<{ 
   }))
 
   const canEdit = ['admin', 'officer', 'eoc', 'ems', 'ddpm', 'shelter_manager'].includes(session.user?.role ?? '')
-  const isAdmin = ['admin', 'eoc'].includes(session.user?.role ?? '')
 
   return (
-    <>
     <ShelterDetail
       shelter={{
         id: shelter.id,
@@ -83,11 +80,5 @@ export default async function ShelterDetailPage({ params }: { params: Promise<{ 
       teams={teams}
       canEdit={canEdit}
     />
-    {isAdmin && (
-      <div className="mt-6">
-        <ShelterStaffPanel shelterId={shelter.id} />
-      </div>
-    )}
-    </>
   )
 }

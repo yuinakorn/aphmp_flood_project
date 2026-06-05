@@ -14,7 +14,7 @@ import {
   Droplets,
   Building2,
   AlertTriangle,
-  UserCog,
+  Settings,
   ChevronsLeft,
   ChevronsRight,
   X,
@@ -31,7 +31,7 @@ function buildSections(canManageStaff: boolean, canTriage: boolean): Section[] {
     { href: '/admin/incidents', icon: AlertTriangle, label: 'เหตุการณ์ภัยพิบัติ' },
   ]
   if (canManageStaff) {
-    systemItems.push({ href: '/admin/staff', icon: UserCog, label: 'จัดการเจ้าหน้าที่' })
+    systemItems.push({ href: '/admin/settings', icon: Settings, label: 'ตั้งค่า' })
   }
   const healthItems: Item[] = [
     { href: '/admin/vulnerable', icon: Users, label: 'กลุ่มเปราะบาง' },

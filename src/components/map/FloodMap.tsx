@@ -2,10 +2,12 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import 'leaflet/dist/leaflet.css'
+import 'leaflet.markercluster/dist/MarkerCluster.css'
 import type {
   Map as LeafletMap,
   Layer,
   LayerGroup,
+  MarkerClusterGroup,
   TileLayer,
 } from 'leaflet'
 import type { GeoJsonObject } from 'geojson'
@@ -21,6 +23,7 @@ import type {
   VulnerableHouseholdMarker,
   Infrastructure,
   RiskLevel,
+  FloodRiskZone,
   GistdaLayerKey,
 } from '@/types'
 import { CMU_FLOOD_LAYERS, FLOOD_MARK_LEVELS, GISTDA_LAYERS } from '@/types'
@@ -32,6 +35,13 @@ const RISK_COLOR: Record<RiskLevel, string> = {
   flood: 'oklch(0.66 0.20 30)',
   near: 'oklch(0.78 0.16 75)',
   safe: 'oklch(0.74 0.10 145)',
+}
+
+// สีโซนเสี่ยงตามลำดับการท่วม — ลำดับน้อย = ท่วมก่อน = แดงเข้ม
+function zoneColor(priority: number): string {
+  if (priority <= 1) return 'oklch(0.60 0.23 25)'
+  if (priority === 2) return 'oklch(0.72 0.18 55)'
+  return 'oklch(0.80 0.15 85)'
 }
 
 const INFRA_COLOR: Record<string, string> = {
@@ -65,6 +75,36 @@ const GROUP_COLOR: Record<string, string> = {
   'ทั่วไป': 'var(--fg-subtle)',
 }
 
+// ลำดับความรุนแรง — ใช้เลือกสี cluster ตามบ้านที่เสี่ยงสุดในกลุ่ม
+const RISK_SEVERITY: Record<RiskLevel, number> = { flood: 2, near: 1, safe: 0 }
+
+// ไอคอน cluster — สีตามบ้านที่เสี่ยงสุดในกลุ่ม + ขนาดตามจำนวน + รวมจำนวนคนเปราะบาง
+function clusterIconHtml(houseCount: number, vulnTotal: number, risk: RiskLevel): string {
+  const color = RISK_COLOR[risk] ?? 'var(--border)'
+  const size = houseCount >= 50 ? 52 : houseCount >= 15 ? 46 : 40
+  return `
+    <div style="
+      position:relative;width:${size}px;height:${size}px;
+      display:flex;align-items:center;justify-content:center;
+      border-radius:50%;
+      background:color-mix(in oklch, ${color} 28%, var(--bg-elevated));
+      border:2.5px solid ${color};
+      box-shadow:0 2px 8px oklch(0 0 0 / 0.4);
+      color:${color};font-family:var(--font-mono);font-weight:700;line-height:1;
+    ">
+      <span style="font-size:${size >= 46 ? 15 : 13}px">${houseCount}</span>
+      <div style="
+        position:absolute;bottom:-5px;right:-5px;min-width:18px;height:18px;padding:0 4px;
+        display:flex;align-items:center;justify-content:center;gap:2px;
+        border-radius:9px;background:${color};color:var(--bg);
+        font-size:10px;font-weight:700;border:1.5px solid var(--bg-elevated);
+      ">
+        <svg xmlns="http://www.w3.org/2000/svg" width="9" height="9" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a5 5 0 0 0-5 5c0 3 5 8 5 8s5-5 5-8a5 5 0 0 0-5-5z"/></svg>${vulnTotal}
+      </div>
+    </div>
+  `
+}
+
 // หมุดบ้าน — แสดง badge จำนวนกลุ่มเปราะบางในบ้าน
 function houseMarkerHtml(vulnerableCount: number, risk: RiskLevel): string {
   const ringColor = RISK_COLOR[risk] ?? 'var(--border)'
@@ -95,7 +135,7 @@ function houseMarkerHtml(vulnerableCount: number, risk: RiskLevel): string {
   `
 }
 
-function householdPopupHtml(h: VulnerableHouseholdMarker, risk: RiskLevel): string {
+function householdPopupHtml(h: VulnerableHouseholdMarker, risk: RiskLevel, canRequestEvac: boolean): string {
   const riskLabel: Record<RiskLevel, string> = {
     flood: 'ในเขตน้ำท่วม',
     near: 'ใกล้เขตน้ำท่วม',
@@ -165,6 +205,9 @@ function householdPopupHtml(h: VulnerableHouseholdMarker, risk: RiskLevel): stri
     <button id="evac-${h.id}" style="width:100%;padding:7px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--fg);font-size:11.5px;font-family:var(--font-sans);cursor:pointer">
       แสดงเส้นทางอพยพ →
     </button>
+    ${canRequestEvac ? `<button id="req-evac-${h.id}" style="width:100%;margin-top:6px;padding:7px;border-radius:6px;border:none;background:var(--risk-flood);color:#fff;font-size:11.5px;font-weight:600;font-family:var(--font-sans);cursor:pointer">
+      🚨 สั่งอพยพ (สร้างคำขอ)
+    </button>` : ''}
   </div>`
 }
 
@@ -213,6 +256,12 @@ interface Props {
   onDeleteMark?: (id: string) => void
   onMapReady?: (map: LeafletMap) => void
   onRequestHouseRoute?: (lat: number, lng: number, label: string) => void
+  canRequestEvac?: boolean
+  onRequestEvacuation?: (h: VulnerableHouseholdMarker) => Promise<boolean>
+  riskZones?: FloodRiskZone[]
+  drawMode?: boolean
+  draftZone?: [number, number][] // [lat, lng][] ระหว่างวาด
+  onDrawVertex?: (lat: number, lng: number) => void
 }
 
 export function FloodMap({
@@ -232,11 +281,19 @@ export function FloodMap({
   onDeleteMark,
   onMapReady,
   onRequestHouseRoute,
+  canRequestEvac = false,
+  onRequestEvacuation,
+  riskZones = [],
+  drawMode = false,
+  draftZone = [],
+  onDrawVertex,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<LeafletMap | null>(null)
   const baseLayers = useRef<TileLayer[]>([])
-  const vulnGroupRef = useRef<LayerGroup | null>(null)
+  const vulnGroupRef = useRef<MarkerClusterGroup | null>(null)
+  const riskZoneGroupRef = useRef<LayerGroup | null>(null)
+  const draftZoneGroupRef = useRef<LayerGroup | null>(null)
   const infraGroupRef = useRef<LayerGroup | null>(null)
   const routeGroupRef = useRef<LayerGroup | null>(null)
   const markerMapRef = useRef<Map<string, import('leaflet').Marker>>(new Map())
@@ -255,6 +312,9 @@ export function FloodMap({
     let isMounted = true
       ; (async () => {
         const L = (await import('leaflet')).default
+        // leaflet.markercluster เป็น UMD ที่อ้าง global `L` ตอนโหลด — ต้องเซ็ตก่อน import ปลั๊กอิน
+        ;(window as unknown as { L?: typeof L }).L = L
+        await import('leaflet.markercluster')
         if (!isMounted || !containerRef.current) return
 
         const container = containerRef.current as LeafletContainer
@@ -285,7 +345,28 @@ export function FloodMap({
           baseLayers.current = [l]
         }
 
-        vulnGroupRef.current = L.layerGroup().addTo(map)
+        vulnGroupRef.current = L.markerClusterGroup({
+          maxClusterRadius: 50,
+          showCoverageOnHover: false,
+          spiderfyOnMaxZoom: true,
+          chunkedLoading: true,
+          iconCreateFunction: (cluster) => {
+            const children = cluster.getAllChildMarkers()
+            let worst: RiskLevel = 'safe'
+            let vulnTotal = 0
+            for (const m of children) {
+              const meta = (m as unknown as { __meta?: { risk: RiskLevel; vuln: number } }).__meta
+              if (!meta) continue
+              vulnTotal += meta.vuln
+              if (RISK_SEVERITY[meta.risk] > RISK_SEVERITY[worst]) worst = meta.risk
+            }
+            return L.divIcon({
+              className: 'house-cluster',
+              html: clusterIconHtml(children.length, vulnTotal, worst),
+              iconSize: [40, 40],
+            })
+          },
+        }).addTo(map)
         infraGroupRef.current = L.layerGroup().addTo(map)
         routeGroupRef.current = L.layerGroup().addTo(map)
         userFloodMarkGroupRef.current = L.layerGroup().addTo(map)
@@ -327,6 +408,26 @@ export function FloodMap({
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // เมื่อ container เปลี่ยนขนาด (หุบ panel ซ้าย / เปิด-ปิด sidebar / resize หน้าต่าง)
+  // Leaflet ต้องวัดขนาดใหม่ ไม่งั้น tile ฝั่งที่เพิ่งโผล่จะไม่โหลด (พื้นที่เทา)
+  useEffect(() => {
+    if (!mapReady || !containerRef.current) return
+    const invalidate = () => {
+      try {
+        mapRef.current?.invalidateSize()
+      } catch {
+        // Leaflet อาจ throw ระหว่าง pane กำลัง settle — เพิกเฉยได้
+      }
+    }
+    const observer = new ResizeObserver(invalidate)
+    observer.observe(containerRef.current)
+    window.addEventListener('resize', invalidate)
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', invalidate)
+    }
+  }, [mapReady])
+
   // หมุดบ้าน — 1 หมุด/ครัวเรือนที่มีกลุ่มเปราะบาง popup แสดงสมาชิกทุกคน + เบอร์
   useEffect(() => {
     if (!mapReady || !vulnGroupRef.current) return
@@ -347,8 +448,12 @@ export function FloodMap({
           })
 
           const marker = L.marker([h.lat, h.lng], { icon })
+          ;(marker as unknown as { __meta: { risk: RiskLevel; vuln: number } }).__meta = {
+            risk,
+            vuln: h.vulnerableCount,
+          }
           markerMapRef.current.set(h.id, marker)
-          marker.bindPopup(householdPopupHtml(h, risk), { maxWidth: 320 })
+          marker.bindPopup(householdPopupHtml(h, risk, canRequestEvac), { maxWidth: 320 })
 
           marker.on('popupopen', () => {
             setTimeout(() => {
@@ -361,22 +466,45 @@ export function FloodMap({
                 },
                 { once: true },
               )
+
+              const reqBtn = document.getElementById(`req-evac-${h.id}`) as HTMLButtonElement | null
+              if (reqBtn && onRequestEvacuation) {
+                reqBtn.addEventListener('click', async () => {
+                  if (reqBtn.disabled) return
+                  reqBtn.disabled = true
+                  reqBtn.textContent = 'กำลังส่งคำขอ…'
+                  const ok = await onRequestEvacuation(h)
+                  if (ok) {
+                    reqBtn.textContent = '✓ ส่งคำขออพยพแล้ว'
+                    reqBtn.style.background = 'var(--risk-safe)'
+                  } else {
+                    reqBtn.textContent = '✕ ส่งไม่สำเร็จ — แตะเพื่อลองใหม่'
+                    reqBtn.disabled = false
+                  }
+                })
+              }
             }, 0)
           })
 
           vg.addLayer(marker)
         })
       })()
-  }, [mapReady, households, onRequestHouseRoute])
+  }, [mapReady, households, onRequestHouseRoute, canRequestEvac, onRequestEvacuation])
 
   // เปิด popup ของบ้านเมื่อ focusHouseholdId เปลี่ยน
   useEffect(() => {
     if (focusHouseholdId == null || !mapReady) return
     const map = mapRef.current
     const marker = markerMapRef.current.get(focusHouseholdId)
+    const group = vulnGroupRef.current
     if (!map || !marker) return
     map.closePopup()
-    map.once('moveend', () => marker.openPopup())
+    // หมุดอาจถูกซ่อนใน cluster — ขยาย cluster ให้เห็นหมุดก่อนเปิด popup
+    if (group) {
+      group.zoomToShowLayer(marker, () => marker.openPopup())
+    } else {
+      map.once('moveend', () => marker.openPopup())
+    }
   }, [focusHouseholdId, mapReady])
 
   // Infra markers (vector squares using divIcon, no emoji)
@@ -527,6 +655,68 @@ export function FloodMap({
     }
     container.style.cursor = ''
   }, [pinMode, mapReady, onPinPlace])
+
+  // โซนเสี่ยงน้ำท่วม — render polygon (เก็บ [lng,lat] → leaflet ใช้ [lat,lng])
+  useEffect(() => {
+    if (!mapReady) return
+    let cancelled = false
+    ;(async () => {
+      const L = (await import('leaflet')).default
+      if (cancelled || !mapRef.current) return
+      const g = riskZoneGroupRef.current ?? (riskZoneGroupRef.current = L.layerGroup().addTo(mapRef.current))
+      g.clearLayers()
+      riskZones.forEach((z) => {
+        const latlng = z.polygon.map(([lng, lat]) => [lat, lng] as [number, number])
+        if (latlng.length < 3) return
+        const color = zoneColor(z.priority)
+        L.polygon(latlng, { color, weight: 2, fillColor: color, fillOpacity: 0.18, dashArray: '4,4' })
+          .bindTooltip(`${z.name} · ลำดับ ${z.priority}`, { sticky: true })
+          .addTo(g)
+      })
+    })()
+    return () => { cancelled = true }
+  }, [mapReady, riskZones])
+
+  // โซนที่กำลังวาด — polyline/polygon ชั่วคราว + จุด vertex มีลำดับ
+  useEffect(() => {
+    if (!mapReady) return
+    let cancelled = false
+    ;(async () => {
+      const L = (await import('leaflet')).default
+      if (cancelled || !mapRef.current) return
+      const g = draftZoneGroupRef.current ?? (draftZoneGroupRef.current = L.layerGroup().addTo(mapRef.current))
+      g.clearLayers()
+      if (draftZone.length === 0) return
+      const color = 'oklch(0.60 0.23 25)'
+      if (draftZone.length >= 2) {
+        L.polygon(draftZone, { color, weight: 2, fillColor: color, fillOpacity: 0.1, dashArray: '5,5' }).addTo(g)
+      }
+      draftZone.forEach(([la, ln], i) => {
+        L.circleMarker([la, ln], { radius: 4, color: '#fff', weight: 2, fillColor: color, fillOpacity: 1 })
+          .bindTooltip(String(i + 1), { permanent: true, direction: 'top', className: 'draft-vertex-label' })
+          .addTo(g)
+      })
+    })()
+    return () => { cancelled = true }
+  }, [mapReady, draftZone])
+
+  // โหมดวาดโซน — คลิกบนแผนที่เพื่อเพิ่มจุด
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapReady) return
+    const container = map.getContainer()
+    if (drawMode) {
+      container.style.cursor = 'crosshair'
+      const handler = (e: import('leaflet').LeafletMouseEvent) => {
+        onDrawVertex?.(e.latlng.lat, e.latlng.lng)
+      }
+      map.on('click', handler)
+      return () => {
+        map.off('click', handler)
+        container.style.cursor = ''
+      }
+    }
+  }, [drawMode, mapReady, onDrawVertex])
 
   // Draft marker — แสดงจุดที่กำลังจะปัก (ลากเพื่อปรับตำแหน่งได้)
   useEffect(() => {

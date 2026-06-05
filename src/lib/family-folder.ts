@@ -33,6 +33,7 @@ export interface HouseholdMapMember {
   sex: 'ชาย' | 'หญิง' | '-'
   position: string
   group: HouseholdMember['group']
+  categories: string[]
   isHead: boolean
   isVulnerable: boolean
   phone: string | null
@@ -83,6 +84,26 @@ function classifyGroup(
   if (isDisabled) return 'ผู้พิการ'
   if (isChronic) return 'โรคเรื้อรัง'
   return 'ทั่วไป'
+}
+
+// หมวดเปราะบางละเอียด (สำหรับตัวกรองแผนที่) — 1 คนอยู่ได้หลายหมวด
+// keys: bedridden | dialysis | oxygen | disabled | pregnant | elderly | child
+function memberCategories(
+  type: string | null,
+  lifeSupport: string[] | null,
+  age: number | null,
+  isDisabled: boolean,
+): string[] {
+  const cats: string[] = []
+  const ls = lifeSupport ?? []
+  if (type === 'bedridden') cats.push('bedridden')
+  if (type === 'pregnant') cats.push('pregnant')
+  if (type === 'disabled' || isDisabled) cats.push('disabled')
+  if (ls.includes('oxygen') || ls.includes('ventilator')) cats.push('oxygen')
+  if (ls.includes('dialysis_capd') || ls.includes('dialysis_hd')) cats.push('dialysis')
+  if (age != null && age >= 70) cats.push('elderly')
+  if (age != null && age <= 5) cats.push('child')
+  return cats
 }
 
 function toMember(m: MemberRow): HouseholdMember {
@@ -218,9 +239,14 @@ export async function getFamilyFolderHouseholds(
 }
 
 // หมุดบ้านสำหรับแผนที่ — เฉพาะบ้านที่มีพิกัด + มีสมาชิกกลุ่มเปราะบาง ≥1 คน
-export async function getVulnerableHouseholdMarkers(): Promise<HouseholdMapMarker[]> {
+export async function getVulnerableHouseholdMarkers(
+  province?: string | null,
+): Promise<HouseholdMapMarker[]> {
   const db = getDb()
-  const houseRows = await db.select().from(households)
+  const houseRows = await db
+    .select()
+    .from(households)
+    .where(province ? eq(households.province, province) : undefined)
   if (houseRows.length === 0) return []
 
   const memberRows = await db
@@ -251,6 +277,7 @@ export async function getVulnerableHouseholdMarkers(): Promise<HouseholdMapMarke
         sex: m.sex === 'ชาย' ? 'ชาย' : m.sex === 'หญิง' ? 'หญิง' : '-',
         position: m.isHead ? 'หัวหน้าครัวเรือน' : (m.familyPosition ?? 'สมาชิก'),
         group,
+        categories: memberCategories(m.type, m.lifeSupport, m.age, m.isDisabled),
         isHead: m.isHead,
         isVulnerable: group !== 'ทั่วไป',
         phone: m.phone || null,

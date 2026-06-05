@@ -129,8 +129,8 @@ export function Masthead({ session }: Props) {
   const pathname = usePathname() ?? ''
   const isActive = (href: string) =>
     href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(href + '/')
-  // หน้า /admin มี AppSidebar เป็น nav ถาวรแล้ว → ซ่อน nav บน masthead (กันซ้ำ)
-  const isAdmin = pathname.startsWith('/admin')
+  // หน้า /admin และ /map มี AppSidebar เป็น nav ถาวรแล้ว → ซ่อน nav บน masthead (กันซ้ำ)
+  const hasSidebar = pathname.startsWith('/admin') || pathname === '/map'
   const { setMobileOpen } = useSidebar()
   const { active } = useIncidentScope()
 
@@ -145,7 +145,7 @@ export function Masthead({ session }: Props) {
 
   return (
     <header className={`sticky top-0 z-40 flex h-16 shrink-0 items-center gap-3 border-b border-slate-800 bg-slate-900 px-4 text-white md:gap-6 ${crisisAccent}`}>
-      {isAdmin && (
+      {hasSidebar && (
         <button
           type="button"
           onClick={() => setMobileOpen(true)}
@@ -172,7 +172,7 @@ export function Masthead({ session }: Props) {
         </span>
       </Link>
 
-      {!isAdmin && (
+      {!hasSidebar && (
       <>
       <span className="hidden h-6 w-px bg-slate-700 lg:block" aria-hidden />
 

@@ -35,6 +35,8 @@ interface Props {
   onProvinceChange: (p: ProvinceId) => void
   onFloodClick?: () => void
   onNearClick?: () => void
+  /** ล็อกจังหวัด (non-national) — ไม่ให้สลับไปจังหวัดอื่น */
+  lockProvince?: boolean
 }
 
 interface FieldProps {
@@ -96,7 +98,7 @@ const ZONE_THRESHOLD: Record<1 | 2 | 3 | 4 | 5, string> = {
   5: '≥ 5.30 ม.',
 }
 
-export function StatusStrip({ waterLevel, s1Level, s1Alert, activeZone, alertLevel, vulnerable, updatedAt, province, onProvinceChange, onFloodClick, onNearClick }: Props) {
+export function StatusStrip({ waterLevel, s1Level, s1Alert, activeZone, alertLevel, vulnerable, updatedAt, province, onProvinceChange, onFloodClick, onNearClick, lockProvince = false }: Props) {
   const cfg = PROVINCE_CONFIGS[province]
   const s1Display = s1Level != null ? s1Level.toFixed(2) : '—'
   const s2Display = waterLevel != null ? waterLevel.toFixed(2) : '—'
@@ -115,21 +117,32 @@ export function StatusStrip({ waterLevel, s1Level, s1Alert, activeZone, alertLev
           จังหวัด
         </span>
         <div className="relative flex items-center">
-          <select
-            value={province}
-            onChange={(e) => onProvinceChange(e.target.value as ProvinceId)}
-            className="w-full appearance-none rounded border border-[var(--border)] bg-[var(--bg-elevated)] py-0.5 pl-2 pr-6 font-mono text-[13px] font-semibold text-[var(--fg)] outline-none transition-colors hover:border-[var(--fg-muted)] focus:border-[var(--accent)] focus:ring-0"
-          >
-            {(Object.keys(PROVINCE_CONFIGS) as ProvinceId[]).map((id) => (
-              <option key={id} value={id}>
-                {PROVINCE_CONFIGS[id].label}
-              </option>
-            ))}
-          </select>
-          <ChevronDown
-            size={11}
-            className="pointer-events-none absolute right-1.5 text-[var(--fg-muted)]"
-          />
+          {lockProvince ? (
+            <span
+              title="จังหวัดสังกัดของคุณ"
+              className="w-full truncate rounded border border-[var(--border)] bg-[var(--bg-elevated)] py-0.5 pl-2 pr-2 font-mono text-[13px] font-semibold text-[var(--fg)]"
+            >
+              {cfg.label}
+            </span>
+          ) : (
+            <>
+              <select
+                value={province}
+                onChange={(e) => onProvinceChange(e.target.value as ProvinceId)}
+                className="w-full appearance-none rounded border border-[var(--border)] bg-[var(--bg-elevated)] py-0.5 pl-2 pr-6 font-mono text-[13px] font-semibold text-[var(--fg)] outline-none transition-colors hover:border-[var(--fg-muted)] focus:border-[var(--accent)] focus:ring-0"
+              >
+                {(Object.keys(PROVINCE_CONFIGS) as ProvinceId[]).map((id) => (
+                  <option key={id} value={id}>
+                    {PROVINCE_CONFIGS[id].label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                size={11}
+                className="pointer-events-none absolute right-1.5 text-[var(--fg-muted)]"
+              />
+            </>
+          )}
         </div>
       </div>
       <Divider />
@@ -165,13 +178,18 @@ export function StatusStrip({ waterLevel, s1Level, s1Alert, activeZone, alertLev
           </div>
         </div>
       </div>
-      <Divider />
-      <Field
-        label="CMU โซนปัจจุบัน"
-        value={zoneDisplay}
-        delta={zoneDelta}
-        color={activeZone != null ? ALERT_TONE[alertLevel] : 'var(--fg-muted)'}
-      />
+      {/* โมเดลโซนน้ำท่วม CMU อิงสถานี P.1 (เชียงใหม่) เท่านั้น — ซ่อนในจังหวัดอื่นกันเข้าใจผิด */}
+      {province === 'chiangmai' && (
+        <>
+          <Divider />
+          <Field
+            label="CMU โซนปัจจุบัน"
+            value={zoneDisplay}
+            delta={zoneDelta}
+            color={activeZone != null ? ALERT_TONE[alertLevel] : 'var(--fg-muted)'}
+          />
+        </>
+      )}
       <Divider />
       <Field
         label="ผู้ป่วยในพื้นที่ท่วม"

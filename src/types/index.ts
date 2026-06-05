@@ -297,9 +297,22 @@ export interface HouseholdMapMember {
   sex?: 'ชาย' | 'หญิง' | '-'
   position?: string
   group: 'ผู้สูงอายุ' | 'เด็กเล็ก' | 'ผู้พิการ' | 'โรคเรื้อรัง' | 'ทั่วไป'
+  /** หมวดเปราะบางละเอียด (ระดับคน) สำหรับตัวกรองแผนที่ — bedridden|dialysis|oxygen|disabled|pregnant|elderly|child */
+  categories?: string[]
   isHead?: boolean
   isVulnerable: boolean
   phone?: string | null
+}
+
+// โซนเสี่ยงน้ำท่วม — polygon ที่เจ้าหน้าที่วาดเพื่อระบุพื้นที่ที่น้ำจะท่วมก่อน (เก็บ [lng, lat][])
+export interface FloodRiskZone {
+  id: string
+  province: string
+  name: string
+  priority: number // 1 = ท่วมก่อน (เร่งด่วนสุด)
+  polygon: [number, number][] // [lng, lat][]
+  notes?: string | null
+  createdAt?: string | null
 }
 
 // หมุด "บ้าน" บนแผนที่ — popup แสดงสมาชิกทุกคน + เบอร์ (ฟิลด์ส่วนตัวอาจหายไปตาม PDPA role)

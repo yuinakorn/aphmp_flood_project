@@ -1,8 +1,11 @@
+import { cookies } from 'next/headers'
 import { MapClient } from './MapClient'
 import { auth } from '@/lib/auth'
 import { RoleViewProvider } from '@/components/shell/RoleViewProvider'
 import { IncidentScopeProvider } from '@/components/shell/IncidentScopeProvider'
-import { getActiveIncident, getSelectableIncidents } from '@/lib/incident-scope'
+import { SidebarProvider, SIDEBAR_COOKIE } from '@/components/shell/SidebarProvider'
+import { getActiveIncident, getSelectableIncidents, isNationalRole } from '@/lib/incident-scope'
+import { canManageStaff, canTriage } from '@/lib/field-api'
 import { redirect } from 'next/navigation'
 
 export const metadata = {
@@ -23,11 +26,20 @@ export default async function MapPage() {
     getActiveIncident(mapSession.role, province),
     getSelectableIncidents(mapSession.role, province),
   ])
+  const sidebarCollapsed = (await cookies()).get(SIDEBAR_COOKIE)?.value === '1'
 
   return (
     <RoleViewProvider realRole={mapSession.role}>
       <IncidentScopeProvider active={activeIncident} selectable={selectableIncidents}>
-        <MapClient session={mapSession} />
+        <SidebarProvider initialCollapsed={sidebarCollapsed}>
+          <MapClient
+            session={mapSession}
+            canManageStaff={canManageStaff(mapSession.role)}
+            canTriage={canTriage(mapSession.role)}
+            userProvince={province}
+            isNational={isNationalRole(mapSession.role)}
+          />
+        </SidebarProvider>
       </IncidentScopeProvider>
     </RoleViewProvider>
   )

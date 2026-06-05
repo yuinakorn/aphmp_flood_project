@@ -1,23 +1,25 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import type { Map as LeafletMap, LayerGroup } from 'leaflet'
 import { MapWrapper } from '@/components/map/MapWrapper'
 import { Masthead } from '@/components/shell/Masthead'
+import { AppSidebar } from '@/components/shell/AppSidebar'
 import { StatusStrip } from '@/components/shell/StatusStrip'
 import { Rail, type RailPanel } from '@/components/shell/Rail'
 import { LayersPanel } from '@/components/panels/LayersPanel'
+import { FilterPanel } from '@/components/panels/FilterPanel'
+import { RiskZonePanel } from '@/components/panels/RiskZonePanel'
 import { RosterPanel } from '@/components/panels/RosterPanel'
 import { RoutesPanel } from '@/components/panels/RoutesPanel'
 import { InfraPanel } from '@/components/panels/InfraPanel'
 import { TunePanel } from '@/components/panels/TunePanel'
 import { MapOverlay } from '@/components/map/MapOverlay'
 import { WaterLevelSidebar } from '@/components/map/WaterLevelSidebar'
-import { FloodAlertBanner } from '@/components/map/FloodAlertBanner'
-import { IncidentModeBanner } from '@/components/map/IncidentModeBanner'
+import { CriticalCaseBanner } from '@/components/map/CriticalCaseBanner'
 import { UserFloodMarkForm } from '@/components/map/UserFloodMarkForm'
 import { MapPinPlus, LocateFixed, Loader2 } from 'lucide-react'
-import { buildEvacRouteOSRM, nearestShelter } from '@/lib/geo'
+import { buildEvacRouteOSRM, nearestShelter, pointInPolygon } from '@/lib/geo'
 import type { AlertLevel, ProvinceId } from '@/lib/water-level'
 import { PROVINCE_CONFIGS } from '@/lib/water-level'
 
@@ -36,6 +38,8 @@ import type {
   VulnerablePerson,
   VulnerableHouseholdMarker,
   VulnerableStats,
+  RiskLevel,
+  FloodRiskZone,
 } from '@/types'
 
 const WRITE_ROLES = new Set(['admin', 'officer', 'eoc', 'vhv', 'ems', 'ddpm'])
@@ -76,11 +80,22 @@ const DEFAULT_LAYERS: LayerState = {
 
 const ALERT_POLL_MS = 5 * 60 * 1000
 
-interface Props {
-  session?: { id: string; role: string; name: string } | null
+// แปลงชื่อจังหวัด (ไทย) → ProvinceId ของพื้นที่เฝ้าระวังน้ำ (มี config 4 พื้นที่)
+const PROVINCE_NAME_TO_ID: Record<string, ProvinceId> = {
+  'เชียงใหม่': 'chiangmai',
+  'น่าน': 'nan',
+  'เชียงราย': 'chiangrai',
 }
 
-export function MapClient({ session }: Props) {
+interface Props {
+  session?: { id: string; role: string; name: string } | null
+  canManageStaff?: boolean
+  canTriage?: boolean
+  userProvince?: string | null
+  isNational?: boolean
+}
+
+export function MapClient({ session, canManageStaff = false, canTriage = false, userProvince = null, isNational = false }: Props) {
   const [layers, setLayers] = useState<LayerState>(DEFAULT_LAYERS)
   const [activePanel, setActivePanel] = useState<RailPanel>('roster')
   const [vulnerable, setVulnerable] = useState<VulnerablePerson[]>([])
@@ -93,19 +108,132 @@ export function MapClient({ session }: Props) {
   const [pinDraft, setPinDraft] = useState<{ lat: number; lng: number } | null>(null)
   const [locating, setLocating] = useState(false)
   const canPin = !!session && WRITE_ROLES.has(session.role)
-  const [vulnStats, setVulnStats] = useState<VulnerableStats>({
-    flood: 0,
-    near: 0,
-    safe: 0,
-    total: 0,
-  })
   const [waterLevel, setWaterLevel] = useState<number | null>(null)
   const [activeZone, setActiveZone] = useState<1 | 2 | 3 | 4 | 5 | null>(null)
   const [alertLevel, setAlertLevel] = useState<AlertLevel>('normal')
   const [alertUpdatedAt, setAlertUpdatedAt] = useState<string | null>(null)
   const [summarySnap, setSummarySnap] = useState<Record<string, ProvinceSummarySnap>>({})
-  const [province, setProvince] = useState<ProvinceId>('chiangmai')
+  const [province, setProvince] = useState<ProvinceId>(
+    (userProvince && PROVINCE_NAME_TO_ID[userProvince]) || 'chiangmai',
+  )
+  const didFitRef = useRef(false)
   const [rosterFilter, setRosterFilter] = useState<'all' | 'flooded' | 'at_risk'>('all')
+
+  // สถิติกลุ่มเปราะบาง — คิดจากข้อมูลที่ scope จังหวัดแล้ว (ถูกต้องทุกจังหวัด ไม่ผูกกับโซนเชียงใหม่)
+  const vulnStats: VulnerableStats = useMemo(() => {
+    let flood = 0, near = 0, safe = 0
+    for (const p of vulnerable) {
+      if (p.risk === 'flood') flood++
+      else if (p.risk === 'near') near++
+      else safe++
+    }
+    return { flood, near, safe, total: vulnerable.length }
+  }, [vulnerable])
+
+  // ── ตัวกรองหมุดบ้าน (faceted) — เซตว่าง = แสดงทั้งหมด ──
+  const [filterRisk, setFilterRisk] = useState<Set<RiskLevel>>(new Set())
+  const [filterGroups, setFilterGroups] = useState<Set<string>>(new Set())
+  const [filterTambons, setFilterTambons] = useState<Set<string>>(new Set())
+
+  const toggleIn = <T,>(setter: React.Dispatch<React.SetStateAction<Set<T>>>, v: T) =>
+    setter((prev) => {
+      const next = new Set(prev)
+      if (next.has(v)) next.delete(v)
+      else next.add(v)
+      return next
+    })
+
+  const clearFilters = useCallback(() => {
+    setFilterRisk(new Set())
+    setFilterGroups(new Set())
+    setFilterTambons(new Set())
+  }, [])
+
+  // ── โซนเสี่ยงน้ำท่วม (วาดเอง) ──
+  const ZONE_EDIT_ROLES = new Set(['admin', 'officer', 'eoc', 'ems', 'ddpm'])
+  const canEditZones = !!session && ZONE_EDIT_ROLES.has(session.role)
+  const [riskZones, setRiskZones] = useState<FloodRiskZone[]>([])
+  const [drawing, setDrawing] = useState(false)
+  const [draftZone, setDraftZone] = useState<[number, number][]>([]) // [lat, lng][]
+
+  const loadZones = useCallback(async () => {
+    try {
+      const res = await fetch('/api/flood-risk-zones', { cache: 'no-store' })
+      if (res.ok) setRiskZones(((await res.json()).data ?? []) as FloodRiskZone[])
+    } catch { /* เงียบไว้ — โซนเป็นข้อมูลเสริม */ }
+  }, [])
+
+  useEffect(() => {
+    fetch('/api/flood-risk-zones', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : { data: [] }))
+      .then((j) => setRiskZones((j.data ?? []) as FloodRiskZone[]))
+      .catch(() => {})
+  }, [])
+
+  // นับกลุ่มเปราะบาง (รายคน) ในแต่ละโซน ด้วย point-in-polygon
+  const zonesWithCount = useMemo(
+    () => riskZones.map((z) => ({
+      ...z,
+      count: vulnerable.filter((p) => pointInPolygon(p.lat, p.lng, z.polygon)).length,
+    })),
+    [riskZones, vulnerable],
+  )
+
+  const startDraw = useCallback(() => {
+    setPinMode(false)
+    setDraftZone([])
+    setDrawing(true)
+    setActivePanel('zones')
+  }, [])
+  const addDraftVertex = useCallback((lat: number, lng: number) => {
+    setDraftZone((prev) => [...prev, [lat, lng]])
+  }, [])
+  const undoDraftVertex = useCallback(() => setDraftZone((prev) => prev.slice(0, -1)), [])
+  const cancelDraw = useCallback(() => { setDrawing(false); setDraftZone([]) }, [])
+  const saveDraw = useCallback(async (name: string, priority: number): Promise<boolean> => {
+    if (draftZone.length < 3) return false
+    try {
+      const polygon = draftZone.map(([lat, lng]) => [lng, lat]) // เก็บเป็น [lng,lat]
+      const res = await fetch('/api/flood-risk-zones', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, priority, polygon }),
+      })
+      if (!res.ok) return false
+      setDrawing(false)
+      setDraftZone([])
+      await loadZones()
+      return true
+    } catch { return false }
+  }, [draftZone, loadZones])
+  const deleteZone = useCallback(async (id: string) => {
+    try {
+      const res = await fetch(`/api/flood-risk-zones/${id}`, { method: 'DELETE' })
+      if (res.ok) await loadZones()
+    } catch { /* noop */ }
+  }, [loadZones])
+  const zoomZone = useCallback(async (z: FloodRiskZone) => {
+    const map = mapRef.current
+    if (!map || z.polygon.length < 3) return
+    const L = (await import('leaflet')).default
+    map.fitBounds(L.latLngBounds(z.polygon.map(([lng, lat]) => [lat, lng] as [number, number])), { padding: [50, 50] })
+  }, [])
+
+  const filteredHouseholds = useMemo(() => {
+    if (filterRisk.size === 0 && filterGroups.size === 0 && filterTambons.size === 0) return households
+    return households.filter((h) => {
+      if (filterRisk.size > 0 && !filterRisk.has((h.risk ?? 'safe') as RiskLevel)) return false
+      if (filterTambons.size > 0 && !(h.tambon && filterTambons.has(h.tambon))) return false
+      if (filterGroups.size > 0 && !h.members.some((m) => (m.categories ?? []).some((c) => filterGroups.has(c)))) return false
+      return true
+    })
+  }, [households, filterRisk, filterGroups, filterTambons])
+
+  // ผู้ป่วยกลุ่มวิกฤต (priority A) ที่อยู่ในเขตน้ำท่วม — ใช้ขึ้นแถบเตือนเชิงปฏิบัติการ
+  const criticalCount = useMemo(
+    () => vulnerable.filter((p) => p.risk === 'flood' && p.medicalPriority === 'A').length,
+    [vulnerable],
+  )
 
   const [basemap, setBasemap] = useState<BasemapType>('google')
 
@@ -160,21 +288,6 @@ export function MapClient({ session }: Props) {
           setActiveZone(data.activeZone)
           setAlertLevel(data.alertLevel)
           setAlertUpdatedAt(data.updatedAt)
-
-          const { counts, affectedTotal, activeZone: az } = data
-          const nearTotal =
-            ([1, 2, 3, 4, 5] as const)
-              .filter((l) => az == null || l > az)
-              .reduce((sum, l) => sum + (counts[`level${l}` as keyof typeof counts] as number), 0)
-          const total =
-            counts.level1 + counts.level2 + counts.level3 +
-            counts.level4 + counts.level5 + counts.outside
-          setVulnStats({
-            flood: affectedTotal,
-            near: nearTotal,
-            safe: counts.outside,
-            total,
-          })
         })
         .catch(console.error)
 
@@ -237,7 +350,9 @@ export function MapClient({ session }: Props) {
       const key = e.key.toLowerCase()
       const map: Record<string, RailPanel> = {
         l: 'layers',
+        f: 'filter',
         r: 'roster',
+        z: 'zones',
         e: 'routes',
         i: 'infra',
         t: 'tune',
@@ -487,12 +602,59 @@ export function MapClient({ session }: Props) {
     routeGroupRef.current?.clearLayers()
   }, [])
 
+  // จัดมุมมองแผนที่ให้พอดีกับข้อมูลจังหวัดของผู้ใช้ (non-national) — ครั้งเดียวตอนโหลดเสร็จ
+  useEffect(() => {
+    if (didFitRef.current || isNational) return
+    const map = mapRef.current
+    if (!map) return // ข้อมูลโหลดช้ากว่าแผนที่ mount เสมอ — map พร้อมแล้วตอน households มาถึง
+    const pts: [number, number][] = [
+      ...households.map((h) => [h.lat, h.lng] as [number, number]),
+      ...infra.map((i) => [Number(i.lat), Number(i.lng)] as [number, number]),
+    ].filter(([la, ln]) => Number.isFinite(la) && Number.isFinite(ln))
+    if (pts.length === 0) return
+    didFitRef.current = true
+    ;(async () => {
+      const L = (await import('leaflet')).default
+      map.fitBounds(L.latLngBounds(pts), { padding: [60, 60], maxZoom: 13 })
+    })()
+  }, [households, infra, isNational])
+
+  // สั่งอพยพจาก popup บ้าน → สร้างคำขอช่วยเหลือ (evacuation) เข้าสู่คิว EOC/ทีมภาคสนาม
+  const requestEvacuation = useCallback(async (h: VulnerableHouseholdMarker): Promise<boolean> => {
+    try {
+      const addr = [
+        h.hno ? `บ้านเลขที่ ${h.hno}` : null,
+        h.village,
+        h.villno ? `หมู่ ${h.villno}` : null,
+        h.tambon,
+        h.amphoe,
+      ].filter(Boolean).join(' ')
+      const res = await fetch('/api/help-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requestType: 'evacuation',
+          priority: h.risk === 'flood' ? 'high' : 'normal',
+          lat: h.lat,
+          lng: h.lng,
+          description: `สั่งอพยพจากแผนที่ · ${addr} · กลุ่มเปราะบาง ${h.vulnerableCount} คน`,
+        }),
+      })
+      return res.ok
+    } catch {
+      return false
+    }
+  }, [])
+
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-[var(--bg)] text-[var(--fg)]">
       <a href="#map-region" className="skip-to-map">
         ข้ามไปที่แผนที่
       </a>
       <Masthead session={session} />
+      <div className="flex flex-1 overflow-hidden">
+      <AppSidebar canManageStaff={canManageStaff} canTriage={canTriage} />
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
       <StatusStrip
         waterLevel={summarySnap[province]?.s2?.level ?? waterLevel}
         s1Level={summarySnap[province]?.s1?.level ?? null}
@@ -503,6 +665,7 @@ export function MapClient({ session }: Props) {
         updatedAt={alertUpdatedAt}
         province={province}
         onProvinceChange={onProvinceChange}
+        lockProvince={!isNational}
         onFloodClick={onFloodClick}
         onNearClick={onNearClick}
       />
@@ -523,10 +686,38 @@ export function MapClient({ session }: Props) {
             onClose={() => setActivePanel(null)}
           />
         )}
+        {activePanel === 'filter' && (
+          <FilterPanel
+            households={households}
+            filterRisk={filterRisk}
+            filterGroups={filterGroups}
+            filterTambons={filterTambons}
+            onToggleRisk={(v) => toggleIn(setFilterRisk, v)}
+            onToggleGroup={(v) => toggleIn(setFilterGroups, v)}
+            onToggleTambon={(v) => toggleIn(setFilterTambons, v)}
+            onClear={clearFilters}
+            resultCount={filteredHouseholds.length}
+            onClose={() => setActivePanel(null)}
+          />
+        )}
+        {activePanel === 'zones' && (
+          <RiskZonePanel
+            zones={zonesWithCount}
+            canEdit={canEditZones}
+            drawing={drawing}
+            draftCount={draftZone.length}
+            onStartDraw={startDraw}
+            onUndoVertex={undoDraftVertex}
+            onCancelDraw={cancelDraw}
+            onSaveDraw={saveDraw}
+            onDelete={deleteZone}
+            onZoomZone={zoomZone}
+            onClose={() => { if (!drawing) setActivePanel(null) }}
+          />
+        )}
         {activePanel === 'roster' && (
           <RosterPanel
             persons={vulnerable}
-            activeZone={activeZone}
             initialFilter={rosterFilter}
             onSelect={flyTo}
             onClose={() => { setActivePanel(null); setRosterFilter('all') }}
@@ -561,11 +752,13 @@ export function MapClient({ session }: Props) {
         )}
 
         <div id="map-region" role="region" aria-label="แผนที่น้ำท่วม" className="relative flex-1">
-          <FloodAlertBanner />
-          <IncidentModeBanner />
+          <CriticalCaseBanner
+            count={criticalCount}
+            onView={() => { setRosterFilter('flooded'); setActivePanel('roster') }}
+          />
           <MapWrapper
             layers={layers}
-            households={households}
+            households={filteredHouseholds}
             infra={infra}
             basemap={basemap}
             floodMarkProvince={floodMarkProvince}
@@ -577,8 +770,16 @@ export function MapClient({ session }: Props) {
             sessionUserId={session?.id ?? null}
             sessionRole={session?.role ?? null}
             onDeleteMark={onDeleteMark}
-            onMapReady={(m) => (mapRef.current = m)}
+            // เก็บ map instance ไว้ใช้ fly/fit — pattern มาตรฐาน, ref นี้ตั้งใจ mutate
+            // eslint-disable-next-line react-hooks/immutability
+            onMapReady={(m) => { mapRef.current = m }}
             onRequestHouseRoute={drawHouseRoute}
+            canRequestEvac={canPin}
+            onRequestEvacuation={requestEvacuation}
+            riskZones={riskZones}
+            drawMode={drawing}
+            draftZone={draftZone}
+            onDrawVertex={addDraftVertex}
           />
           <MapOverlay />
           {canPin && (
@@ -621,6 +822,8 @@ export function MapClient({ session }: Props) {
             />
           )}
         </div>
+      </div>
+      </div>
       </div>
     </div>
   )

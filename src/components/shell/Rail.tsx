@@ -1,6 +1,6 @@
 'use client'
 
-import { Layers, Users, Route, Building2, SlidersHorizontal, Droplets } from 'lucide-react'
+import { Layers, Users, Route, Building2, SlidersHorizontal, Droplets, Filter, Shapes } from 'lucide-react'
 import {
   Tooltip,
   TooltipContent,
@@ -8,7 +8,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 
-export type RailPanel = 'layers' | 'roster' | 'routes' | 'infra' | 'tune' | 'water' | null
+export type RailPanel = 'layers' | 'filter' | 'roster' | 'zones' | 'routes' | 'infra' | 'tune' | 'water' | null
 
 const items: Array<{
   key: NonNullable<RailPanel>
@@ -18,7 +18,9 @@ const items: Array<{
   shortcut: string
 }> = [
   { key: 'layers', label: 'Layers', short: 'เลเยอร์', icon: Layers, shortcut: 'L' },
+  { key: 'filter', label: 'ตัวกรองหมุด', short: 'ตัวกรอง', icon: Filter, shortcut: 'F' },
   { key: 'roster', label: 'รายชื่อเปราะบาง', short: 'รายชื่อ', icon: Users, shortcut: 'R' },
+  { key: 'zones', label: 'โซนเสี่ยงน้ำท่วม', short: 'โซนเสี่ยง', icon: Shapes, shortcut: 'Z' },
   { key: 'routes', label: 'เส้นทางอพยพ', short: 'เส้นทาง', icon: Route, shortcut: 'E' },
   { key: 'infra', label: 'สถานพยาบาล', short: 'สถานที่', icon: Building2, shortcut: 'I' },
   { key: 'tune', label: 'ปรับการแสดงผล', short: 'ปรับแต่ง', icon: SlidersHorizontal, shortcut: 'T' },

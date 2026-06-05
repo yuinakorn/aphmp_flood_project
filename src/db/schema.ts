@@ -249,6 +249,21 @@ export const userFloodMarkCodeSeq = pgTable('user_flood_mark_code_seq', {
   lastNo: integer('last_no').notNull().default(0),
 })
 
+// โซนเสี่ยงน้ำท่วม — เจ้าหน้าที่ระดับสั่งการวาด polygon ระบุพื้นที่ที่น้ำจะท่วมก่อน (ตั้งถาวรต่อจังหวัด)
+// polygon เก็บเป็น [lng, lat][] (ลำดับเดียวกับ pointInPolygon / KML) เพื่อ point-in-polygon นับกลุ่มเปราะบาง
+export const floodRiskZones = pgTable('flood_risk_zones', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  province: text('province').notNull(),
+  name: text('name').notNull(),
+  priority: smallint('priority').notNull().default(1), // 1 = ท่วมก่อน (เร่งด่วนสุด) → มากขึ้น = ท่วมทีหลัง
+  polygon: jsonb('polygon').$type<[number, number][]>().notNull(),
+  notes: text('notes'),
+  createdBy: uuid('created_by'),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+}, (t) => [index('idx_flood_risk_zones_province').on(t.province)])
+
 // Infrastructure
 export const infrastructures = pgTable('infrastructures', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),

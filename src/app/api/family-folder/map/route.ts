@@ -12,6 +12,7 @@ import { auth } from '@/lib/auth'
 import { getDb } from '@/lib/db'
 import { classifyRisk } from '@/lib/geo'
 import { getVulnerableHouseholdMarkers } from '@/lib/family-folder'
+import { isNationalRole } from '@/lib/incident-scope'
 import { accessLog } from '@/db/schema'
 import type { UserRole } from '@/types'
 import floodPointsData from '../../../../../public/data/flood-points.json'
@@ -31,7 +32,13 @@ export async function GET() {
   const role = (session?.user?.role ?? 'anonymous') as UserRole
   const fullAccess = FULL_ACCESS_ROLES.has(role)
 
-  const markers = await getVulnerableHouseholdMarkers()
+  // province scope — ผู้ใช้ที่ไม่ใช่ระดับชาติ เห็นเฉพาะจังหวัดสังกัด
+  const national = isNationalRole(role)
+  const sessionProvince = session?.user?.province ?? null
+  if (session?.user && !national && !sessionProvince) return NextResponse.json([])
+  const scopedProvince = session?.user && !national ? sessionProvince : null
+
+  const markers = await getVulnerableHouseholdMarkers(scopedProvince)
 
   const data = markers.map((h) => {
     const risk = classifyRisk(h.lat, h.lng, floodCoords)
@@ -51,6 +58,7 @@ export async function GET() {
         risk,
         members: h.members.map((m) => ({
           group: m.group,
+          categories: m.categories,
           isVulnerable: m.isVulnerable,
         })),
       }

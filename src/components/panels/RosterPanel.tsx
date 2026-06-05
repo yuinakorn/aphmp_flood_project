@@ -9,7 +9,6 @@ type FilterKey = 'all' | 'flooded' | 'at_risk'
 
 interface Props {
   persons: VulnerablePerson[]
-  activeZone?: 1 | 2 | 3 | 4 | 5 | null
   initialFilter?: FilterKey
   onSelect: (p: VulnerablePerson) => void
   onClose: () => void
@@ -36,7 +35,10 @@ const riskTone: Record<RiskLevel, string> = {
 
 const order: Record<RiskLevel, number> = { flood: 0, near: 1, safe: 2 }
 
-export function RosterPanel({ persons, activeZone, initialFilter = 'all', onSelect, onClose }: Props) {
+// ระดับวิกฤตทางการแพทย์ — A สำคัญสุด (เลขน้อย = ขึ้นก่อน)
+const medRank = (p?: string | null) => (p === 'A' ? 0 : p === 'B' ? 1 : p === 'C' ? 2 : 3)
+
+export function RosterPanel({ persons, initialFilter = 'all', onSelect, onClose }: Props) {
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<FilterKey>(initialFilter)
 
@@ -45,24 +47,19 @@ export function RosterPanel({ persons, activeZone, initialFilter = 'all', onSele
     setFilter(initialFilter)
   }, [initialFilter])
 
+  // นับ/กรองจากฟิลด์ risk (จำแนกจากพิกัดจริง vs จุดน้ำท่วม) — ตรงกับป้ายที่แสดงในแต่ละแถว
   const counts = useMemo(() => {
-    const flooded = persons.filter(
-      (p) => p.floodLevel != null && activeZone != null && p.floodLevel <= activeZone,
-    ).length
-    const atRisk = persons.filter(
-      (p) => p.floodLevel != null && (activeZone == null || p.floodLevel > activeZone),
-    ).length
+    const flooded = persons.filter((p) => (p.risk ?? 'safe') === 'flood').length
+    const atRisk = persons.filter((p) => (p.risk ?? 'safe') === 'near').length
     return { flooded, atRisk, total: persons.length }
-  }, [persons, activeZone])
+  }, [persons])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     return persons
       .filter((p) => {
-        if (filter === 'flooded')
-          return p.floodLevel != null && activeZone != null && p.floodLevel <= activeZone
-        if (filter === 'at_risk')
-          return p.floodLevel != null && (activeZone == null || p.floodLevel > activeZone)
+        if (filter === 'flooded') return (p.risk ?? 'safe') === 'flood'
+        if (filter === 'at_risk') return (p.risk ?? 'safe') === 'near'
         return true
       })
       .filter(
@@ -72,8 +69,13 @@ export function RosterPanel({ persons, activeZone, initialFilter = 'all', onSele
           p.vil.toLowerCase().includes(q) ||
           p.label.toLowerCase().includes(q),
       )
-      .sort((a, b) => order[a.risk ?? 'safe'] - order[b.risk ?? 'safe'])
-  }, [persons, filter, activeZone, query])
+      // จัดอันดับอัตโนมัติ: ความเสี่ยงน้ำ (จริงจากพิกัด) ก่อน แล้วระดับวิกฤตทางการแพทย์
+      .sort((a, b) => {
+        const r = order[a.risk ?? 'safe'] - order[b.risk ?? 'safe']
+        if (r !== 0) return r
+        return medRank(a.medicalPriority) - medRank(b.medicalPriority)
+      })
+  }, [persons, filter, query])
 
   const TABS: { key: FilterKey; label: string; count: number; color?: string }[] = [
     { key: 'all',      label: 'ทั้งหมด',        count: counts.total },
@@ -167,6 +169,18 @@ export function RosterPanel({ persons, activeZone, initialFilter = 'all', onSele
                       <span className="truncate text-[14px] font-medium leading-tight text-[var(--fg)]">
                         {p.name}
                       </span>
+                      {(p.medicalPriority === 'A' || p.medicalPriority === 'B') && (
+                        <span
+                          className="shrink-0 rounded px-1 py-0.5 text-[9px] font-bold leading-none"
+                          style={{
+                            background: p.medicalPriority === 'A' ? 'var(--risk-flood)' : 'var(--risk-near)',
+                            color: '#fff',
+                          }}
+                          title={p.medicalPriority === 'A' ? 'วิกฤต (Priority A)' : 'เร่งด่วน (Priority B)'}
+                        >
+                          {p.medicalPriority}
+                        </span>
+                      )}
                       <span className="shrink-0 font-mono text-[11px] tabular-nums text-[var(--fg-subtle)]">
                         {p.age} ปี
                       </span>

@@ -49,6 +49,7 @@ const INFRA_COLOR: Record<string, string> = {
   clinic: 'var(--infra-medical)',
   shelter: 'var(--infra-shelter)',
   assembly: 'var(--infra-shelter)',
+  evacuation_point: 'oklch(0.62 0.20 250)',
 }
 
 const INFRA_LABEL: Record<string, string> = {
@@ -56,6 +57,13 @@ const INFRA_LABEL: Record<string, string> = {
   clinic: 'รพ.สต.',
   shelter: 'ศูนย์อพยพ',
   assembly: 'จุดรวมพล',
+  evacuation_point: 'จุดรับ-ส่งอพยพ',
+}
+
+const ACCESS_MODE_LABEL: Record<string, string> = {
+  vehicle: '🚑 รถ',
+  boat: '⛵ เรือ',
+  foot: '🚶 เดินเท้า',
 }
 
 // Lucide SVG paths — kept in sync with the icons used in InfraPanel
@@ -65,6 +73,8 @@ const INFRA_SVG: Record<string, string> = {
   clinic: `<path d="M11 2v2"/><path d="M5 2v2"/><path d="M5 3H4a2 2 0 0 0-2 2v4a6 6 0 0 0 12 0V5a2 2 0 0 0-2-2h-1"/><path d="M8 15a6 6 0 0 0 12 0v-3"/><circle cx="20" cy="10" r="2"/>`,
   shelter: `<path d="M3.5 21 14 3"/><path d="M20.5 21 10 3"/><path d="M15.5 21 12 15l-3.5 6"/><path d="M2 21h20"/>`,
   assembly: `<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/>`,
+  // Navigation/RV — จุดรับ-ส่งอพยพ
+  evacuation_point: `<path d="M3 11l19-9-9 19-2-8-8-2z"/>`,
 }
 
 const GROUP_COLOR: Record<string, string> = {
@@ -262,6 +272,8 @@ interface Props {
   drawMode?: boolean
   draftZone?: [number, number][] // [lat, lng][] ระหว่างวาด
   onDrawVertex?: (lat: number, lng: number) => void
+  evacPinMode?: boolean
+  onEvacPlace?: (lat: number, lng: number) => void
 }
 
 export function FloodMap({
@@ -287,6 +299,8 @@ export function FloodMap({
   drawMode = false,
   draftZone = [],
   onDrawVertex,
+  evacPinMode = false,
+  onEvacPlace,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<LeafletMap | null>(null)
@@ -522,12 +536,21 @@ export function FloodMap({
             iconSize: [28, 28],
             iconAnchor: [14, 14],
           })
+          const isEvac = i.type === 'evacuation_point'
+          const accessLine = isEvac
+            ? `<div style="font-size:12px;color:var(--fg-muted);margin-bottom:2px">เข้าถึงโดย: ${
+                (i.accessModes ?? []).map((m) => ACCESS_MODE_LABEL[m] ?? m).join('  ') || '—'
+              }</div>`
+            : `<div style="font-size:12px;color:var(--fg-muted)">ความจุ: <span style="font-family:var(--font-mono)">${i.capacity ?? i.cap ?? '—'}</span></div>`
+          const contactLine = isEvac && i.contact
+            ? `<div style="font-size:12px;color:var(--fg-muted)">ผู้ประสาน: <a href="tel:${String(i.contact).replace(/[^0-9+]/g, '')}" style="color:var(--accent);text-decoration:none">${i.contact}</a></div>`
+            : ''
           L.marker([Number(i.lat), Number(i.lng)], { icon })
             .bindPopup(
               `<div>
               <div style="font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--fg-subtle);margin-bottom:4px">${INFRA_LABEL[i.type] ?? i.type}</div>
               <div style="font-size:14px;font-weight:600;margin-bottom:4px">${i.name}</div>
-              <div style="font-size:12px;color:var(--fg-muted)">ความจุ: <span style="font-family:var(--font-mono)">${i.capacity ?? i.cap ?? '—'}</span></div>
+              ${accessLine}${contactLine}
             </div>`,
             )
             .addTo(ig)
@@ -717,6 +740,24 @@ export function FloodMap({
       }
     }
   }, [drawMode, mapReady, onDrawVertex])
+
+  // โหมดปักจุดรับ-ส่งอพยพ — คลิกครั้งเดียวเพื่อเลือกตำแหน่ง
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapReady) return
+    const container = map.getContainer()
+    if (evacPinMode) {
+      container.style.cursor = 'crosshair'
+      const handler = (e: import('leaflet').LeafletMouseEvent) => {
+        onEvacPlace?.(e.latlng.lat, e.latlng.lng)
+      }
+      map.on('click', handler)
+      return () => {
+        map.off('click', handler)
+        container.style.cursor = ''
+      }
+    }
+  }, [evacPinMode, mapReady, onEvacPlace])
 
   // Draft marker — แสดงจุดที่กำลังจะปัก (ลากเพื่อปรับตำแหน่งได้)
   useEffect(() => {

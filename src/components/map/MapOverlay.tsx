@@ -13,6 +13,7 @@ const RISK_ITEMS: { label: string; color: string }[] = [
 const INFRA_ITEMS: { label: string; color: string }[] = [
   { label: 'โรงพยาบาล / รพ.สต.', color: 'var(--infra-hospital, oklch(0.62 0.20 250))' },
   { label: 'ศูนย์อพยพ / จุดรวมพล', color: 'var(--infra-shelter, oklch(0.7 0.15 160))' },
+  { label: 'จุดรับ-ส่งอพยพ', color: 'oklch(0.62 0.20 250)' },
 ]
 
 function HouseSwatch({ color }: { color: string }) {

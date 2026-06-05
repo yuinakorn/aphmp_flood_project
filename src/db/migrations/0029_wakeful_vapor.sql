@@ -1,0 +1,1 @@
+ALTER TABLE "infrastructures" ADD COLUMN "access_modes" jsonb;

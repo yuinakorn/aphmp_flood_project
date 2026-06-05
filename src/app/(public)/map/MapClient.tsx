@@ -18,7 +18,8 @@ import { MapOverlay } from '@/components/map/MapOverlay'
 import { WaterLevelSidebar } from '@/components/map/WaterLevelSidebar'
 import { CriticalCaseBanner } from '@/components/map/CriticalCaseBanner'
 import { UserFloodMarkForm } from '@/components/map/UserFloodMarkForm'
-import { MapPinPlus, LocateFixed, Loader2 } from 'lucide-react'
+import { EvacPointForm } from '@/components/map/EvacPointForm'
+import { MapPinPlus, LocateFixed, Loader2, Ambulance } from 'lucide-react'
 import { buildEvacRouteOSRM, nearestShelter, pointInPolygon } from '@/lib/geo'
 import type { AlertLevel, ProvinceId } from '@/lib/water-level'
 import { PROVINCE_CONFIGS } from '@/lib/water-level'
@@ -170,13 +171,17 @@ export function MapClient({ session, canManageStaff = false, canTriage = false, 
       .catch(() => {})
   }, [])
 
-  // นับกลุ่มเปราะบาง (รายคน) ในแต่ละโซน ด้วย point-in-polygon
+  // นับกลุ่มเปราะบางในแต่ละโซน — ใช้ชุดเดียวกับหมุดบนแผนที่ (sum vulnerableCount ของบ้านในโซน)
+  // เพื่อให้ตรงกับ badge ที่ผู้ใช้เห็น (ไม่ใช้ /api/vulnerable ที่เกณฑ์ต่างกัน)
   const zonesWithCount = useMemo(
     () => riskZones.map((z) => ({
       ...z,
-      count: vulnerable.filter((p) => pointInPolygon(p.lat, p.lng, z.polygon)).length,
+      count: households.reduce(
+        (sum, h) => sum + (pointInPolygon(h.lat, h.lng, z.polygon) ? h.vulnerableCount : 0),
+        0,
+      ),
     })),
-    [riskZones, vulnerable],
+    [riskZones, households],
   )
 
   const startDraw = useCallback(() => {
@@ -212,6 +217,22 @@ export function MapClient({ session, canManageStaff = false, canTriage = false, 
       if (res.ok) await loadZones()
     } catch { /* noop */ }
   }, [loadZones])
+  // ── จุดรับ-ส่งอพยพ ──
+  const [evacPinMode, setEvacPinMode] = useState(false)
+  const [evacDraft, setEvacDraft] = useState<{ lat: number; lng: number } | null>(null)
+
+  const reloadInfra = useCallback(async () => {
+    try {
+      const res = await fetch('/api/infra', { cache: 'no-store' })
+      if (res.ok) setInfra(((await res.json()).data ?? []) as Infrastructure[])
+    } catch { /* noop */ }
+  }, [])
+
+  const onEvacPlace = useCallback((lat: number, lng: number) => {
+    setEvacDraft({ lat, lng })
+    setEvacPinMode(false)
+  }, [])
+
   const zoomZone = useCallback(async (z: FloodRiskZone) => {
     const map = mapRef.current
     if (!map || z.polygon.length < 3) return
@@ -780,6 +801,8 @@ export function MapClient({ session, canManageStaff = false, canTriage = false, 
             drawMode={drawing}
             draftZone={draftZone}
             onDrawVertex={addDraftVertex}
+            evacPinMode={evacPinMode}
+            onEvacPlace={onEvacPlace}
           />
           <MapOverlay />
           {canPin && (
@@ -798,6 +821,22 @@ export function MapClient({ session, canManageStaff = false, canTriage = false, 
               >
                 <MapPinPlus size={16} strokeWidth={1.75} />
               </button>
+              {canEditZones && (
+                <button
+                  type="button"
+                  onClick={() => setEvacPinMode((v) => !v)}
+                  title={evacPinMode ? 'คลิกบนแผนที่เพื่อวางจุดรับ-ส่งอพยพ (กดเพื่อยกเลิก)' : 'ปักจุดรับ-ส่งอพยพ'}
+                  aria-label="ปักจุดรับ-ส่งอพยพ"
+                  aria-pressed={evacPinMode}
+                  className={`pointer-events-auto flex size-10 items-center justify-center rounded-md border transition-colors md:size-9 ${
+                    evacPinMode
+                      ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-fg)]'
+                      : 'border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--fg-muted)] hover:border-[var(--border-strong)] hover:text-[var(--fg)]'
+                  }`}
+                >
+                  <Ambulance size={16} strokeWidth={1.75} />
+                </button>
+              )}
               <button
                 type="button"
                 onClick={onUseMyLocation}
@@ -819,6 +858,13 @@ export function MapClient({ session, canManageStaff = false, canTriage = false, 
               draft={pinDraft}
               onCancel={() => setPinDraft(null)}
               onCreated={onMarkCreated}
+            />
+          )}
+          {canEditZones && (
+            <EvacPointForm
+              draft={evacDraft}
+              onCancel={() => setEvacDraft(null)}
+              onCreated={() => { setEvacDraft(null); void reloadInfra() }}
             />
           )}
         </div>

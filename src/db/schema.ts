@@ -268,7 +268,9 @@ export const floodRiskZones = pgTable('flood_risk_zones', {
 export const infrastructures = pgTable('infrastructures', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
   name: text('name').notNull(),
-  type: text('type').notNull(), // hospital | clinic | shelter | assembly | temporary_health_post
+  type: text('type').notNull(), // hospital | clinic | shelter | assembly | temporary_health_post | evacuation_point
+  // จุดรับ-ส่งอพยพ: รูปแบบยานพาหนะที่เข้าถึงได้ — ['vehicle','boat','foot']
+  accessModes: jsonb('access_modes').$type<string[]>(),
   capacity: integer('capacity'),
   occupancy: integer('occupancy').notNull().default(0),
   readinessStatus: text('readiness_status').notNull().default('open'), // open | near_capacity | full | closed | unsafe

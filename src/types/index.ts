@@ -6,6 +6,7 @@ export type InfraType =
   | 'shelter'
   | 'assembly'
   | 'temporary_health_post'
+  | 'evacuation_point'
 export type UserRole =
   | 'admin'
   | 'officer'
@@ -354,6 +355,7 @@ export interface Infrastructure {
   amphoe?: string | null
   tambon?: string | null
   contact?: string | null
+  accessModes?: string[] | null // จุดรับ-ส่งอพยพ: ['vehicle','boat','foot']
 }
 
 export type VitalStatus = 'normal' | 'monitoring' | 'unstable'

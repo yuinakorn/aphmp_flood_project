@@ -2,8 +2,10 @@ import Link from 'next/link'
 import { auth } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
-import { Hospital, Stethoscope, Plus, Tent, ArrowUpRight } from 'lucide-react'
+import { Hospital, Stethoscope, Tent, ArrowUpRight } from 'lucide-react'
 import type { UserRole } from '@/types'
+import { isNationalRole } from '@/lib/incident-scope'
+import { AddFacilityButton } from './AddFacilityModal'
 
 export const metadata = { title: 'สถานพยาบาล — GIS Health Intelligence' }
 export const dynamic = 'force-dynamic'
@@ -39,6 +41,7 @@ export default async function InfraPage() {
   const json = await res.json().catch(() => ({ data: [] }))
   const infra: InfraRow[] = json.data ?? []
   const role = (session.user?.role ?? 'viewer') as UserRole
+  const national = isNationalRole(role)
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -53,10 +56,8 @@ export default async function InfraPage() {
             )}
           </p>
         </div>
-        {['admin', 'officer', 'eoc', 'ddpm'].includes(role) && (
-          <button type="button" className="gx-btn gx-btn-primary">
-            <Plus size={16} strokeWidth={2} /> เพิ่มสถานพยาบาล
-          </button>
+        {(['admin', 'officer', 'eoc', 'ddpm'] as UserRole[]).includes(role) && (
+          <AddFacilityButton isNational={national} defaultProvince={session.user?.province ?? null} />
         )}
       </div>
 

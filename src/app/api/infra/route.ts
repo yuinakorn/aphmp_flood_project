@@ -64,8 +64,8 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ data: rows })
 }
 
-// POST /api/infra — เพิ่ม "จุดรับ-ส่งอพยพ" (เฉพาะ type นี้ · ระดับสั่งการ)
-// ศูนย์พักพิง/จุดรวมพล ใช้ /api/shelters เหมือนเดิม
+const FACILITY_TYPES = new Set(['hospital', 'clinic', 'temporary_health_post', 'evacuation_point'])
+
 export async function POST(req: NextRequest) {
   const session = await auth()
   if (!session?.user) return unauthorized()
@@ -74,45 +74,56 @@ export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null
   if (!body) return badRequest('Invalid JSON body')
 
-  if (body.type !== 'evacuation_point') return badRequest('POST นี้รองรับเฉพาะ evacuation_point')
+  const type = typeof body.type === 'string' ? body.type : ''
+  if (!FACILITY_TYPES.has(type)) return badRequest('ประเภทไม่ถูกต้อง')
 
   const name = typeof body.name === 'string' ? body.name.trim() : ''
-  if (!name) return badRequest('ต้องระบุชื่อจุด')
+  if (!name) return badRequest('ต้องระบุชื่อ')
 
   const lat = Number(body.lat)
   const lng = Number(body.lng)
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return badRequest('lat/lng ไม่ถูกต้อง')
 
+  const national = isNationalRole(session.user.role)
+  const province = national
+    ? (typeof body.province === 'string' ? body.province.trim() || null : null)
+    : (session.user.province ?? null)
+  if (!province) return badRequest('ไม่พบจังหวัดของจุด')
+
+  const capacity = typeof body.capacity === 'number' && body.capacity > 0 ? Math.round(body.capacity) : null
   const accessModes = Array.isArray(body.accessModes)
     ? (body.accessModes as unknown[]).filter((m): m is string => typeof m === 'string' && ACCESS_MODES.has(m))
     : []
-
-  // จังหวัด: non-national ล็อกจังหวัดสังกัด · national ระบุเองได้
-  const national = isNationalRole(session.user.role)
-  const province = national
-    ? (typeof body.province === 'string' ? body.province : null)
-    : (session.user.province ?? null)
-  if (!province) return badRequest('ไม่พบจังหวัดของจุด')
+  const isMedical = type === 'hospital' || type === 'clinic' || type === 'temporary_health_post'
 
   const db = getDb()
   const [created] = await db
     .insert(infrastructures)
     .values({
       name,
-      type: 'evacuation_point',
+      type,
       lat: String(lat),
       lng: String(lng),
       province,
-      contact: typeof body.contact === 'string' ? body.contact : null,
-      accessModes,
+      amphoe: typeof body.amphoe === 'string' ? body.amphoe.trim() || null : null,
+      tambon: typeof body.tambon === 'string' ? body.tambon.trim() || null : null,
+      contact: typeof body.contact === 'string' ? body.contact.trim() || null : null,
+      capacity,
+      healthCapacity: isMedical ? capacity : null,
+      oxygenSupport: isMedical,
+      electricitySupport: isMedical,
+      wheelchairSupport: type === 'hospital',
+      accessModes: type === 'evacuation_point' ? accessModes : [],
+      occupancy: 0,
+      readinessStatus: 'open',
     })
     .returning()
 
   void audit(req, session, {
-    action: 'create_evacuation_point',
+    action: `create_${type}`,
     entity: 'infrastructure',
     targetId: created.id,
-    metadata: { name, province, accessModes },
+    metadata: { name, type, province },
   })
 
   return NextResponse.json({ data: created }, { status: 201 })

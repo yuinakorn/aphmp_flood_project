@@ -87,6 +87,7 @@ async function main() {
   const infraRows = (infra.default as any[]).map((i) => ({
     name: i.name,
     type: i.type,
+    province: i.province ?? null,
     capacity: parseCapacity(i.cap),
     occupancy: 0,
     readinessStatus: 'open',

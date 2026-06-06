@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+.gitignore
+*.md
+*.sh
+.env
+.env.*
+!.env.example
+docker-compose*.yml
+Dockerfile*
+uploads
+docs
+posgres

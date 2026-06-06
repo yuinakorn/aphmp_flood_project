@@ -286,7 +286,7 @@ export function FamilyFolderClient({ summary, initialHouseholds, total }: Props)
             const vulGroups = [...new Set(house.members.filter((m) => m.group !== 'ทั่วไป').map((m) => m.group))]
             return (
               <button
-                key={house.hcode}
+                key={house.id}
                 onClick={() => setSelectedHouse(house)}
                 style={{ ['--tile' as string]: 'var(--cat-folder)' }}
                 className="gx-card gx-card-interactive group flex items-start gap-3 p-3.5 text-left"

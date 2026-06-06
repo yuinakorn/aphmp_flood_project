@@ -33,7 +33,7 @@ export function MapOverlay() {
   const [open, setOpen] = useState(true)
 
   return (
-    <div className="pointer-events-none absolute bottom-3 left-3 z-[400] max-w-[240px]">
+    <div className="pointer-events-none absolute bottom-[calc(3.5rem+env(safe-area-inset-bottom)+0.5rem)] left-3 z-[400] max-w-[240px] md:bottom-3">
       <div className="pointer-events-auto overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--bg-elevated)]/95 shadow-lg backdrop-blur">
         <button
           type="button"

@@ -65,9 +65,9 @@ export function RosterPanel({ persons, initialFilter = 'all', onSelect, onClose 
       .filter(
         (p) =>
           !q ||
-          p.name.toLowerCase().includes(q) ||
-          p.vil.toLowerCase().includes(q) ||
-          p.label.toLowerCase().includes(q),
+          (p.name ?? '').toLowerCase().includes(q) ||
+          (p.vil ?? '').toLowerCase().includes(q) ||
+          (p.label ?? '').toLowerCase().includes(q),
       )
       // จัดอันดับอัตโนมัติ: ความเสี่ยงน้ำ (จริงจากพิกัด) ก่อน แล้วระดับวิกฤตทางการแพทย์
       .sort((a, b) => {

@@ -28,7 +28,7 @@ const BASEMAPS: Record<BasemapKey, { label: string; urls: string[]; maxZoom: num
   },
   hybrid: {
     label: 'ภาพถ่าย+ถนน',
-    urls: ['https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}'],
+    urls: ['https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}&apistyle=s.t%3A2%7Cp.v%3Aoff'],
     maxZoom: 20,
   },
 }

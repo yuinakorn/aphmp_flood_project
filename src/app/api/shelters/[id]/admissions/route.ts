@@ -93,14 +93,26 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       ? {
           id: r.m.id,
           name: composeName(r.m.prefix, r.m.firstName, r.m.lastName),
-          nationalIdMasked: maskNationalId(r.m.nationalId),
+          prefix: r.m.prefix,
+          firstName: r.m.firstName,
+          lastName: r.m.lastName,
+          nationalIdMasked: maskNationalId(r.m.nationalId, 5), // 5 หลักท้าย — ยืนยันตัวตนระดับหนึ่ง
+          birthDate: r.m.birthDate,
           age: r.m.age,
           sex: r.m.sex,
           nationality: r.m.nationality,
           phone: r.m.phone,
+          hno: r.m.hno,
+          villno: r.m.villno,
+          tambon: r.m.tambon,
+          amphoe: r.m.amphoe,
           conditions: r.m.cond,
           foodAllergy: r.m.foodAllergy,
           drugAllergy: r.m.drugAllergy,
+          equipment: r.m.equipment,
+          lifeSupport: r.m.lifeSupport,
+          vulnerableType: r.m.type,
+          vulnerableLabel: r.m.label,
           isVulnerable: !!r.m.type,
         }
       : null,
@@ -159,6 +171,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       .returning({ id: householdMembers.id })
 
     memberId = created.id
+  }
+
+  // ป้องกันรับเข้าซ้ำ — เช็คว่ามี admission ที่ admitted อยู่แล้วหรือไม่ (ทั้งในศูนย์เดียวกันและศูนย์อื่น)
+  const [activeAdm] = await db
+    .select({ shelterName: infrastructures.name, shelterId: shelterAdmissions.shelterId })
+    .from(shelterAdmissions)
+    .leftJoin(infrastructures, eq(shelterAdmissions.shelterId, infrastructures.id))
+    .where(and(eq(shelterAdmissions.memberId, memberId), eq(shelterAdmissions.status, 'admitted')))
+    .limit(1)
+
+  if (activeAdm) {
+    const name = activeAdm.shelterName ?? 'ศูนย์พักพิงอื่น'
+    const isSame = activeAdm.shelterId === id
+    return NextResponse.json(
+      { error: isSame ? `ผู้พักพิงรายนี้อยู่ในศูนย์นี้แล้ว` : `ผู้พักพิงรายนี้กำลังพักอยู่ที่ "${name}" อยู่แล้ว กรุณาย้ายออกจากศูนย์เดิมก่อน` },
+      { status: 409 }
+    )
   }
 
   const zoneId = typeof body.zoneId === 'string' && isUuid(body.zoneId) ? body.zoneId : null

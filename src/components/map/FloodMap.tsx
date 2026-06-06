@@ -15,6 +15,8 @@ import type {
   BasemapType,
   CmuFloodLayerConfig,
   CmuFloodLayerKey,
+  CrFloodLayerConfig,
+  CrFloodLayerKey,
   FloodMark,
   FloodMarkLevel,
   LayerState,
@@ -26,8 +28,9 @@ import type {
   FloodRiskZone,
   GistdaLayerKey,
 } from '@/types'
-import { CMU_FLOOD_LAYERS, FLOOD_MARK_LEVELS, GISTDA_LAYERS } from '@/types'
+import { CMU_FLOOD_LAYERS, CR_FLOOD_LAYERS, FLOOD_MARK_LEVELS, GISTDA_LAYERS } from '@/types'
 import { buildEvacRoute, nearestShelter } from '@/lib/geo'
+import type { CrFloodDepthHit } from '@/lib/geo'
 
 type LeafletContainer = HTMLDivElement & { _leaflet_id?: number | null }
 
@@ -42,6 +45,17 @@ function zoneColor(priority: number): string {
   if (priority <= 1) return 'oklch(0.60 0.23 25)'
   if (priority === 2) return 'oklch(0.72 0.18 55)'
   return 'oklch(0.80 0.15 85)'
+}
+
+// สีตามระดับความลึกน้ำท่วม — ตื้น (ฟ้าอ่อน) → ลึก (ม่วงเข้ม) = อันตรายมากกว่า
+const CR_DEPTH_COLORS: Record<number, string> = {
+  1: 'oklch(0.85 0.08 225)',
+  2: 'oklch(0.75 0.12 225)',
+  3: 'oklch(0.65 0.16 230)',
+  4: 'oklch(0.54 0.19 240)',
+  5: 'oklch(0.46 0.22 260)',
+  6: 'oklch(0.38 0.22 285)',
+  7: 'oklch(0.30 0.20 300)',
 }
 
 const INFRA_COLOR: Record<string, string> = {
@@ -130,25 +144,26 @@ function clusterIconHtml(houseCount: number, vulnTotal: number, risk: RiskLevel)
   `
 }
 
-// หมุดบ้าน — แสดง badge จำนวนกลุ่มเปราะบางในบ้าน
-function houseMarkerHtml(vulnerableCount: number, risk: RiskLevel): string {
+const HOUSE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+  fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M3 9.5 12 3l9 6.5"/><path d="M5 10v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V10"/>
+</svg>`
+
+// หมุดบ้าน — สี่เหลี่ยมมน + badge จำนวนกลุ่มเปราะบางในบ้าน
+// เมื่ออยู่ในโซนน้ำท่วมจำลอง: เปลี่ยนเป็น depth-colored ring + depth pill ด้านล่าง
+function houseMarkerHtml(vulnerableCount: number, risk: RiskLevel, depthHit?: CrFloodDepthHit): string {
   const ringColor = RISK_COLOR[risk] ?? 'var(--border)'
-  return `
-    <div style="position:relative;width:30px;height:30px">
+
+  if (!depthHit) {
+    return `<div style="position:relative;width:30px;height:30px">
       <div style="
-        width:30px;height:30px;
-        display:flex;align-items:center;justify-content:center;
+        width:30px;height:30px;display:flex;align-items:center;justify-content:center;
         border-radius:8px;
-        background:color-mix(in oklch, ${ringColor} 22%, var(--bg-elevated));
+        background:color-mix(in oklch,${ringColor} 22%,var(--bg-elevated));
         border:2.5px solid ${ringColor};
-        box-shadow:0 2px 6px oklch(0 0 0 / 0.45);
+        box-shadow:0 2px 6px oklch(0 0 0/0.45);
         color:${ringColor};
-      ">
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-          fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M3 9.5 12 3l9 6.5"/><path d="M5 10v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V10"/>
-        </svg>
-      </div>
+      ">${HOUSE_SVG}</div>
       <div style="
         position:absolute;top:-7px;right:-7px;min-width:17px;height:17px;padding:0 4px;
         display:flex;align-items:center;justify-content:center;
@@ -156,8 +171,41 @@ function houseMarkerHtml(vulnerableCount: number, risk: RiskLevel): string {
         font-family:var(--font-mono);font-size:10px;font-weight:700;line-height:1;
         border:1.5px solid var(--bg-elevated);
       ">${vulnerableCount}</div>
+    </div>`
+  }
+
+  // โซนน้ำท่วม — ไอคอนพร้อม glow + pill ความลึกด้านล่าง
+  const dc = CR_DEPTH_COLORS[depthHit.level] ?? 'oklch(0.65 0.16 230)'
+  const shortLabel = depthHit.label.replace(' m', 'ม.').replace('-', '–')
+  return `<div style="
+      display:inline-flex;flex-direction:column;align-items:center;gap:2px;
+    ">
+    <div style="position:relative;width:34px;height:34px">
+      <div style="
+        width:34px;height:34px;display:flex;align-items:center;justify-content:center;
+        border-radius:9px;
+        background:color-mix(in oklch,${dc} 18%,var(--bg-elevated));
+        border:3px solid ${dc};
+        box-shadow:0 0 0 2px color-mix(in oklch,${dc} 40%,transparent),
+                   0 3px 10px oklch(0 0 0/0.5);
+        color:${ringColor};
+      ">${HOUSE_SVG}</div>
+      <div style="
+        position:absolute;top:-8px;right:-8px;min-width:18px;height:18px;padding:0 4px;
+        display:flex;align-items:center;justify-content:center;
+        border-radius:9px;background:${ringColor};color:var(--bg);
+        font-family:var(--font-mono);font-size:10px;font-weight:700;line-height:1;
+        border:1.5px solid var(--bg-elevated);
+      ">${vulnerableCount}</div>
     </div>
-  `
+    <div style="
+      padding:2px 5px;border-radius:4px;
+      background:${dc};color:#fff;
+      font-family:var(--font-mono);font-size:8.5px;font-weight:700;
+      white-space:nowrap;letter-spacing:0.02em;
+      box-shadow:0 1px 4px oklch(0 0 0/0.45);
+    ">${shortLabel}</div>
+  </div>`
 }
 
 function householdPopupHtml(h: VulnerableHouseholdMarker, risk: RiskLevel, canRequestEvac: boolean): string {
@@ -230,6 +278,10 @@ function householdPopupHtml(h: VulnerableHouseholdMarker, risk: RiskLevel, canRe
     <button id="evac-${h.id}" style="width:100%;padding:7px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--fg);font-size:11.5px;font-family:var(--font-sans);cursor:pointer">
       แสดงเส้นทางอพยพ →
     </button>
+    <a href="https://www.google.com/maps/dir/?api=1&destination=${h.lat},${h.lng}" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:center;gap:6px;width:100%;margin-top:6px;padding:7px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--fg);font-size:11.5px;font-family:var(--font-sans);text-decoration:none;cursor:pointer">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+      นำทางด้วย Google Maps
+    </a>
     ${canRequestEvac ? `<button id="req-evac-${h.id}" style="width:100%;margin-top:6px;padding:7px;border-radius:6px;border:none;background:var(--risk-flood);color:#fff;font-size:11.5px;font-weight:600;font-family:var(--font-sans);cursor:pointer">
       🚨 สั่งอพยพ (สร้างคำขอ)
     </button>` : ''}
@@ -257,11 +309,12 @@ const TILE_URLS: Record<BasemapType, string | string[]> = {
   ],
   street:
     'https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png',
+  osm: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
   topo: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
   hybrid:
     'https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png',
-  google: 'https://mt1.google.com/vt/lyrs=r&x={x}&y={y}&z={z}&apistyle=s.t%3A33%7Cp.v%3Aoff',
-  google_sat: 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}&apistyle=s.t%3A33%7Cp.v%3Aoff',
+  google: 'https://mt1.google.com/vt/lyrs=r&x={x}&y={y}&z={z}&apistyle=s.t%3A2%7Cp.v%3Aoff',
+  google_sat: 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}&apistyle=s.t%3A2%7Cp.v%3Aoff',
 }
 
 interface Props {
@@ -289,6 +342,8 @@ interface Props {
   onDrawVertex?: (lat: number, lng: number) => void
   evacPinMode?: boolean
   onEvacPlace?: (lat: number, lng: number) => void
+  crFlood?: Partial<Record<CrFloodLayerKey, boolean>>
+  crFloodHitMap?: Map<string, CrFloodDepthHit>
 }
 
 export function FloodMap({
@@ -316,6 +371,8 @@ export function FloodMap({
   onDrawVertex,
   evacPinMode = false,
   onEvacPlace,
+  crFlood = {},
+  crFloodHitMap,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<LeafletMap | null>(null)
@@ -333,6 +390,8 @@ export function FloodMap({
   const draftMarkerRef = useRef<import('leaflet').Marker | null>(null)
   const cmuFloodGroupRefs = useRef<Partial<Record<CmuFloodLayerKey, LayerGroup>>>({})
   const cmuFloodLoadedRef = useRef<Partial<Record<CmuFloodLayerKey, boolean>>>({})
+  const crFloodGroupRefs = useRef<Partial<Record<CrFloodLayerKey, LayerGroup>>>({})
+  const crFloodLoadedRef = useRef<Partial<Record<CrFloodLayerKey, boolean>>>({})
   const [mapReady, setMapReady] = useState(false)
 
   // Init Leaflet
@@ -409,6 +468,11 @@ export function FloodMap({
             map.getPane(cfg.key)!.style.zIndex = String(450 - i)
           }
         })
+        CR_FLOOD_LAYERS.forEach((cfg, i) => {
+          crFloodGroupRefs.current[cfg.key] = L.layerGroup()
+          map.createPane(`cr_${cfg.key}`)
+          map.getPane(`cr_${cfg.key}`)!.style.zIndex = String(430 - i)
+        })
 
         GISTDA_LAYERS.forEach((cfg) => {
           const tile = L.tileLayer(
@@ -468,12 +532,13 @@ export function FloodMap({
 
         households.forEach((h) => {
           const risk: RiskLevel = (h.risk ?? 'safe') as RiskLevel
+          const depthHit = crFloodHitMap?.get(h.id)
 
           const icon = L.divIcon({
             className: 'house-marker',
-            html: houseMarkerHtml(h.vulnerableCount, risk),
-            iconSize: [30, 30],
-            iconAnchor: [15, 15],
+            html: houseMarkerHtml(h.vulnerableCount, risk, depthHit),
+            iconSize: depthHit ? [38, 52] : [30, 30],
+            iconAnchor: depthHit ? [19, 17] : [15, 15],
           })
 
           const marker = L.marker([h.lat, h.lng], { icon })
@@ -518,7 +583,7 @@ export function FloodMap({
           vg.addLayer(marker)
         })
       })()
-  }, [mapReady, households, onRequestHouseRoute, canRequestEvac, onRequestEvacuation])
+  }, [mapReady, households, onRequestHouseRoute, canRequestEvac, onRequestEvacuation, crFloodHitMap])
 
   // เปิด popup ของบ้านเมื่อ focusHouseholdId เปลี่ยน
   useEffect(() => {
@@ -566,6 +631,10 @@ export function FloodMap({
               <div style="font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--fg-subtle);margin-bottom:4px">${INFRA_LABEL[i.type] ?? i.type}</div>
               <div style="font-size:14px;font-weight:600;margin-bottom:4px">${i.name}</div>
               ${accessLine}${contactLine}
+              <a href="https://www.google.com/maps/dir/?api=1&destination=${Number(i.lat)},${Number(i.lng)}" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:center;gap:6px;width:100%;margin-top:8px;padding:7px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--fg);font-size:11.5px;font-family:var(--font-sans);text-decoration:none;cursor:pointer">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+                นำทางด้วย Google Maps
+              </a>
             </div>`,
             )
             .addTo(ig)
@@ -661,6 +730,44 @@ export function FloodMap({
       cancelled = true
     }
   }, [mapReady, layers.cmuFlood])
+
+  // Chiang Rai flood inundation simulation layers (depth zones from cr_geo/)
+  useEffect(() => {
+    if (!mapReady) return
+    let cancelled = false
+      ; (async () => {
+        const L = (await import('leaflet')).default
+
+        await Promise.all(
+          CR_FLOOD_LAYERS.map(async (cfg) => {
+            if (!crFlood[cfg.key] || crFloodLoadedRef.current[cfg.key]) return
+
+            const group = crFloodGroupRefs.current[cfg.key]
+            if (!group) return
+
+            try {
+              const res = await fetch(`/data/cr_geo/${cfg.file}`)
+              if (!res.ok) {
+                console.warn('[cr-flood] request failed', cfg.key, res.status)
+                return
+              }
+
+              const geo = (await res.json()) as GeoJsonObject
+              if (cancelled) return
+
+              renderCrFloodLayer(L, group, geo, cfg)
+              crFloodLoadedRef.current[cfg.key] = true
+            } catch (err) {
+              console.error('[cr-flood] request error', cfg.key, err)
+            }
+          }),
+        )
+      })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [mapReady, crFlood])
 
   // User-pinned flood marks (officer/vhv) — distinct dashed style from CMU marks
   useEffect(() => {
@@ -836,7 +943,10 @@ export function FloodMap({
     CMU_FLOOD_LAYERS.forEach((cfg) => {
       toggle(cmuFloodGroupRefs.current[cfg.key], layers.cmuFlood[cfg.key])
     })
-  }, [layers, mapReady])
+    CR_FLOOD_LAYERS.forEach((cfg) => {
+      toggle(crFloodGroupRefs.current[cfg.key], crFlood[cfg.key] ?? false)
+    })
+  }, [layers, crFlood, mapReady])
 
   // Basemap switching
   useEffect(() => {
@@ -1142,6 +1252,46 @@ function renderCmuGeoJsonLayer(
           geoJsonTitle(properties, cfg.label),
           geoJsonDetail(properties),
         ),
+      )
+    },
+  }).addTo(group)
+}
+
+
+function renderCrFloodLayer(
+  L: typeof import('leaflet'),
+  group: import('leaflet').LayerGroup,
+  geo: GeoJsonObject,
+  cfg: CrFloodLayerConfig,
+) {
+  group.clearLayers()
+  const areaLabel = cfg.area === 'cr' ? 'เชียงราย' : 'แม่สาย'
+  L.geoJSON(geo, {
+    style: (feature) => {
+      const level = (feature?.properties?.level ?? 1) as number
+      const color = CR_DEPTH_COLORS[level] ?? 'oklch(0.65 0.16 230)'
+      return {
+        color,
+        weight: 0.6,
+        opacity: 0.85,
+        fillColor: color,
+        fillOpacity: 0.42,
+      }
+    },
+    onEachFeature: (feature, layer) => {
+      const props = (feature.properties ?? {}) as { level?: number; label?: string }
+      const depthLabel = props.label ? escapeHtml(props.label) : `ระดับ ${props.level}`
+      layer.bindPopup(
+        `<div style="min-width:200px">
+          <div style="font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:var(--fg-subtle);margin-bottom:4px">แบบจำลองน้ำท่วม · ${areaLabel}</div>
+          <div style="font-size:14px;font-weight:600;margin-bottom:6px">${escapeHtml(cfg.label)}</div>
+          <div style="display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px;background:color-mix(in oklch, ${CR_DEPTH_COLORS[props.level ?? 1] ?? 'oklch(0.65 0.16 230)'} 16%, transparent);margin-bottom:6px">
+            <span style="width:8px;height:8px;border-radius:2px;background:${CR_DEPTH_COLORS[props.level ?? 1] ?? 'oklch(0.65 0.16 230)'};flex-shrink:0"></span>
+            <span style="font-size:12.5px;font-weight:600;color:var(--fg)">ความลึก ${depthLabel}</span>
+          </div>
+          <div style="font-size:11px;color:var(--fg-subtle);font-family:var(--font-mono)">${escapeHtml(cfg.meta)}</div>
+        </div>`,
+        { maxWidth: 260 },
       )
     },
   }).addTo(group)

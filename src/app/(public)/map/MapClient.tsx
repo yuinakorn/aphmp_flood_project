@@ -13,6 +13,7 @@ import { RiskZonePanel } from '@/components/panels/RiskZonePanel'
 import { RosterPanel } from '@/components/panels/RosterPanel'
 import { RoutesPanel } from '@/components/panels/RoutesPanel'
 import { InfraPanel } from '@/components/panels/InfraPanel'
+import { CrFloodRosterPanel } from '@/components/panels/CrFloodRosterPanel'
 import { TunePanel } from '@/components/panels/TunePanel'
 import { MapOverlay } from '@/components/map/MapOverlay'
 import { WaterLevelSidebar } from '@/components/map/WaterLevelSidebar'
@@ -30,6 +31,7 @@ import type { FloodAlertResponse } from '@/app/api/cmu-flood-alert/route'
 import type {
   BasemapType,
   CmuFloodLayerKey,
+  CrFloodLayerKey,
   FloodMarkLevel,
   FloodMarkProvince,
   GistdaLayerKey,
@@ -42,6 +44,10 @@ import type {
   RiskLevel,
   FloodRiskZone,
 } from '@/types'
+import { CR_FLOOD_LAYERS } from '@/types'
+import type { CrFloodAnalysis, CrFloodDepthHit } from '@/lib/geo'
+import { analyzeCrFloodHouseholds } from '@/lib/geo'
+import type { FeatureCollection } from 'geojson'
 
 const WRITE_ROLES = new Set(['admin', 'officer', 'eoc', 'vhv', 'ems', 'ddpm'])
 
@@ -73,6 +79,14 @@ const DEFAULT_LAYERS: LayerState = {
     pole: false,
     s1a: false,
   },
+  crFlood: {
+    cr_cei: false,
+    cr_detail: false,
+    cr_flow1500: false,
+    cr_flow2000: false,
+    ms_coarse: false,
+    ms_detail: false,
+  },
   vulnerable: true,
   infra: true,
   routes: true,
@@ -86,6 +100,18 @@ const PROVINCE_NAME_TO_ID: Record<string, ProvinceId> = {
   'เชียงใหม่': 'chiangmai',
   'น่าน': 'nan',
   'เชียงราย': 'chiangrai',
+}
+
+// กรอบพิกัดโดยประมาณของ 8 จังหวัดเหนือ [[south, west], [north, east]] — ใช้โฟกัสแผนที่ตามจังหวัด login
+const PROVINCE_BOUNDS: Record<string, [[number, number], [number, number]]> = {
+  'เชียงใหม่': [[17.0, 98.0], [20.2, 99.7]],
+  'เชียงราย': [[19.0, 99.2], [20.5, 100.7]],
+  'น่าน': [[17.7, 100.1], [19.4, 101.4]],
+  'พะเยา': [[18.7, 99.7], [19.8, 100.6]],
+  'ลำพูน': [[17.5, 98.5], [18.7, 99.5]],
+  'แม่ฮ่องสอน': [[17.9, 97.3], [19.8, 98.7]],
+  'ลำปาง': [[17.2, 98.9], [19.4, 100.3]],
+  'แพร่': [[17.7, 99.6], [18.9, 100.5]],
 }
 
 interface Props {
@@ -110,6 +136,8 @@ export function MapClient({ session, canManageStaff = false, canTriage = false, 
   const [locating, setLocating] = useState(false)
   const canPin = !!session && WRITE_ROLES.has(session.role)
   const [waterLevel, setWaterLevel] = useState<number | null>(null)
+  const crFloodGeoCacheRef = useRef<Partial<Record<CrFloodLayerKey, FeatureCollection>>>({})
+  const [crFloodAnalysis, setCrFloodAnalysis] = useState<Partial<Record<CrFloodLayerKey, CrFloodAnalysis>>>({})
   const [activeZone, setActiveZone] = useState<1 | 2 | 3 | 4 | 5 | null>(null)
   const [alertLevel, setAlertLevel] = useState<AlertLevel>('normal')
   const [alertUpdatedAt, setAlertUpdatedAt] = useState<string | null>(null)
@@ -118,6 +146,7 @@ export function MapClient({ session, canManageStaff = false, canTriage = false, 
     (userProvince && PROVINCE_NAME_TO_ID[userProvince]) || 'chiangmai',
   )
   const didFitRef = useRef(false)
+  const [mapReady, setMapReady] = useState(false)
   const [rosterFilter, setRosterFilter] = useState<'all' | 'flooded' | 'at_risk'>('all')
 
   // สถิติกลุ่มเปราะบาง — คิดจากข้อมูลที่ scope จังหวัดแล้ว (ถูกต้องทุกจังหวัด ไม่ผูกกับโซนเชียงใหม่)
@@ -256,7 +285,7 @@ export function MapClient({ session, canManageStaff = false, canTriage = false, 
     [vulnerable],
   )
 
-  const [basemap, setBasemap] = useState<BasemapType>('google')
+  const [basemap, setBasemap] = useState<BasemapType>('sat')
 
   const mapRef = useRef<LeafletMap | null>(null)
   const routeGroupRef = useRef<LayerGroup | null>(null)
@@ -402,6 +431,63 @@ export function MapClient({ session, canManageStaff = false, canTriage = false, 
   const onCmuFloodChange = useCallback((k: CmuFloodLayerKey, v: boolean) => {
     setLayers((p) => ({ ...p, cmuFlood: { ...p.cmuFlood, [k]: v } }))
   }, [])
+
+  const onCrFloodChange = useCallback((k: CrFloodLayerKey, v: boolean) => {
+    setLayers((p) => ({ ...p, crFlood: { ...p.crFlood, [k]: v } }))
+  }, [])
+
+  const flyToHousehold = useCallback((h: VulnerableHouseholdMarker) => {
+    mapRef.current?.flyTo([h.lat, h.lng], 17, { duration: 0.8 })
+    setActivePanel(null)
+  }, [])
+
+  // โหลด GeoJSON + วิเคราะห์ว่า household ไหนอยู่ในโซนน้ำท่วมจากแบบจำลอง
+  useEffect(() => {
+    const activeLayers = CR_FLOOD_LAYERS.filter(cfg => layers.crFlood[cfg.key])
+    if (activeLayers.length === 0 || households.length === 0) return
+
+    let cancelled = false
+    ;(async () => {
+      for (const cfg of activeLayers) {
+        if (cancelled) return
+        if (!crFloodGeoCacheRef.current[cfg.key]) {
+          try {
+            const res = await fetch(`/data/cr_geo/${cfg.file}`)
+            if (!res.ok) continue
+            const geo = (await res.json()) as FeatureCollection
+            if (cancelled) return
+            crFloodGeoCacheRef.current[cfg.key] = geo
+          } catch {
+            continue
+          }
+        }
+        const geo = crFloodGeoCacheRef.current[cfg.key]!
+        // yield ให้ browser วาด frame ก่อน แล้วค่อย compute
+        await new Promise(r => setTimeout(r, 0))
+        if (cancelled) return
+        const analysis = analyzeCrFloodHouseholds(households, geo)
+        if (cancelled) return
+        setCrFloodAnalysis(prev => ({ ...prev, [cfg.key]: analysis }))
+      }
+    })()
+
+    return () => { cancelled = true }
+  }, [layers.crFlood, households])
+
+  // รวม hitMap จากทุก layer ที่เปิดอยู่ — เอาระดับน้ำลึกที่สุดต่อ household
+  const crFloodHitMap = useMemo(() => {
+    const merged = new Map<string, CrFloodDepthHit>()
+    for (const cfg of CR_FLOOD_LAYERS) {
+      if (!layers.crFlood[cfg.key]) continue
+      const analysis = crFloodAnalysis[cfg.key]
+      if (!analysis) continue
+      for (const [id, hit] of analysis.hitMap.entries()) {
+        const existing = merged.get(id)
+        if (!existing || hit.level > existing.level) merged.set(id, hit)
+      }
+    }
+    return merged.size > 0 ? merged : undefined
+  }, [crFloodAnalysis, layers.crFlood])
 
   const onFloodMarkProvinceChange = useCallback(
     (province: string | null) => {
@@ -623,11 +709,23 @@ export function MapClient({ session, canManageStaff = false, canTriage = false, 
     routeGroupRef.current?.clearLayers()
   }, [])
 
-  // จัดมุมมองแผนที่ให้พอดีกับข้อมูลจังหวัดของผู้ใช้ (non-national) — ครั้งเดียวตอนโหลดเสร็จ
+  // โฟกัสแผนที่ตามจังหวัดที่ผู้ใช้ login (non-national) — ครั้งเดียวตอนแผนที่พร้อม
+  // ใช้กรอบจังหวัดเป็นหลัก (แน่นอน ไม่ขึ้นกับความหนาแน่นข้อมูล) · ถ้าไม่มีกรอบ fallback ไป fit ตามข้อมูล
   useEffect(() => {
     if (didFitRef.current || isNational) return
     const map = mapRef.current
-    if (!map) return // ข้อมูลโหลดช้ากว่าแผนที่ mount เสมอ — map พร้อมแล้วตอน households มาถึง
+    if (!mapReady || !map) return
+
+    const provinceBounds = userProvince ? PROVINCE_BOUNDS[userProvince] : null
+    if (provinceBounds) {
+      didFitRef.current = true
+      ;(async () => {
+        const L = (await import('leaflet')).default
+        map.fitBounds(L.latLngBounds(provinceBounds), { padding: [20, 20] })
+      })()
+      return
+    }
+
     const pts: [number, number][] = [
       ...households.map((h) => [h.lat, h.lng] as [number, number]),
       ...infra.map((i) => [Number(i.lat), Number(i.lng)] as [number, number]),
@@ -638,7 +736,7 @@ export function MapClient({ session, canManageStaff = false, canTriage = false, 
       const L = (await import('leaflet')).default
       map.fitBounds(L.latLngBounds(pts), { padding: [60, 60], maxZoom: 13 })
     })()
-  }, [households, infra, isNational])
+  }, [mapReady, households, infra, isNational, userProvince])
 
   // สั่งอพยพจาก popup บ้าน → สร้างคำขอช่วยเหลือ (evacuation) เข้าสู่คิว EOC/ทีมภาคสนาม
   const requestEvacuation = useCallback(async (h: VulnerableHouseholdMarker): Promise<boolean> => {
@@ -703,6 +801,9 @@ export function MapClient({ session, canManageStaff = false, canTriage = false, 
             onGistdaChange={onGistdaChange}
             onFloodMarkChange={onFloodMarkChange}
             onCmuFloodChange={onCmuFloodChange}
+            onCrFloodChange={onCrFloodChange}
+            crFloodAnalysis={crFloodAnalysis}
+            onShowFloodRoster={() => setActivePanel('crFloodRoster')}
             onFloodMarkProvinceChange={onFloodMarkProvinceChange}
             onClose={() => setActivePanel(null)}
           />
@@ -761,6 +862,14 @@ export function MapClient({ session, canManageStaff = false, canTriage = false, 
             onClose={() => setActivePanel(null)}
           />
         )}
+        {activePanel === 'crFloodRoster' && crFloodHitMap && (
+          <CrFloodRosterPanel
+            households={households}
+            crFloodHitMap={crFloodHitMap}
+            onSelect={flyToHousehold}
+            onClose={() => setActivePanel(null)}
+          />
+        )}
         {activePanel === 'tune' && (
           <TunePanel
             basemap={basemap === 'hybrid' ? 'sat' : basemap}
@@ -793,7 +902,7 @@ export function MapClient({ session, canManageStaff = false, canTriage = false, 
             onDeleteMark={onDeleteMark}
             // เก็บ map instance ไว้ใช้ fly/fit — pattern มาตรฐาน, ref นี้ตั้งใจ mutate
             // eslint-disable-next-line react-hooks/immutability
-            onMapReady={(m) => { mapRef.current = m }}
+            onMapReady={(m) => { mapRef.current = m; setMapReady(true) }}
             onRequestHouseRoute={drawHouseRoute}
             canRequestEvac={canPin}
             onRequestEvacuation={requestEvacuation}
@@ -803,6 +912,8 @@ export function MapClient({ session, canManageStaff = false, canTriage = false, 
             onDrawVertex={addDraftVertex}
             evacPinMode={evacPinMode}
             onEvacPlace={onEvacPlace}
+            crFlood={layers.crFlood}
+            crFloodHitMap={crFloodHitMap}
           />
           <MapOverlay />
           {canPin && (

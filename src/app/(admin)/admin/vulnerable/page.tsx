@@ -1,6 +1,5 @@
 import { auth } from '@/lib/auth'
 import { cookies } from 'next/headers'
-import { ShieldCheck } from 'lucide-react'
 import { VulnerableClientView } from './VulnerableClientView'
 import { AddVulnerableButton } from '@/components/forms/AddVulnerableButton'
 import { canWriteFieldData } from '@/lib/field-api'
@@ -34,45 +33,30 @@ export default async function VulnerablePage() {
     .then((j) => j.data ?? [])
     .catch(() => [])
 
+  const addButton = canEdit ? (
+    <AddVulnerableButton
+      area={{ village: null, tambon: scopeIncident?.tambon ?? null, amphoe: scopeIncident?.amphoe ?? null }}
+      province={province}
+      isNational={national}
+      provinceOptions={national ? [...ALLOWED_PROVINCES] : []}
+      defaultCenter={FLOOD_CENTROID}
+      incidentName={scopeIncident?.name ?? null}
+    />
+  ) : null
+
   return (
     <div className="mx-auto max-w-6xl">
-      <div className="flex items-end justify-between gap-6">
-        <div>
-          <p className="gx-eyebrow">ทะเบียน · PDPA-controlled</p>
-          <h1 className="gx-title mt-2">กลุ่มเปราะบาง</h1>
-          <p className="mt-1.5 text-sm text-[var(--fg-muted)]">
-            <span className="font-mono text-[var(--fg)]">{persons.length}</span> ราย · เข้าถึงทุกครั้งถูกบันทึก
-            audit log
-          </p>
-        </div>
+      <h1 className="gx-title">กลุ่มเปราะบาง</h1>
 
-        {canEdit && (
-          <AddVulnerableButton
-            area={{ village: null, tambon: scopeIncident?.tambon ?? null, amphoe: scopeIncident?.amphoe ?? null }}
-            province={province}
-            isNational={national}
-            provinceOptions={national ? [...ALLOWED_PROVINCES] : []}
-            defaultCenter={FLOOD_CENTROID}
-            incidentName={scopeIncident?.name ?? null}
-          />
-        )}
-      </div>
-
-      <div className="gx-note mt-6">
-        <ShieldCheck
-          size={16}
-          strokeWidth={1.75}
-          className="mt-0.5 shrink-0 text-[var(--signal-data)]"
+      <div className="mt-4">
+        <VulnerableClientView
+          persons={persons}
+          canEdit={canEdit}
+          activeIncidents={activeIncidents}
+          addButton={addButton}
+          isNational={national}
+          userProvince={province}
         />
-        <p className="text-sm leading-relaxed text-[var(--fg-muted)]">
-          ข้อมูลในหน้านี้คือข้อมูลส่วนบุคคลตาม PDPA
-          เปิดเผยเฉพาะเจ้าหน้าที่ที่ได้รับอนุญาต
-          และทุกการดู/แก้ไขถูกบันทึกเวลา + ผู้ใช้
-        </p>
-      </div>
-
-      <div className="mt-6">
-        <VulnerableClientView persons={persons} canEdit={canEdit} activeIncidents={activeIncidents} />
       </div>
     </div>
   )

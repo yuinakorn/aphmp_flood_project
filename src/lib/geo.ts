@@ -1,5 +1,6 @@
-import type { VulnerablePerson, Infrastructure, RiskLevel, EvacRoute } from '@/types'
+import type { VulnerablePerson, Infrastructure, RiskLevel, EvacRoute, VulnerableHouseholdMarker } from '@/types'
 import type { KmlPolygon, FloodZone } from './kml-parser'
+import type { FeatureCollection, Feature, MultiPolygon, Polygon } from 'geojson'
 
 const R = 6371 // Earth radius km
 
@@ -107,6 +108,115 @@ export async function buildEvacRouteOSRM(
     const fallback = buildEvacRoute(person, shelter)
     return { ...fallback, isStraightLine: true }
   }
+}
+
+// ───────── Chiang Rai Flood Simulation Analysis ─────────
+
+export interface CrFloodDepthHit {
+  level: number
+  label: string
+}
+
+export interface CrFloodLevelSummary {
+  level: number
+  label: string
+  households: number
+  vulnerable: number
+}
+
+export interface CrFloodAnalysis {
+  total: number
+  vulnerable: number
+  byLevel: CrFloodLevelSummary[]
+  hitMap: Map<string, CrFloodDepthHit>
+}
+
+function pointInGeoRing(lat: number, lng: number, ring: number[][]): boolean {
+  let inside = false
+  const n = ring.length
+  for (let i = 0, j = n - 1; i < n; j = i++) {
+    const xi = ring[i][0], yi = ring[i][1]
+    const xj = ring[j][0], yj = ring[j][1]
+    if (yi > lat !== yj > lat && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) {
+      inside = !inside
+    }
+  }
+  return inside
+}
+
+function featureBbox(f: Feature): [number, number, number, number] {
+  let minLng = Infinity, maxLng = -Infinity, minLat = Infinity, maxLat = -Infinity
+  const absorb = (ring: number[][]) => {
+    for (const [lng, lat] of ring) {
+      if (lng < minLng) minLng = lng
+      if (lng > maxLng) maxLng = lng
+      if (lat < minLat) minLat = lat
+      if (lat > maxLat) maxLat = lat
+    }
+  }
+  const geom = f.geometry
+  if (geom.type === 'MultiPolygon') (geom as MultiPolygon).coordinates.forEach(p => absorb(p[0]))
+  else if (geom.type === 'Polygon') absorb((geom as Polygon).coordinates[0])
+  return [minLng, minLat, maxLng, maxLat]
+}
+
+function pointInGeoFeature(lat: number, lng: number, f: Feature, bbox: [number, number, number, number]): boolean {
+  if (lat < bbox[1] || lat > bbox[3] || lng < bbox[0] || lng > bbox[2]) return false
+  const geom = f.geometry
+  if (geom.type === 'MultiPolygon') {
+    return (geom as MultiPolygon).coordinates.some(poly => pointInGeoRing(lat, lng, poly[0]))
+  }
+  if (geom.type === 'Polygon') {
+    return pointInGeoRing(lat, lng, (geom as Polygon).coordinates[0])
+  }
+  return false
+}
+
+export function analyzeCrFloodHouseholds(
+  households: VulnerableHouseholdMarker[],
+  geo: FeatureCollection,
+): CrFloodAnalysis {
+  const features = geo.features.map(f => ({
+    f,
+    level: Number((f.properties as Record<string, unknown>)?.level ?? 0),
+    label: String((f.properties as Record<string, unknown>)?.label ?? ''),
+    bbox: featureBbox(f),
+  }))
+
+  const hitMap = new Map<string, CrFloodDepthHit>()
+  const householdById = new Map(households.map(h => [h.id, h]))
+
+  for (const h of households) {
+    let deepestLevel = 0
+    let deepestLabel = ''
+    for (const { f, level, label, bbox } of features) {
+      if (pointInGeoFeature(h.lat, h.lng, f, bbox)) {
+        if (level > deepestLevel) {
+          deepestLevel = level
+          deepestLabel = label
+        }
+      }
+    }
+    if (deepestLevel > 0) hitMap.set(h.id, { level: deepestLevel, label: deepestLabel })
+  }
+
+  const byLevelMap = new Map<number, { label: string; count: number; vulnerable: number }>()
+  for (const [id, hit] of hitMap.entries()) {
+    const h = householdById.get(id)
+    if (!h) continue
+    const entry = byLevelMap.get(hit.level) ?? { label: hit.label, count: 0, vulnerable: 0 }
+    entry.count++
+    entry.vulnerable += h.vulnerableCount
+    byLevelMap.set(hit.level, entry)
+  }
+
+  const byLevel = Array.from(byLevelMap.entries())
+    .map(([level, { label, count, vulnerable }]) => ({ level, label, households: count, vulnerable }))
+    .sort((a, b) => a.level - b.level)
+
+  const totalVuln = byLevel.reduce((s, r) => s + r.vulnerable, 0)
+
+  return { total: hitMap.size, vulnerable: totalVuln, byLevel, hitMap }
 }
 
 export function buildEvacRoute(person: VulnerablePerson, shelter: Infrastructure): EvacRoute {

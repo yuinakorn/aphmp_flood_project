@@ -24,6 +24,10 @@ import {
   ArrowRight,
   Hospital,
   PhoneOff,
+  Pencil,
+  Trash2,
+  Check,
+  X as XIcon,
 } from 'lucide-react'
 import { useRoleView } from '@/components/shell/RoleViewProvider'
 import { FieldActionSheet, type FieldActionMode } from '@/components/forms/FieldActionSheet'
@@ -1095,12 +1099,27 @@ function SelectedPersonContext({
   )
 }
 
+const STATUS_META: Record<RescueTeam['status'], { label: string; cls: string }> = {
+  active:  { label: 'พร้อม',    cls: 'gx-badge gx-badge-safe' },
+  standby: { label: 'รอสั่งการ', cls: 'gx-badge gx-badge-near' },
+  offline: { label: 'ออฟไลน์',  cls: 'gx-badge' },
+}
+const STATUS_CYCLE: RescueTeam['status'][] = ['active', 'standby', 'offline']
+
 function TeamsSegment({ teams, canRegister, onChange }: { teams: RescueTeam[]; canRegister: boolean; onChange: () => void }) {
   const [name, setName] = useState('')
   const [teamType, setTeamType] = useState<RescueTeamType>('rescue_boat')
   const [contact, setContact] = useState('')
   const [zone, setZone] = useState('')
   const [saving, setSaving] = useState(false)
+
+  const [editId, setEditId] = useState<string | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editType, setEditType] = useState<RescueTeamType>('rescue_boat')
+  const [editContact, setEditContact] = useState('')
+  const [editZone, setEditZone] = useState('')
+  const [editSaving, setEditSaving] = useState(false)
+  const [deleteId, setDeleteId] = useState<string | null>(null)
 
   const submit = async () => {
     if (!name.trim()) return
@@ -1112,6 +1131,44 @@ function TeamsSegment({ teams, canRegister, onChange }: { teams: RescueTeam[]; c
     }).catch(() => {})
     setSaving(false)
     setName(''); setContact(''); setZone('')
+    onChange()
+  }
+
+  function startEdit(t: RescueTeam) {
+    setEditId(t.id)
+    setEditName(t.name)
+    setEditType(t.teamType)
+    setEditContact(t.contact ?? '')
+    setEditZone(t.zone ?? '')
+  }
+
+  const saveEdit = async () => {
+    if (!editId || !editName.trim()) return
+    setEditSaving(true)
+    await fetch(`/api/rescue-teams/${editId}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: editName, teamType: editType, contact: editContact, zone: editZone }),
+    }).catch(() => {})
+    setEditSaving(false)
+    setEditId(null)
+    onChange()
+  }
+
+  const cycleStatus = async (t: RescueTeam) => {
+    const next = STATUS_CYCLE[(STATUS_CYCLE.indexOf(t.status) + 1) % STATUS_CYCLE.length]
+    await fetch(`/api/rescue-teams/${t.id}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ status: next }),
+    }).catch(() => {})
+    onChange()
+  }
+
+  const confirmDelete = async () => {
+    if (!deleteId) return
+    await fetch(`/api/rescue-teams/${deleteId}`, { method: 'DELETE' }).catch(() => {})
+    setDeleteId(null)
     onChange()
   }
 
@@ -1133,19 +1190,80 @@ function TeamsSegment({ teams, canRegister, onChange }: { teams: RescueTeam[]; c
           </button>
         </div>
       )}
+
       <ul className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)]">
         {teams.map((t) => (
-          <li key={t.id} className="flex items-center gap-3.5 border-b border-[var(--border)] px-4 py-3 last:border-b-0" style={{ ['--tile' as string]: 'var(--signal-data)' }}>
-            <span className="gx-icon-tile size-9"><Anchor size={16} /></span>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-[var(--fg)]">{t.name}</p>
-              <p className="truncate text-xs text-[var(--fg-muted)]">{teamTypeLabel[t.teamType]} · {t.zone || 'ยังไม่กำหนดโซน'}</p>
-            </div>
-            <span className="gx-badge gx-badge-safe"><span className="gx-badge-dot" />{t.status === 'active' ? 'พร้อม' : t.status}</span>
+          <li key={t.id} className="border-b border-[var(--border)] last:border-b-0">
+            {editId === t.id ? (
+              /* ── inline edit ── */
+              <div className="space-y-2 p-4">
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <input value={editName} onChange={(e) => setEditName(e.target.value)} className="col-span-2 rounded-lg border border-[var(--border)] bg-[var(--bg-sunken)] p-2 outline-none focus:border-[var(--accent)]" />
+                  <select value={editType} onChange={(e) => setEditType(e.target.value as RescueTeamType)} className="rounded-lg border border-[var(--border)] bg-[var(--bg-sunken)] p-2">
+                    {TEAM_TYPES.map((ty) => <option key={ty} value={ty}>{teamTypeLabel[ty]}</option>)}
+                  </select>
+                  <input value={editContact} onChange={(e) => setEditContact(e.target.value)} placeholder="เบอร์ติดต่อ" className="rounded-lg border border-[var(--border)] bg-[var(--bg-sunken)] p-2 outline-none focus:border-[var(--accent)]" />
+                  <input value={editZone} onChange={(e) => setEditZone(e.target.value)} placeholder="โซนรับผิดชอบ" className="col-span-2 rounded-lg border border-[var(--border)] bg-[var(--bg-sunken)] p-2 outline-none focus:border-[var(--accent)]" />
+                </div>
+                <div className="flex gap-2">
+                  <button type="button" onClick={saveEdit} disabled={editSaving} className="gx-btn gx-btn-primary gx-btn-sm flex-1 disabled:opacity-50">
+                    <Check size={13} /> {editSaving ? 'กำลังบันทึก...' : 'บันทึก'}
+                  </button>
+                  <button type="button" onClick={() => setEditId(null)} className="gx-btn gx-btn-ghost gx-btn-sm">
+                    <XIcon size={13} /> ยกเลิก
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* ── normal row ── */
+              <div className="flex items-center gap-3 px-4 py-3" style={{ ['--tile' as string]: 'var(--signal-data)' }}>
+                <span className="gx-icon-tile size-9 shrink-0"><Anchor size={16} /></span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-[var(--fg)]">{t.name}</p>
+                  <p className="truncate text-xs text-[var(--fg-muted)]">{teamTypeLabel[t.teamType]}{t.zone ? ` · ${t.zone}` : ''}{t.contact ? ` · ${t.contact}` : ''}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => cycleStatus(t)}
+                  title="คลิกเพื่อเปลี่ยนสถานะ"
+                  className={`shrink-0 cursor-pointer ${STATUS_META[t.status].cls}`}
+                >
+                  <span className="gx-badge-dot" />{STATUS_META[t.status].label}
+                </button>
+                {canRegister && (
+                  <div className="flex shrink-0 gap-1">
+                    <button type="button" onClick={() => startEdit(t)} className="gx-btn gx-btn-ghost gx-btn-sm" title="แก้ไข">
+                      <Pencil size={13} />
+                    </button>
+                    <button type="button" onClick={() => setDeleteId(t.id)} className="gx-btn gx-btn-ghost gx-btn-sm text-[var(--risk-flood)] hover:!border-[var(--risk-flood)]" title="ลบ">
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </li>
         ))}
         {teams.length === 0 && <li className="px-4 py-10 text-center text-sm text-[var(--fg-subtle)]">ยังไม่มีทีมขึ้นทะเบียน</li>}
       </ul>
+
+      {/* confirm delete dialog */}
+      {deleteId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] p-5 shadow-2xl">
+            <p className="text-sm font-semibold text-[var(--fg)]">ยืนยันการลบทีม</p>
+            <p className="mt-1 text-xs text-[var(--fg-muted)]">
+              {teams.find((t) => t.id === deleteId)?.name} — ข้อมูลจะถูกลบถาวร
+            </p>
+            <div className="mt-4 flex gap-2">
+              <button type="button" onClick={confirmDelete} className="gx-btn gx-btn-sm flex-1 border-[var(--risk-flood)] bg-[var(--risk-flood)] text-white hover:opacity-90">
+                <Trash2 size={13} /> ลบ
+              </button>
+              <button type="button" onClick={() => setDeleteId(null)} className="gx-btn gx-btn-ghost gx-btn-sm flex-1">ยกเลิก</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -4,12 +4,14 @@ import { useState } from 'react'
 import { ChevronDown, MapPin } from 'lucide-react'
 import type {
   CmuFloodLayerKey,
+  CrFloodLayerKey,
   FloodMarkLevel,
   FloodMarkProvince,
   GistdaLayerKey,
   LayerState,
 } from '@/types'
-import { CMU_FLOOD_LAYERS, FLOOD_MARK_LEVELS, GISTDA_LAYERS } from '@/types'
+import { CMU_FLOOD_LAYERS, CR_FLOOD_LAYERS, FLOOD_MARK_LEVELS, GISTDA_LAYERS } from '@/types'
+import type { CrFloodAnalysis } from '@/lib/geo'
 import { Button } from '@/components/ui/button'
 import {
   Popover,
@@ -19,7 +21,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { PanelShell } from './PanelShell'
 
-type BooleanLayerKey = Exclude<keyof LayerState, 'gistda' | 'floodMarks' | 'cmuFlood'>
+type BooleanLayerKey = Exclude<keyof LayerState, 'gistda' | 'floodMarks' | 'cmuFlood' | 'crFlood'>
 type SwatchKind =
   | 'flood-mark'
   | 'user-flood-mark'
@@ -186,6 +188,9 @@ interface Props {
   onGistdaChange: (key: GistdaLayerKey, value: boolean) => void
   onFloodMarkChange: (key: FloodMarkLevel, value: boolean) => void
   onCmuFloodChange: (key: CmuFloodLayerKey, value: boolean) => void
+  onCrFloodChange: (key: CrFloodLayerKey, value: boolean) => void
+  crFloodAnalysis?: Partial<Record<CrFloodLayerKey, CrFloodAnalysis>>
+  onShowFloodRoster?: () => void
   onFloodMarkProvinceChange: (province: string | null) => void
   onClose: () => void
 }
@@ -198,15 +203,20 @@ export function LayersPanel({
   onGistdaChange,
   onFloodMarkChange,
   onCmuFloodChange,
+  onCrFloodChange,
+  crFloodAnalysis = {},
+  onShowFloodRoster,
   onFloodMarkProvinceChange,
   onClose,
 }: Props) {
   const gistdaActive = Object.values(layers.gistda).filter(Boolean).length
   const floodMarkActive = Object.values(layers.floodMarks).filter(Boolean).length
   const cmuFloodActive = Object.values(layers.cmuFlood).filter(Boolean).length
+  const crFloodActive = Object.values(layers.crFlood).filter(Boolean).length
   const [gistdaOpen, setGistdaOpen] = useState(gistdaActive > 0)
   const [floodMarkOpen, setFloodMarkOpen] = useState(floodMarkActive > 0)
   const [cmuFloodOpen, setCmuFloodOpen] = useState(cmuFloodActive > 0)
+  const [crFloodOpen, setCrFloodOpen] = useState(crFloodActive > 0)
 
   return (
     <PanelShell title="ชั้นข้อมูล" hint="Layers" onClose={onClose}>
@@ -242,6 +252,156 @@ export function LayersPanel({
             </li>
           )
         })}
+
+        <li className="mt-1 border-t border-[var(--border)]">
+          <Button
+            type="button"
+            variant="ghost"
+            aria-expanded={crFloodOpen}
+            onClick={() => setCrFloodOpen((v) => !v)}
+            className="h-auto w-full justify-start gap-3.5 rounded-none border-0 px-5 py-3 text-left transition-colors hover:bg-[var(--bg)]"
+          >
+            <span className="flex size-5 items-center justify-center">
+              <span
+                aria-hidden
+                className="size-3 rounded-sm border"
+                style={{ background: 'oklch(0.65 0.16 230 / 0.35)', borderColor: 'oklch(0.54 0.19 240 / 0.8)' }}
+              />
+            </span>
+            <span className="flex-1">
+              <span className="block text-[13px] font-medium leading-tight text-[var(--fg)]">
+                แบบจำลองน้ำท่วมเชียงราย
+              </span>
+              <span className="mt-0.5 block text-[11px] leading-tight text-[var(--fg-subtle)]">
+                Flood depth simulation · {crFloodActive}/{CR_FLOOD_LAYERS.length} active
+              </span>
+            </span>
+            <svg
+              aria-hidden
+              viewBox="0 0 16 16"
+              className={`size-3.5 shrink-0 stroke-[var(--fg-subtle)] transition-transform ${
+                crFloodOpen ? 'rotate-90' : ''
+              }`}
+              strokeWidth={2}
+              fill="none"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M6 4l4 4-4 4" />
+            </svg>
+          </Button>
+
+          {crFloodOpen && (
+            <ul className="pb-2">
+              {CR_FLOOD_LAYERS.map((cfg) => {
+                const on = layers.crFlood[cfg.key]
+                const analysis = crFloodAnalysis[cfg.key]
+                return (
+                  <li key={cfg.key}>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      aria-pressed={on}
+                      onClick={() => onCrFloodChange(cfg.key, !on)}
+                      className={`h-auto w-full justify-start gap-3.5 rounded-none border-0 py-2 pl-12 pr-5 text-left transition-colors ${
+                        on
+                          ? 'bg-[var(--bg)] text-[var(--fg)]'
+                          : 'text-[var(--fg-muted)] hover:bg-[var(--bg)]'
+                      }`}
+                    >
+                      <span
+                        aria-hidden
+                        className="size-2.5 rounded-sm border shrink-0"
+                        style={{
+                          background: cfg.area === 'cr'
+                            ? 'oklch(0.65 0.16 230 / 0.35)'
+                            : 'oklch(0.46 0.22 260 / 0.35)',
+                          borderColor: cfg.area === 'cr'
+                            ? 'oklch(0.54 0.19 240)'
+                            : 'oklch(0.38 0.22 285)',
+                        }}
+                      />
+                      <span className="flex-1">
+                        <span className="block text-[12.5px] font-medium leading-tight">
+                          {cfg.label}
+                        </span>
+                        <span className="mt-0.5 block text-[10.5px] leading-tight text-[var(--fg-subtle)] font-mono">
+                          {cfg.meta}
+                        </span>
+                      </span>
+                      <Checkbox on={on} />
+                    </Button>
+
+                    {on && analysis && (
+                      <div className="mx-5 mb-2 ml-12 rounded-md border border-[var(--border)] bg-[var(--bg-sunken)] px-3 py-2.5">
+                        {analysis.total === 0 ? (
+                          <p className="text-[11px] text-[var(--fg-subtle)]">ไม่พบครัวเรือนในพื้นที่น้ำท่วม</p>
+                        ) : (
+                          <>
+                            <div className="mb-2 flex items-baseline justify-between gap-2">
+                              <span className="text-[11px] font-semibold text-[var(--fg)]">
+                                {analysis.total} บ้าน · {analysis.vulnerable} คนเปราะบาง
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => onShowFloodRoster?.()}
+                                className="shrink-0 rounded px-2 py-0.5 text-[10px] font-medium text-[var(--accent)] transition-colors hover:bg-[var(--bg)]"
+                              >
+                                ดูรายชื่อ →
+                              </button>
+                            </div>
+                            <div className="flex flex-col gap-1">
+                              {analysis.byLevel.map((row) => {
+                                const depthColors: Record<number, string> = {
+                                  1: 'oklch(0.85 0.08 225)',
+                                  2: 'oklch(0.75 0.12 225)',
+                                  3: 'oklch(0.65 0.16 230)',
+                                  4: 'oklch(0.54 0.19 240)',
+                                  5: 'oklch(0.46 0.22 260)',
+                                  6: 'oklch(0.38 0.22 285)',
+                                  7: 'oklch(0.30 0.20 300)',
+                                }
+                                const color = depthColors[row.level] ?? 'oklch(0.65 0.16 230)'
+                                const barPct = Math.round((row.households / analysis.total) * 100)
+                                return (
+                                  <div key={row.level} className="flex items-center gap-2">
+                                    <span
+                                      aria-hidden
+                                      className="size-2 shrink-0 rounded-sm"
+                                      style={{ background: color }}
+                                    />
+                                    <span className="min-w-0 flex-1 truncate text-[10.5px] text-[var(--fg-muted)]">
+                                      {row.label}
+                                    </span>
+                                    <span className="font-mono text-[10px] text-[var(--fg-subtle)]">
+                                      {row.households}
+                                    </span>
+                                    <div className="h-1 w-12 shrink-0 overflow-hidden rounded-full bg-[var(--border)]">
+                                      <div
+                                        className="h-full rounded-full"
+                                        style={{ width: `${barPct}%`, background: color }}
+                                      />
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )}
+
+                    {on && !analysis && (
+                      <div className="mx-5 mb-2 ml-12 text-[10.5px] text-[var(--fg-subtle)]">
+                        กำลังวิเคราะห์พื้นที่…
+                      </div>
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </li>
 
         <li className="mt-1 border-t border-[var(--border)]">
           <Button

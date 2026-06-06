@@ -109,6 +109,7 @@ export async function GET(
       province: p.province,
       lat,
       lng,
+      lifeSupport: p.lifeSupport ?? null,
       caregiverPhone: p.caregiverPhone,
       careUnit: p.careUnit,
       assignedVhvId: p.assignedVhvId,
@@ -203,6 +204,41 @@ export async function PATCH(
     }
   }
 
+  // ── core fields (admin/officer เท่านั้น) ──────────────────────────────────
+  const isAdmin = session.user.role === 'admin' || session.user.role === 'officer'
+
+  if (isAdmin) {
+    if ('prefix' in body) patch.prefix = typeof body.prefix === 'string' ? body.prefix : null
+    if ('firstName' in body) {
+      if (typeof body.firstName !== 'string' || !body.firstName.trim())
+        return badRequest('firstName is required')
+      patch.firstName = body.firstName.trim()
+    }
+    if ('lastName' in body) {
+      if (typeof body.lastName !== 'string' || !body.lastName.trim())
+        return badRequest('lastName is required')
+      patch.lastName = body.lastName.trim()
+    }
+    if ('age' in body) {
+      patch.age = body.age !== null && body.age !== '' ? Number(body.age) : null
+    }
+    if ('type' in body) {
+      const VALID_TYPES = new Set(['bedridden', 'elderly', 'disabled', 'pregnant', 'other'])
+      if (!VALID_TYPES.has(body.type as string)) return badRequest('invalid type')
+      patch.type = body.type as string
+    }
+    if ('cond' in body) patch.cond = typeof body.cond === 'string' ? body.cond : null
+    if ('village' in body) patch.village = typeof body.village === 'string' ? body.village : null
+    if ('tambon' in body) patch.tambon = typeof body.tambon === 'string' ? body.tambon : null
+    if ('amphoe' in body) patch.amphoe = typeof body.amphoe === 'string' ? body.amphoe : null
+    if ('province' in body) patch.province = typeof body.province === 'string' ? body.province : null
+    if ('lat' in body) patch.lat = body.lat !== null ? String(body.lat) : null
+    if ('lng' in body) patch.lng = body.lng !== null ? String(body.lng) : null
+    if ('caregiverPhone' in body) {
+      patch.caregiverPhone = typeof body.caregiverPhone === 'string' ? body.caregiverPhone : null
+    }
+  }
+
   // ถ้าไม่มี field นอกจาก updatedAt → ไม่มีอะไรอัปเดต
   if (Object.keys(patch).length === 1) return badRequest('No updatable fields provided')
 
@@ -232,4 +268,46 @@ export async function PATCH(
     .catch(() => {})
 
   return NextResponse.json({ data: updated })
+}
+
+// -----------------------------------------------------------------------
+// DELETE — soft delete (admin/officer)
+// -----------------------------------------------------------------------
+
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { id } = await params
+  if (!isUuid(id)) return badRequest('id must be a UUID')
+
+  const session = await auth()
+  if (!session?.user) return unauthorized()
+  if (!canWriteFieldData(session.user.role as UserRole)) return forbidden()
+
+  const national = isNationalRole(session.user.role as UserRole)
+  const where = national
+    ? eq(householdMembers.id, id)
+    : and(eq(householdMembers.id, id), eq(householdMembers.province, session.user.province ?? '__none__'))
+
+  const db = getDb()
+  const [deleted] = await db
+    .update(householdMembers)
+    .set({ deletedAt: new Date() })
+    .where(where)
+    .returning()
+
+  if (!deleted) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  void db
+    .insert(accessLog)
+    .values({
+      userId: sessionUserId(session),
+      action: 'delete_vulnerable',
+      targetId: id,
+      ip: null,
+    })
+    .catch(() => {})
+
+  return NextResponse.json({ ok: true })
 }

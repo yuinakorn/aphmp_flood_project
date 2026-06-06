@@ -3,6 +3,10 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, X, Loader2 } from 'lucide-react'
+import { LocationPicker } from '@/components/forms/LocationPicker'
+
+const DEFAULT_LAT = 20.43
+const DEFAULT_LNG = 99.88
 
 export function CreateShelterButton() {
   const router = useRouter()
@@ -15,22 +19,21 @@ export function CreateShelterButton() {
   const [capacity, setCapacity] = useState('')
   const [bedriddenCapacity, setBedriddenCapacity] = useState('')
   const [contact, setContact] = useState('')
-  const [lat, setLat] = useState('')
-  const [lng, setLng] = useState('')
+  const [lat, setLat] = useState(DEFAULT_LAT)
+  const [lng, setLng] = useState(DEFAULT_LNG)
   const [oxygenSupport, setOxygenSupport] = useState(false)
   const [wheelchairSupport, setWheelchairSupport] = useState(false)
   const [electricitySupport, setElectricitySupport] = useState(false)
 
   function reset() {
     setName(''); setType('shelter'); setCapacity(''); setBedriddenCapacity('')
-    setContact(''); setLat(''); setLng('')
+    setContact(''); setLat(DEFAULT_LAT); setLng(DEFAULT_LNG)
     setOxygenSupport(false); setWheelchairSupport(false); setElectricitySupport(false)
     setError(null)
   }
 
   async function submit() {
     if (!name.trim()) { setError('กรอกชื่อศูนย์'); return }
-    if (!lat.trim() || !lng.trim()) { setError('กรอกพิกัด lat/lng'); return }
     setSaving(true); setError(null)
     const res = await fetch('/api/shelters', {
       method: 'POST',
@@ -40,7 +43,7 @@ export function CreateShelterButton() {
         capacity: capacity ? Number(capacity) : undefined,
         bedriddenCapacity: bedriddenCapacity ? Number(bedriddenCapacity) : undefined,
         contact: contact || undefined,
-        lat: Number(lat), lng: Number(lng),
+        lat, lng,
         oxygenSupport, wheelchairSupport, electricitySupport,
       }),
     })
@@ -79,8 +82,12 @@ export function CreateShelterButton() {
                 <input value={contact} onChange={(e) => setContact(e.target.value)} placeholder="เบอร์ติดต่อ" className="rounded-lg border border-[var(--border)] bg-[var(--bg)] p-2.5" />
                 <input value={capacity} onChange={(e) => setCapacity(e.target.value.replace(/\D/g, ''))} placeholder="ความจุรวม (คน)" className="rounded-lg border border-[var(--border)] bg-[var(--bg)] p-2.5 font-mono" />
                 <input value={bedriddenCapacity} onChange={(e) => setBedriddenCapacity(e.target.value.replace(/\D/g, ''))} placeholder="ความจุติดเตียง (คน)" className="rounded-lg border border-[var(--border)] bg-[var(--bg)] p-2.5 font-mono" />
-                <input value={lat} onChange={(e) => setLat(e.target.value)} placeholder="latitude *" className="rounded-lg border border-[var(--border)] bg-[var(--bg)] p-2.5 font-mono" />
-                <input value={lng} onChange={(e) => setLng(e.target.value)} placeholder="longitude *" className="rounded-lg border border-[var(--border)] bg-[var(--bg)] p-2.5 font-mono" />
+              </div>
+
+              <div className="space-y-1.5">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--fg-subtle)]">ตำแหน่ง — คลิกหรือลากหมุดเพื่อกำหนด</p>
+                <LocationPicker lat={lat} lng={lng} onChange={(la, ln) => { setLat(la); setLng(ln) }} heightClass="h-[220px]" />
+                <p className="font-mono text-[11px] text-[var(--fg-muted)]">{lat.toFixed(6)}, {lng.toFixed(6)}</p>
               </div>
 
               <div className="space-y-1.5 border-t border-[var(--border)] pt-3 text-sm">

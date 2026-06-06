@@ -12,6 +12,7 @@ interface Props {
 const basemaps: { key: BasemapType; label: string }[] = [
   { key: 'sat', label: 'ภาพถ่ายดาวเทียม (ESRI)' },
   { key: 'topo', label: 'ภูมิประเทศ' },
+  { key: 'osm', label: 'ถนน (OpenStreetMap)' },
   { key: 'street', label: 'แผนที่ถนน (Carto)' },
   { key: 'google', label: 'Google Maps (ถนน)' },
   { key: 'google_sat', label: 'Google Maps (ดาวเทียม)' },

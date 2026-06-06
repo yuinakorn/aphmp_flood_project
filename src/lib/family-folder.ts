@@ -1,6 +1,6 @@
 import { getDb } from '@/lib/db'
-import { households, householdMembers } from '@/db/schema'
-import { asc, eq, inArray } from 'drizzle-orm'
+import { households, householdMembers, shelterAdmissions } from '@/db/schema'
+import { and, asc, eq, inArray } from 'drizzle-orm'
 
 export interface HouseholdMember {
   pid: number
@@ -16,6 +16,7 @@ export interface HouseholdMember {
 }
 
 export interface VulnerableHousehold {
+  id: string
   hcode: number
   hno: string
   village: string
@@ -220,6 +221,7 @@ export async function getFamilyFolderHouseholds(
     const vulnerableCount = members.filter((x) => x.group !== 'ทั่วไป').length
     if (vulnerableCount === 0) return null // family folder แสดงเฉพาะครัวเรือนที่มีกลุ่มเปราะบาง
     return {
+      id: h.id,
       hcode: intFromUuid(h.id),
       hno: h.hno ?? '-',
       village: h.villageName ?? '-',
@@ -254,9 +256,26 @@ export async function getVulnerableHouseholdMarkers(
     .from(householdMembers)
     .where(inArray(householdMembers.householdId, houseRows.map((h) => h.id)))
 
+  // คนที่กำลังพักอยู่ศูนย์พักพิง (admitted) → ไม่ได้อยู่บ้าน จึงไม่แสดงในหมุดบ้าน
+  const memberIds = memberRows.map((m) => m.id)
+  const admittedIds = new Set<string>()
+  if (memberIds.length > 0) {
+    const admRows = await db
+      .select({ memberId: shelterAdmissions.memberId })
+      .from(shelterAdmissions)
+      .where(
+        and(
+          inArray(shelterAdmissions.memberId, memberIds),
+          eq(shelterAdmissions.status, 'admitted'),
+        ),
+      )
+    for (const r of admRows) if (r.memberId) admittedIds.add(r.memberId)
+  }
+
   const membersByHouse = new Map<string, MemberRow[]>()
   for (const m of memberRows) {
     if (!m.householdId) continue // query กรองเฉพาะ member ที่ผูกครัวเรือนอยู่แล้ว
+    if (admittedIds.has(m.id)) continue // อยู่ศูนย์พักพิงแล้ว — ตัดออกจากหมุดบ้าน
     const arr = membersByHouse.get(m.householdId) ?? []
     arr.push(m)
     membersByHouse.set(m.householdId, arr)

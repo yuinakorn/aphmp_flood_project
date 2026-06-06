@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Pencil, X, Loader2, Save } from 'lucide-react'
+import { LocationPicker } from '@/components/forms/LocationPicker'
 
 interface Initial {
   id: string
@@ -29,15 +30,14 @@ export function EditShelterButton({ initial }: { initial: Initial }) {
   const [capacity, setCapacity] = useState(initial.capacity?.toString() ?? '')
   const [bedriddenCapacity, setBedriddenCapacity] = useState(initial.bedriddenCapacity?.toString() ?? '')
   const [contact, setContact] = useState(initial.contact ?? '')
-  const [lat, setLat] = useState(initial.lat.toString())
-  const [lng, setLng] = useState(initial.lng.toString())
+  const [lat, setLat] = useState(initial.lat)
+  const [lng, setLng] = useState(initial.lng)
   const [oxygenSupport, setOxygenSupport] = useState(initial.oxygenSupport)
   const [wheelchairSupport, setWheelchairSupport] = useState(initial.wheelchairSupport)
   const [electricitySupport, setElectricitySupport] = useState(initial.electricitySupport)
 
   async function submit() {
     if (!name.trim()) { setError('กรอกชื่อศูนย์'); return }
-    if (!lat.trim() || !lng.trim()) { setError('กรอกพิกัด'); return }
     setSaving(true); setError(null)
     const res = await fetch(`/api/shelters/${initial.id}`, {
       method: 'PATCH',
@@ -47,7 +47,7 @@ export function EditShelterButton({ initial }: { initial: Initial }) {
         capacity: capacity ? Number(capacity) : null,
         bedriddenCapacity: bedriddenCapacity ? Number(bedriddenCapacity) : null,
         contact: contact || null,
-        lat: Number(lat), lng: Number(lng),
+        lat, lng,
         oxygenSupport, wheelchairSupport, electricitySupport,
       }),
     })
@@ -105,14 +105,12 @@ export function EditShelterButton({ initial }: { initial: Initial }) {
                   <span className="text-[11px] font-medium uppercase tracking-wide text-[var(--fg-subtle)]">ติดเตียง (คน)</span>
                   <input value={bedriddenCapacity} onChange={(e) => setBedriddenCapacity(e.target.value.replace(/\D/g, ''))} placeholder="—" className="rounded-lg border border-[var(--border)] bg-[var(--bg)] p-2.5 font-mono" />
                 </label>
-                <label className="flex flex-col gap-1">
-                  <span className="text-[11px] font-medium uppercase tracking-wide text-[var(--fg-subtle)]">latitude</span>
-                  <input value={lat} onChange={(e) => setLat(e.target.value)} className="rounded-lg border border-[var(--border)] bg-[var(--bg)] p-2.5 font-mono" />
-                </label>
-                <label className="flex flex-col gap-1">
-                  <span className="text-[11px] font-medium uppercase tracking-wide text-[var(--fg-subtle)]">longitude</span>
-                  <input value={lng} onChange={(e) => setLng(e.target.value)} className="rounded-lg border border-[var(--border)] bg-[var(--bg)] p-2.5 font-mono" />
-                </label>
+              </div>
+
+              <div className="col-span-2 space-y-1.5">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--fg-subtle)]">ตำแหน่ง — คลิกหรือลากหมุดเพื่อกำหนด</p>
+                <LocationPicker lat={lat} lng={lng} onChange={(la, ln) => { setLat(la); setLng(ln) }} heightClass="h-[220px]" />
+                <p className="font-mono text-[11px] text-[var(--fg-muted)]">{lat.toFixed(6)}, {lng.toFixed(6)}</p>
               </div>
 
               <div className="space-y-1.5 border-t border-[var(--border)] pt-3 text-sm">

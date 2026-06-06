@@ -150,7 +150,7 @@ export function AppSidebar({ canManageStaff = false, canTriage = false }: { canM
 
       {/* ───── Mobile drawer (<md) ───── */}
       {mobileOpen && (
-        <div className="fixed inset-0 z-50 md:hidden">
+        <div className="fixed inset-0 z-[1100] md:hidden">
           <div
             className="absolute inset-0 bg-black/50 animate-in fade-in duration-200"
             onClick={() => setMobileOpen(false)}

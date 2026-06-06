@@ -2,7 +2,7 @@ import { notFound, redirect } from 'next/navigation'
 import { and, asc, desc, eq } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 import { getDb } from '@/lib/db'
-import { infrastructures, rescueTeams, shelterZones } from '@/db/schema'
+import { incidents, infrastructures, rescueTeams, shelterZones } from '@/db/schema'
 import { getActiveIncident, isNationalRole } from '@/lib/incident-scope'
 import { canAccessShelter } from '@/lib/shelter-access'
 import { ShelterDetail } from './ShelterDetail'
@@ -33,10 +33,28 @@ export default async function ShelterDetailPage({ params }: { params: Promise<{ 
   }
 
   const scope = await getActiveIncident(session.user?.role, session.user?.province ?? null)
+  const shelterProvince = shelter.province ?? null
+
   const [zones, teamsRaw] = await Promise.all([
     db.select().from(shelterZones).where(eq(shelterZones.shelterId, id)).orderBy(asc(shelterZones.sortOrder), asc(shelterZones.createdAt)),
-    db.select().from(rescueTeams)
-      .where(scope ? and(eq(rescueTeams.incidentId, scope.id)) : undefined)
+    db.select({
+      id: rescueTeams.id,
+      incidentId: rescueTeams.incidentId,
+      name: rescueTeams.name,
+      teamType: rescueTeams.teamType,
+      contact: rescueTeams.contact,
+      zone: rescueTeams.zone,
+      status: rescueTeams.status,
+      lat: rescueTeams.lat,
+      lng: rescueTeams.lng,
+      registeredBy: rescueTeams.registeredBy,
+    })
+      .from(rescueTeams)
+      .leftJoin(incidents, eq(rescueTeams.incidentId, incidents.id))
+      .where(and(
+        scope ? eq(rescueTeams.incidentId, scope.id) : undefined,
+        shelterProvince ? eq(incidents.province, shelterProvince) : undefined,
+      ))
       .orderBy(desc(rescueTeams.createdAt)),
   ])
 

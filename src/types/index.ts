@@ -1,4 +1,13 @@
-export type VulnerableType = 'bedridden' | 'elderly' | 'disabled' | 'pregnant'
+export type VulnerableType = 'bedridden' | 'elderly' | 'disabled' | 'pregnant' | 'other'
+
+// ป้ายประเภทกลุ่มเปราะบาง (แหล่งความจริงเดียว ใช้ทั้งฟอร์ม/ตัวกรอง/แสดงผล)
+export const VULNERABLE_TYPE_LABEL: Record<VulnerableType, string> = {
+  bedridden: 'ติดเตียง',
+  elderly: 'ผู้สูงอายุติดบ้าน',
+  disabled: 'พิการ',
+  pregnant: 'ตั้งครรภ์',
+  other: 'อื่น ๆ',
+}
 export type RiskLevel = 'flood' | 'near' | 'safe'
 export type InfraType =
   | 'hospital'
@@ -451,9 +460,36 @@ export interface ShelterStatusSnapshot {
 export type AdmissionStatus = 'admitted' | 'transferred' | 'discharged' | 'cancelled'
 export type AdmissionExitReason =
   | 'moved_home'
+  | 'moved_relative'
   | 'admitted_hospital'
   | 'transferred_shelter'
+  | 'self_discharge'
+  | 'lost_contact'
+  | 'deceased'
   | 'other'
+
+// ป้ายกำกับเหตุผลออกจากศูนย์ (แหล่งความจริงเดียว ใช้ทั้ง UI/validation/export)
+export const EXIT_REASON_LABEL: Record<AdmissionExitReason, string> = {
+  moved_home: 'กลับบ้าน (น้ำลด/ปลอดภัย)',
+  moved_relative: 'ไปพักบ้านญาติ/คนรู้จัก',
+  admitted_hospital: 'ส่งต่อโรงพยาบาล',
+  transferred_shelter: 'ย้ายไปศูนย์พักพิงอื่น',
+  self_discharge: 'ขอออกเอง',
+  lost_contact: 'ออกเอง/ติดต่อไม่ได้',
+  deceased: 'เสียชีวิต',
+  other: 'อื่น ๆ',
+}
+
+// ตัวเลือกเหตุผลสำหรับปุ่ม "ย้ายออก" (ไม่รวมส่ง รพ. ซึ่งเป็นอีก flow)
+export const DISCHARGE_REASONS: { code: Exclude<AdmissionExitReason, 'admitted_hospital'>; label: string }[] = [
+  { code: 'moved_home', label: EXIT_REASON_LABEL.moved_home },
+  { code: 'moved_relative', label: EXIT_REASON_LABEL.moved_relative },
+  { code: 'transferred_shelter', label: EXIT_REASON_LABEL.transferred_shelter },
+  { code: 'self_discharge', label: EXIT_REASON_LABEL.self_discharge },
+  { code: 'lost_contact', label: EXIT_REASON_LABEL.lost_contact },
+  { code: 'deceased', label: EXIT_REASON_LABEL.deceased },
+  { code: 'other', label: EXIT_REASON_LABEL.other },
+]
 
 export interface ShelterZone {
   id: string
@@ -486,15 +522,38 @@ export interface ShelterAdmission {
 export interface AdmissionPerson {
   id?: string | null
   name: string
+  prefix?: string | null
+  firstName?: string | null
+  lastName?: string | null
   nationalIdMasked?: string | null   // มาจาก server เสมอ — masked แล้ว
+  birthDate?: string | null
   age?: number | null
   sex?: string | null
   nationality?: string | null
   phone?: string | null
+  hno?: string | null
+  villno?: string | null
+  tambon?: string | null
+  amphoe?: string | null
   conditions?: string | null
   foodAllergy?: string | null
   drugAllergy?: string | null
+  equipment?: string | null          // อุปกรณ์/เครื่องมือ (freeform)
+  lifeSupport?: string[] | null      // อุปกรณ์พยุงชีพ (oxygen|feeding_tube|dialysis_*|ventilator|anti_seizure)
+  vulnerableType?: string | null     // ประเภทเปราะบาง: bedridden|elderly|disabled|pregnant|other
+  vulnerableLabel?: string | null    // ป้ายไทยที่บันทึกไว้ (ถ้ามี)
   isVulnerable?: boolean
+  activeShelterName?: string | null
+}
+
+// ป้ายอุปกรณ์พยุงชีพ — ใช้ร่วมหลายหน้า
+export const LIFE_SUPPORT_LABEL: Record<string, string> = {
+  oxygen: 'ออกซิเจน',
+  dialysis_capd: 'ฟอกไต (CAPD)',
+  dialysis_hd: 'ฟอกไตเลือด (HD)',
+  ventilator: 'เครื่องช่วยหายใจ',
+  anti_seizure: 'ยากันชัก',
+  feeding_tube: 'สายให้อาหาร',
 }
 
 // ───────── การส่งต่อผู้ป่วย ศูนย์พักพิง → สถานพยาบาล ─────────
@@ -580,14 +639,24 @@ export type GistdaLayerKey =
   | 'floodFreq'
   | 'waterHyacinth'
 
+export type CrFloodLayerKey =
+  | 'cr_cei'
+  | 'cr_detail'
+  | 'cr_flow1500'
+  | 'cr_flow2000'
+  | 'ms_coarse'
+  | 'ms_detail'
+
 export type GistdaLayers = Record<GistdaLayerKey, boolean>
 export type FloodMarkLayers = Record<FloodMarkLevel, boolean>
 export type CmuFloodLayers = Record<CmuFloodLayerKey, boolean>
+export type CrFloodLayers = Record<CrFloodLayerKey, boolean>
 
 export interface LayerState {
   gistda: GistdaLayers
   floodMarks: FloodMarkLayers
   cmuFlood: CmuFloodLayers
+  crFlood: CrFloodLayers
   vulnerable: boolean
   infra: boolean
   routes: boolean
@@ -828,7 +897,61 @@ export const CMU_FLOOD_LAYERS: CmuFloodLayerConfig[] = [
   },
 ]
 
-export type BasemapType = 'sat' | 'street' | 'topo' | 'hybrid' | 'google' | 'google_sat'
+export interface CrFloodLayerConfig {
+  key: CrFloodLayerKey
+  label: string
+  meta: string
+  /** filename under /data/cr_geo/ */
+  file: string
+  area: 'cr' | 'ms'
+}
+
+export const CR_FLOOD_LAYERS: CrFloodLayerConfig[] = [
+  {
+    key: 'cr_cei',
+    label: 'เชียงราย · CEI Scenario',
+    meta: 'ภาพรวมกว้าง · ความลึก 0–10+ ม.',
+    file: 'cr_cei.geojson',
+    area: 'cr',
+  },
+  {
+    key: 'cr_detail',
+    label: 'เชียงราย · รายละเอียด',
+    meta: 'ย่านเมือง · ความลึก 0–10+ ม.',
+    file: 'cr_detail.geojson',
+    area: 'cr',
+  },
+  {
+    key: 'cr_flow1500',
+    label: 'เชียงราย · Flow 1500 m³/s',
+    meta: 'ปริมาณน้ำ 1,500 ลบ.ม./วิ',
+    file: 'cr_flow1500.geojson',
+    area: 'cr',
+  },
+  {
+    key: 'cr_flow2000',
+    label: 'เชียงราย · Flow 2000 m³/s',
+    meta: 'ปริมาณน้ำ 2,000 ลบ.ม./วิ',
+    file: 'cr_flow2000.geojson',
+    area: 'cr',
+  },
+  {
+    key: 'ms_coarse',
+    label: 'แม่สาย · ภาพกว้าง',
+    meta: 'ความละเอียดต่ำ · ความลึก 0–10+ ม.',
+    file: 'ms_coarse.geojson',
+    area: 'ms',
+  },
+  {
+    key: 'ms_detail',
+    label: 'แม่สาย · รายละเอียด',
+    meta: 'ความละเอียดสูง · ความลึก 0–5+ ม.',
+    file: 'ms_detail.geojson',
+    area: 'ms',
+  },
+]
+
+export type BasemapType = 'sat' | 'street' | 'osm' | 'topo' | 'hybrid' | 'google' | 'google_sat'
 
 export interface EvacRoute {
   personId: number

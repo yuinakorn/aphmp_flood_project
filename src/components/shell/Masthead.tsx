@@ -3,7 +3,6 @@
 import {
   Waves,
   Activity,
-  MapPinned,
   ChevronDown,
   LayoutDashboard,
   FolderHeart,
@@ -159,8 +158,9 @@ export function Masthead({ session }: Props) {
         href="/map"
         className="flex items-center gap-2.5 transition-opacity hover:opacity-90 md:gap-3"
       >
-        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[var(--color-risk-safe)] text-white shadow-sm">
-          <MapPinned aria-hidden strokeWidth={2} className="size-5" />
+        <span className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white shadow-sm">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo_MOPH.svg" alt="ตรากระทรวงสาธารณสุข" className="size-8" />
         </span>
         <span className="leading-tight">
           <span className="block text-[15px] font-bold tracking-tight">

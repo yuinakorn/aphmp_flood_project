@@ -52,9 +52,11 @@ export function composeName(
 }
 
 export function isUuid(value: unknown): value is string {
+  // รับรูปแบบ hex 8-4-4-4-12 ทั่วไป (ตรงกับที่ PostgreSQL uuid รับ) — ไม่บังคับ version/variant
+  // แบบ RFC4122 เพราะ seed/mock บางชุดใช้ uuid ที่ไม่ใช่ v4 (เช่น cccccccc-0005-...)
   return (
     typeof value === 'string' &&
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
   )
 }
 
@@ -71,11 +73,11 @@ export function isoOrNow(value: unknown) {
 }
 
 // แสดงเลขบัตรประชาชนแบบ mask: เก็บเฉพาะ 4 หลักท้าย — เพื่อ PDPA
-export function maskNationalId(id?: string | null) {
+export function maskNationalId(id?: string | null, visible = 4) {
   if (!id) return null
   const digits = id.replace(/\D/g, '')
-  if (digits.length < 4) return '•'.repeat(digits.length)
-  return '•'.repeat(digits.length - 4) + digits.slice(-4)
+  if (digits.length < visible) return '•'.repeat(digits.length)
+  return '•'.repeat(digits.length - visible) + digits.slice(-visible)
 }
 
 export function parseBbox(value: string | null) {

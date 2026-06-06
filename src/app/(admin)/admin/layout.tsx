@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { Masthead } from '@/components/shell/Masthead'
 import { AppSidebar } from '@/components/shell/AppSidebar'
+import { MobileTabBar } from '@/components/shell/MobileTabBar'
 import { SidebarProvider, SIDEBAR_COOKIE } from '@/components/shell/SidebarProvider'
 import { RoleViewProvider } from '@/components/shell/RoleViewProvider'
 import { IncidentScopeProvider } from '@/components/shell/IncidentScopeProvider'
@@ -30,9 +31,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <div className="flex flex-1">
             <AppSidebar canManageStaff={canManageStaff(role)} canTriage={canTriage(role)} />
             <div className="flex min-w-0 flex-1 flex-col">
-              <main className="flex-1 px-8 py-8">{children}</main>
+              <main className="flex-1 px-4 py-6 pb-20 md:px-8 md:py-8 md:pb-8">{children}</main>
             </div>
           </div>
+          <MobileTabBar canTriage={canTriage(role)} />
         </div>
         </SidebarProvider>
       </IncidentScopeProvider>

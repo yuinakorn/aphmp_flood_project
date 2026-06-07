@@ -2,11 +2,12 @@ import Link from 'next/link'
 import { auth } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { and, eq, inArray, sql } from 'drizzle-orm'
-import { Tent, Users, ArrowUpRight, Flag } from 'lucide-react'
+import { Tent, Users, Flag } from 'lucide-react'
 import { getDb } from '@/lib/db'
 import { infrastructures, shelterAdmissions, shelterZones } from '@/db/schema'
 import { getActiveIncident, isNationalRole } from '@/lib/incident-scope'
 import { CreateShelterButton } from './CreateShelterButton'
+import { EditShelterButton } from './EditShelterButton'
 
 export const metadata = { title: 'ศูนย์พักพิง — GIS Health Intelligence' }
 export const dynamic = 'force-dynamic'
@@ -112,54 +113,61 @@ export default async function SheltersPage() {
           const Icon = isAssembly ? Flag : Tent
           const tone = isAssembly ? 'var(--infra-shelter)' : 'var(--infra-shelter)'
           return (
-            <Link
+            <div
               key={s.id}
-              href={`/admin/shelters/${s.id}`}
-              className="gx-card gx-card-interactive group flex items-start gap-3.5 p-4"
+              className="gx-card gx-card-interactive group relative p-4"
               style={{ ['--tile' as string]: tone }}
             >
-              <span className="gx-icon-tile size-11"><Icon size={20} strokeWidth={1.75} /></span>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="truncate text-base font-semibold text-[var(--fg)]">{s.name}</p>
-                    <p className="truncate text-xs text-[var(--fg-muted)]">{isAssembly ? 'จุดรวมพล' : 'ศูนย์อพยพ'} · {zoneMap.get(s.id) ?? 0} โซน · cap {cap || '—'}</p>
-                  </div>
-                  <ArrowUpRight size={16} className="mt-0.5 shrink-0 text-[var(--fg-subtle)] transition-all group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-[var(--tile)]" />
-                </div>
+              {/* Edit button — absolute top-right, above the link */}
+              <div className="absolute right-3 top-3 z-10">
+                <EditShelterButton initial={{
+                  id: s.id, name: s.name, type: s.type,
+                  capacity: s.capacity, bedriddenCapacity: s.bedriddenCapacity,
+                  oxygenSupport: s.oxygenSupport, wheelchairSupport: s.wheelchairSupport, electricitySupport: s.electricitySupport,
+                  contact: s.contact, lat: Number(s.lat), lng: Number(s.lng),
+                }} />
+              </div>
 
-                {/* Occupancy */}
-                <div className="mt-3">
-                  <div className="flex items-baseline justify-between text-xs">
-                    <span className="text-[var(--fg-subtle)]">ผู้พักอยู่ตอนนี้</span>
-                    <span className="font-mono">
-                      <span className="text-base font-semibold text-[var(--fg)]">{o.current}</span>
-                      {cap > 0 && <span className="text-[var(--fg-subtle)]"> / {cap}</span>}
-                      {pct != null && <span className="ml-1.5 text-[var(--fg-subtle)]">({pct}%)</span>}
-                    </span>
+              {/* Link wraps all navigable content */}
+              <Link href={`/admin/shelters/${s.id}`} className="flex items-start gap-3.5 pr-8">
+                <span className="gx-icon-tile size-11"><Icon size={20} strokeWidth={1.75} /></span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-base font-semibold text-[var(--fg)]">{s.name}</p>
+                  <p className="truncate text-xs text-[var(--fg-muted)]">{isAssembly ? 'จุดรวมพล' : 'ศูนย์อพยพ'} · {zoneMap.get(s.id) ?? 0} โซน · cap {cap || '—'}</p>
+
+                  {/* Occupancy */}
+                  <div className="mt-3">
+                    <div className="flex items-baseline justify-between text-xs">
+                      <span className="text-[var(--fg-subtle)]">ผู้พักอยู่ตอนนี้</span>
+                      <span className="font-mono">
+                        <span className="text-base font-semibold text-[var(--fg)]">{o.current}</span>
+                        {cap > 0 && <span className="text-[var(--fg-subtle)]"> / {cap}</span>}
+                        {pct != null && <span className="ml-1.5 text-[var(--fg-subtle)]">({pct}%)</span>}
+                      </span>
+                    </div>
+                    {pct != null && (
+                      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-[var(--bg-sunken)]">
+                        <div
+                          className="h-full rounded-full transition-all"
+                          style={{
+                            width: `${pct}%`,
+                            background: pct >= 100 ? 'var(--risk-flood)' : pct >= 80 ? 'var(--risk-near)' : 'var(--tile)',
+                          }}
+                        />
+                      </div>
+                    )}
                   </div>
-                  {pct != null && (
-                    <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-[var(--bg-sunken)]">
-                      <div
-                        className="h-full rounded-full transition-all"
-                        style={{
-                          width: `${pct}%`,
-                          background: pct >= 100 ? 'var(--risk-flood)' : pct >= 80 ? 'var(--risk-near)' : 'var(--tile)',
-                        }}
-                      />
+
+                  {(s.oxygenSupport || s.wheelchairSupport || s.electricitySupport) && (
+                    <div className="mt-2.5 flex flex-wrap gap-1.5">
+                      {s.oxygenSupport && <span className="rounded bg-[var(--bg-sunken)] px-1.5 py-0.5 text-[10px] text-[var(--fg-muted)]">ออกซิเจน</span>}
+                      {s.wheelchairSupport && <span className="rounded bg-[var(--bg-sunken)] px-1.5 py-0.5 text-[10px] text-[var(--fg-muted)]">whc</span>}
+                      {s.electricitySupport && <span className="rounded bg-[var(--bg-sunken)] px-1.5 py-0.5 text-[10px] text-[var(--fg-muted)]">ไฟฟ้า</span>}
                     </div>
                   )}
                 </div>
-
-                {(s.oxygenSupport || s.wheelchairSupport || s.electricitySupport) && (
-                  <div className="mt-2.5 flex flex-wrap gap-1.5">
-                    {s.oxygenSupport && <span className="rounded bg-[var(--bg-sunken)] px-1.5 py-0.5 text-[10px] text-[var(--fg-muted)]">ออกซิเจน</span>}
-                    {s.wheelchairSupport && <span className="rounded bg-[var(--bg-sunken)] px-1.5 py-0.5 text-[10px] text-[var(--fg-muted)]">whc</span>}
-                    {s.electricitySupport && <span className="rounded bg-[var(--bg-sunken)] px-1.5 py-0.5 text-[10px] text-[var(--fg-muted)]">ไฟฟ้า</span>}
-                  </div>
-                )}
-              </div>
-            </Link>
+              </Link>
+            </div>
           )
         })}
       </div>

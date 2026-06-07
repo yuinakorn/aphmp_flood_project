@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { badRequest, canManageStaff, forbidden, sessionUserId, unauthorized } from '@/lib/field-api'
 import { isNationalRole } from '@/lib/incident-scope'
-import { isValidThaiCid } from '@/lib/cid'
+import { normalizeCid } from '@/lib/cid'
 import { createWhitelistStaff, listStaff } from '@/lib/staff-auth'
 import { audit } from '@/lib/audit'
 import { ALLOWED_PROVINCES } from '@/lib/provinces'
@@ -37,8 +37,8 @@ export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null
   if (!body) return badRequest('Invalid JSON body')
 
-  const cid = typeof body.cid === 'string' ? body.cid : ''
-  if (!isValidThaiCid(cid)) return badRequest('เลขบัตรประชาชนไม่ถูกต้อง (13 หลัก)')
+  const cid = normalizeCid(typeof body.cid === 'string' ? body.cid : '')
+  if (cid.length !== 13 || cid.startsWith('0')) return badRequest('เลขบัตรประชาชนไม่ถูกต้อง (13 หลัก ไม่ขึ้นต้น 0)')
 
   const name = typeof body.name === 'string' ? body.name.trim() : ''
   if (!name) return badRequest('name is required')

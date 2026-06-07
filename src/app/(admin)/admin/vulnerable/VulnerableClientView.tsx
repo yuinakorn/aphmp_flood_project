@@ -85,10 +85,6 @@ export function VulnerableClientView({ persons, canEdit, activeIncidents, addBut
     setViewId(String(p.id))
   }
 
-  function handleEdit(p: VulnerablePerson) {
-    setEditId(String(p.id))
-  }
-
   function handleDeleteRequest(p: VulnerablePerson) {
     setDeleteError(null)
     setDeleteTarget({ id: String(p.id), name: p.name })
@@ -175,7 +171,7 @@ export function VulnerableClientView({ persons, canEdit, activeIncidents, addBut
 
           {legacyView === 'summary'
             ? <VulnerabilitySummaryTable persons={persons} />
-            : <VulnerableLegacyTable persons={persons} canEdit={canEdit} activeIncidents={activeIncidents} onView={handleView} onEdit={handleEdit} onDelete={handleDeleteRequest} />
+            : <VulnerableLegacyTable persons={persons} canEdit={canEdit} activeIncidents={activeIncidents} onView={handleView} />
           }
         </div>
       )}
@@ -185,53 +181,38 @@ export function VulnerableClientView({ persons, canEdit, activeIncidents, addBut
 
       {/* ── Stat ribbon ── */}
       <div className="gx-card overflow-hidden p-0">
-        <div className="flex items-stretch divide-x divide-[var(--border)]">
+        {/* Mobile: 2 rows */}
+        <div className="sm:hidden">
+          {/* Row 1: Total + Risk chips */}
+          <div className="flex items-stretch divide-x divide-[var(--border)] border-b border-[var(--border)]">
+            <div className="flex min-w-[72px] flex-col items-start justify-center gap-0.5 px-4 py-3">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.09em] text-[var(--fg-subtle)]">ทั้งหมด</span>
+              <span className="font-mono text-[20px] font-semibold leading-none text-[var(--fg)]">{persons.length}</span>
+            </div>
+            <RiskChip label="ในน้ำ" count={stats.flood} color="var(--risk-flood)" active={riskFilter === 'flood'} onClick={() => setRiskFilter(f => f === 'flood' ? 'all' : 'flood')} Icon={Waves} compact />
+            <RiskChip label="ใกล้เขต" count={stats.near} color="var(--risk-near)" active={riskFilter === 'near'} onClick={() => setRiskFilter(f => f === 'near' ? 'all' : 'near')} Icon={AlertTriangle} compact />
+            <RiskChip label="ปลอดภัย" count={stats.safe} color="var(--risk-safe)" active={riskFilter === 'safe'} onClick={() => setRiskFilter(f => f === 'safe' ? 'all' : 'safe')} Icon={ShieldCheck} compact />
+          </div>
+          {/* Row 2: Type chips */}
+          <div className="flex items-stretch divide-x divide-[var(--border)]">
+            {TYPE_META.map(({ key, label, Icon }) => (
+              <TypeChip key={key} label={label} count={stats[key]} Icon={Icon} active={typeFilter === key} onClick={() => setTypeFilter(f => f === key ? 'all' : key)} compact />
+            ))}
+          </div>
+        </div>
 
-          {/* Total */}
+        {/* Desktop: single row */}
+        <div className="hidden sm:flex sm:items-stretch sm:divide-x sm:divide-[var(--border)]">
           <div className="flex min-w-[80px] flex-col items-start justify-center gap-0.5 px-5 py-3.5">
             <span className="text-[11px] font-semibold uppercase tracking-[0.09em] text-[var(--fg-subtle)]">ทั้งหมด</span>
             <span className="font-mono text-[22px] font-semibold leading-none text-[var(--fg)]">{persons.length}</span>
           </div>
-
-          {/* Risk stats */}
-          <RiskChip
-            label="ในน้ำ"
-            count={stats.flood}
-            color="var(--risk-flood)"
-            active={riskFilter === 'flood'}
-            onClick={() => setRiskFilter(f => f === 'flood' ? 'all' : 'flood')}
-            Icon={Waves}
-          />
-          <RiskChip
-            label="ใกล้เขต"
-            count={stats.near}
-            color="var(--risk-near)"
-            active={riskFilter === 'near'}
-            onClick={() => setRiskFilter(f => f === 'near' ? 'all' : 'near')}
-            Icon={AlertTriangle}
-          />
-          <RiskChip
-            label="ปลอดภัย"
-            count={stats.safe}
-            color="var(--risk-safe)"
-            active={riskFilter === 'safe'}
-            onClick={() => setRiskFilter(f => f === 'safe' ? 'all' : 'safe')}
-            Icon={ShieldCheck}
-          />
-
-          {/* Divider spacer */}
+          <RiskChip label="ในน้ำ" count={stats.flood} color="var(--risk-flood)" active={riskFilter === 'flood'} onClick={() => setRiskFilter(f => f === 'flood' ? 'all' : 'flood')} Icon={Waves} />
+          <RiskChip label="ใกล้เขต" count={stats.near} color="var(--risk-near)" active={riskFilter === 'near'} onClick={() => setRiskFilter(f => f === 'near' ? 'all' : 'near')} Icon={AlertTriangle} />
+          <RiskChip label="ปลอดภัย" count={stats.safe} color="var(--risk-safe)" active={riskFilter === 'safe'} onClick={() => setRiskFilter(f => f === 'safe' ? 'all' : 'safe')} Icon={ShieldCheck} />
           <div className="flex-1" />
-
-          {/* Type filters */}
           {TYPE_META.map(({ key, label, Icon }) => (
-            <TypeChip
-              key={key}
-              label={label}
-              count={stats[key]}
-              Icon={Icon}
-              active={typeFilter === key}
-              onClick={() => setTypeFilter(f => f === key ? 'all' : key)}
-            />
+            <TypeChip key={key} label={label} count={stats[key]} Icon={Icon} active={typeFilter === key} onClick={() => setTypeFilter(f => f === key ? 'all' : key)} />
           ))}
         </div>
       </div>
@@ -290,8 +271,6 @@ export function VulnerableClientView({ persons, canEdit, activeIncidents, addBut
         canEdit={canEdit}
         activeIncidents={activeIncidents}
         onView={handleView}
-        onEdit={handleEdit}
-        onDelete={handleDeleteRequest}
       />
 
       </>}
@@ -313,6 +292,10 @@ export function VulnerableClientView({ persons, canEdit, activeIncidents, addBut
           open={!!editId}
           onClose={() => setEditId(null)}
           onDone={() => { setEditId(null); router.refresh() }}
+          onDelete={canEdit ? () => {
+            const p = persons.find(x => String(x.id) === editId)
+            if (p) { setEditId(null); handleDeleteRequest(p) }
+          } : undefined}
           isNational={isNational}
           userProvince={userProvince}
           defaultCenter={FLOOD_CENTROID}
@@ -372,7 +355,7 @@ export function VulnerableClientView({ persons, canEdit, activeIncidents, addBut
 /* ── Sub-components ── */
 
 function RiskChip({
-  label, count, color, active, onClick, Icon,
+  label, count, color, active, onClick, Icon, compact,
 }: {
   label: string
   count: number
@@ -380,25 +363,23 @@ function RiskChip({
   active: boolean
   onClick: () => void
   Icon: React.ComponentType<{ size?: number; strokeWidth?: number; style?: React.CSSProperties }>
+  compact?: boolean
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="group flex min-w-[96px] flex-col items-start gap-0.5 px-5 py-3.5 transition-colors hover:bg-[var(--bg-sunken)]"
+      className={`group flex flex-1 flex-col items-start gap-0.5 transition-colors hover:bg-[var(--bg-sunken)] ${compact ? 'px-3 py-2.5' : 'min-w-[96px] px-5 py-3.5'}`}
       style={active ? { background: `color-mix(in oklch, ${color} 9%, transparent)` } : undefined}
     >
-      <div className="flex items-center gap-1.5" style={{ color }}>
-        <Icon size={13} strokeWidth={1.75} />
-        <span className="text-[11px] font-semibold uppercase tracking-[0.09em]">{label}</span>
+      <div className="flex items-center gap-1" style={{ color }}>
+        <Icon size={compact ? 11 : 13} strokeWidth={1.75} />
+        <span className={`font-semibold uppercase tracking-[0.09em] ${compact ? 'text-[10px]' : 'text-[11px]'}`}>{label}</span>
         {active && (
-          <span
-            className="ml-0.5 size-1.5 rounded-full"
-            style={{ background: color }}
-          />
+          <span className="ml-0.5 size-1.5 rounded-full" style={{ background: color }} />
         )}
       </div>
-      <span className="font-mono text-[22px] font-semibold leading-none" style={{ color }}>
+      <span className={`font-mono font-semibold leading-none ${compact ? 'text-[18px]' : 'text-[22px]'}`} style={{ color }}>
         {count}
       </span>
     </button>
@@ -406,27 +387,28 @@ function RiskChip({
 }
 
 function TypeChip({
-  label, count, Icon, active, onClick,
+  label, count, Icon, active, onClick, compact,
 }: {
   label: string
   count: number
   Icon: React.ComponentType<{ size?: number; strokeWidth?: number }>
   active: boolean
   onClick: () => void
+  compact?: boolean
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="flex flex-col items-center gap-1 px-4 py-3 text-[var(--fg-muted)] transition-colors hover:bg-[var(--bg-sunken)] hover:text-[var(--fg)]"
+      className={`flex flex-1 flex-col items-center gap-1 text-[var(--fg-muted)] transition-colors hover:bg-[var(--bg-sunken)] hover:text-[var(--fg)] ${compact ? 'py-2' : 'px-4 py-3'}`}
       style={active ? {
         background: 'color-mix(in oklch, var(--accent) 8%, transparent)',
         color: 'var(--accent)',
       } : undefined}
     >
-      <Icon size={14} strokeWidth={1.75} />
-      <span className="text-[10.5px] font-medium leading-none">{label}</span>
-      <span className="font-mono text-[13px] font-semibold leading-none">{count}</span>
+      <Icon size={compact ? 13 : 14} strokeWidth={1.75} />
+      <span className={`font-medium leading-none ${compact ? 'text-[10px]' : 'text-[10.5px]'}`}>{label}</span>
+      <span className={`font-mono font-semibold leading-none ${compact ? 'text-[12px]' : 'text-[13px]'}`}>{count}</span>
     </button>
   )
 }

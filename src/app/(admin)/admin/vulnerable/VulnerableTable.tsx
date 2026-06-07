@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Stethoscope, LifeBuoy, Waves, AlertTriangle, ShieldCheck, Zap, Pencil, Trash2 } from 'lucide-react'
+import { Stethoscope, LifeBuoy, Waves, AlertTriangle, ShieldCheck, Zap } from 'lucide-react'
 import { FieldActionSheet, type FieldActionMode } from '@/components/forms/FieldActionSheet'
 import type { Incident, RiskLevel, VulnerablePerson, VulnerableType } from '@/types'
 
@@ -40,11 +40,9 @@ interface LegacyProps {
   canEdit: boolean
   activeIncidents: Incident[]
   onView?: (p: VulnerablePerson) => void
-  onEdit?: (p: VulnerablePerson) => void
-  onDelete?: (p: VulnerablePerson) => void
 }
 
-export function VulnerableLegacyTable({ persons, canEdit, activeIncidents, onView, onEdit, onDelete }: LegacyProps) {
+export function VulnerableLegacyTable({ persons, canEdit, activeIncidents, onView }: LegacyProps) {
   const router = useRouter()
   const [action, setAction] = useState<{ id: string; name: string; mode: FieldActionMode; lifeSupport: string[] } | null>(null)
 
@@ -122,38 +120,24 @@ export function VulnerableLegacyTable({ persons, canEdit, activeIncidents, onVie
                         </td>
                         {canEdit && (
                           <td>
-                            <div className="flex justify-end gap-2">
+                            <div className="flex justify-end gap-1">
                               <button
                                 type="button"
                                 onClick={() => setAction({ id: String(p.id), name: p.name, mode: 'visit', lifeSupport: p.lifeSupport ?? [] })}
                                 className="gx-btn gx-btn-ghost gx-btn-sm hover:!border-[var(--accent)] hover:!text-[var(--accent)]"
+                                title="เยี่ยม"
                               >
                                 <Stethoscope size={14} strokeWidth={1.75} />
-                                เยี่ยม
+                                <span className="hidden lg:inline">เยี่ยม</span>
                               </button>
                               <button
                                 type="button"
                                 onClick={() => setAction({ id: String(p.id), name: p.name, mode: 'help', lifeSupport: p.lifeSupport ?? [] })}
                                 className="gx-btn gx-btn-ghost gx-btn-sm hover:!border-[var(--risk-flood)] hover:!text-[var(--risk-flood)]"
+                                title="ขอช่วยเหลือ"
                               >
                                 <LifeBuoy size={14} strokeWidth={1.75} />
-                                ขอช่วยเหลือ
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => onEdit?.(p)}
-                                className="gx-btn gx-btn-ghost gx-btn-sm hover:!border-[var(--fg-muted)] hover:!text-[var(--fg)]"
-                              >
-                                <Pencil size={13} strokeWidth={1.75} />
-                                แก้ไข
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => onDelete?.(p)}
-                                className="gx-btn gx-btn-ghost gx-btn-sm hover:!border-[var(--risk-flood)] hover:!text-[var(--risk-flood)]"
-                              >
-                                <Trash2 size={13} strokeWidth={1.75} />
-                                ลบ
+                                <span className="hidden lg:inline">ขอช่วยเหลือ</span>
                               </button>
                             </div>
                           </td>
@@ -227,13 +211,11 @@ interface Props {
   canEdit: boolean
   activeIncidents: Incident[]
   onView?: (p: VulnerablePerson) => void
-  onEdit?: (p: VulnerablePerson) => void
-  onDelete?: (p: VulnerablePerson) => void
 }
 
 type ActionState = { id: string; name: string; mode: FieldActionMode; lifeSupport: string[] }
 
-export function VulnerableWorklist({ persons, canEdit, activeIncidents, onView, onEdit, onDelete }: Props) {
+export function VulnerableWorklist({ persons, canEdit, activeIncidents, onView }: Props) {
   const router = useRouter()
   const [action, setAction] = useState<ActionState | null>(null)
 
@@ -336,38 +318,24 @@ export function VulnerableWorklist({ persons, canEdit, activeIncidents, onView, 
 
                     {/* Actions */}
                     {canEdit && (
-                      <div className="flex shrink-0 items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex shrink-0 items-center gap-1" onClick={(e) => e.stopPropagation()}>
                         <button
                           type="button"
                           onClick={() => setAction({ id: String(p.id), name: p.name, mode: 'visit', lifeSupport: p.lifeSupport ?? [] })}
                           className="gx-btn gx-btn-ghost gx-btn-sm hover:!border-[var(--accent)] hover:!text-[var(--accent)]"
+                          title="เยี่ยม"
                         >
                           <Stethoscope size={13} strokeWidth={1.75} />
-                          เยี่ยม
+                          <span className="hidden sm:inline">เยี่ยม</span>
                         </button>
                         <button
                           type="button"
                           onClick={() => setAction({ id: String(p.id), name: p.name, mode: 'help', lifeSupport: p.lifeSupport ?? [] })}
                           className="gx-btn gx-btn-ghost gx-btn-sm hover:!border-[var(--risk-flood)] hover:!text-[var(--risk-flood)]"
+                          title="ขอช่วย"
                         >
                           <LifeBuoy size={13} strokeWidth={1.75} />
-                          ขอช่วย
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onEdit?.(p)}
-                          className="gx-btn gx-btn-ghost gx-btn-sm hover:!border-[var(--fg-muted)] hover:!text-[var(--fg)]"
-                        >
-                          <Pencil size={13} strokeWidth={1.75} />
-                          แก้ไข
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onDelete?.(p)}
-                          className="gx-btn gx-btn-ghost gx-btn-sm hover:!border-[var(--risk-flood)] hover:!text-[var(--risk-flood)]"
-                        >
-                          <Trash2 size={13} strokeWidth={1.75} />
-                          ลบ
+                          <span className="hidden sm:inline">ขอช่วย</span>
                         </button>
                       </div>
                     )}

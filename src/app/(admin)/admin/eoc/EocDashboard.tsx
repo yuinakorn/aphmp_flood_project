@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { useIsMobile } from '@/hooks/use-is-mobile'
 import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import {
@@ -134,6 +135,7 @@ const priorityMeta = (p: string): { tone: string; label: string } =>
 
 export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, coverageRows, counters, dispositionSummary, overview, casualties, surveillanceEntries, incidentId, mapHiddenDefault }: Props) {
   const router = useRouter()
+  const isMobile = useIsMobile()
   const { viewRole } = useRoleView()
   const canCommand = viewRole === 'officer' || viewRole === 'admin'
 
@@ -875,7 +877,7 @@ export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, 
 
       <Sheet open={mapExpanded} onOpenChange={setMapExpanded}>
         <SheetContent
-          side="right"
+          side={isMobile ? 'bottom' : 'right'}
           className="!inset-2 !h-auto !w-auto !max-w-none gap-0 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] p-0 sm:!inset-4"
         >
           <SheetHeader className="border-b border-[var(--border)] px-4 py-3">

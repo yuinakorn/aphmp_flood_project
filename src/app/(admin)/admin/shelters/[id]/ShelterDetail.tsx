@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowLeft, Tent, Plus, X, Search, UserPlus, Hospital,
   LogOut, AlertTriangle, ShieldAlert, Loader2, FileDown, Pencil, Trash2,
@@ -11,10 +11,10 @@ import type {
   AdmissionPerson, AdmissionStatus, AdmissionExitReason, RescueTeam, ShelterZone, ReferralStatus,
 } from '@/types'
 import { REFERRAL_STATUS_LABEL, DISCHARGE_REASONS, EXIT_REASON_LABEL, LIFE_SUPPORT_LABEL, VULNERABLE_TYPE_LABEL } from '@/types'
-import { EditShelterButton } from './EditShelterButton'
 
 interface ShelterMeta {
   id: string; name: string; type: string
+  province: string | null
   capacity: number | null; bedriddenCapacity: number | null
   oxygenSupport: boolean; wheelchairSupport: boolean; electricitySupport: boolean
   contact: string | null
@@ -174,7 +174,6 @@ export function ShelterDetail({ shelter, zones, teams, canEdit }: Props) {
           >
             <FileDown size={15} strokeWidth={1.75} /> ส่งออก .xlsx
           </a>
-          {canEdit && <EditShelterButton initial={shelter} />}
           {canEdit && (
             <button type="button" onClick={() => setIntakeOpen(true)} className="gx-btn gx-btn-primary">
               <Plus size={16} /> รับเข้าใหม่
@@ -355,8 +354,8 @@ export function ShelterDetail({ shelter, zones, teams, canEdit }: Props) {
                   </button>
                   {a.status === 'admitted' && (
                     <>
-                      <button type="button" onClick={() => setTransferTarget(a)} title="ส่ง รพ." className="gx-btn gx-btn-ghost gx-btn-sm hover:!border-[var(--risk-near)] hover:!text-[var(--risk-near)]">
-                        <Hospital size={14} /> ส่ง รพ.
+                      <button type="button" onClick={() => setTransferTarget(a)} title="ส่งต่อ รพ." className="gx-btn gx-btn-ghost gx-btn-sm hover:!border-[var(--risk-near)] hover:!text-[var(--risk-near)]">
+                        <Hospital size={14} /> ส่งต่อ รพ.
                       </button>
                       <button type="button" onClick={() => setDischargeTarget(a)} title="ย้ายออก" className="gx-btn gx-btn-ghost gx-btn-sm">
                         <LogOut size={14} /> ย้ายออก
@@ -573,8 +572,12 @@ function PersonDetailSheet({
         className="fixed inset-0 z-40 bg-black/30 backdrop-blur-[2px]"
         onClick={onClose}
       />
-      {/* Sheet */}
-      <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-sm flex-col overflow-hidden border-l border-[var(--border)] bg-[var(--bg-elevated)] shadow-2xl">
+      {/* Sheet — mobile: bottom sheet, desktop: right panel */}
+      <div className="fixed inset-x-0 bottom-0 z-50 flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-t-xl border-t border-[var(--border)] bg-[var(--bg-elevated)] shadow-2xl sm:inset-x-auto sm:inset-y-0 sm:right-0 sm:max-h-none sm:w-full sm:max-w-sm sm:rounded-none sm:border-l sm:border-t-0">
+        {/* Grab handle — mobile only */}
+        <div aria-hidden className="flex justify-center pt-2 sm:hidden">
+          <span className="h-1 w-9 rounded-full bg-[var(--border-strong)]" />
+        </div>
         {/* Header */}
         <div className="flex items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--bg-sunken)] px-5 py-3.5">
           <div className="flex min-w-0 items-center gap-2.5">
@@ -714,22 +717,35 @@ function PersonDetailSheet({
           )}
         </div>
 
-        {/* Footer actions — แหล่งรวม action บนมือถือ (แถวซ่อนปุ่มไว้) */}
+        {/* Footer actions */}
         {hasActions && (
           <div className="flex shrink-0 items-center gap-2 border-t border-[var(--border)] bg-[var(--bg-sunken)] px-4 py-3">
             {isAdmitted && onTransfer && (
-              <button type="button" onClick={onTransfer} className="gx-btn gx-btn-ghost gx-btn-sm flex-1 hover:!border-[var(--risk-near)] hover:!text-[var(--risk-near)]">
-                <Hospital size={14} /> ส่ง รพ.
+              <button
+                type="button"
+                onClick={onTransfer}
+                className="gx-btn flex-1 border-[color-mix(in_oklch,var(--risk-near)_50%,transparent)] bg-[color-mix(in_oklch,var(--risk-near)_8%,transparent)] text-[var(--risk-near)] hover:bg-[color-mix(in_oklch,var(--risk-near)_15%,transparent)]"
+              >
+                <Hospital size={15} /> ส่งต่อ รพ.
               </button>
             )}
             {isAdmitted && onDischarge && (
-              <button type="button" onClick={onDischarge} className="gx-btn gx-btn-ghost gx-btn-sm flex-1">
-                <LogOut size={14} /> ย้ายออก
+              <button
+                type="button"
+                onClick={onDischarge}
+                className="gx-btn flex-1 border-[var(--border)] bg-[var(--bg-elevated)] text-[var(--fg)] hover:border-[var(--border-strong)] hover:bg-[var(--bg-sunken)]"
+              >
+                <LogOut size={15} /> ย้ายออก
               </button>
             )}
             {onDelete && (
-              <button type="button" onClick={onDelete} title="ลบรายการ" className="gx-btn gx-btn-ghost gx-btn-sm hover:!border-[var(--risk-flood)] hover:!text-[var(--risk-flood)]">
-                <Trash2 size={14} />
+              <button
+                type="button"
+                onClick={onDelete}
+                title="ลบรายการ"
+                className="gx-btn shrink-0 border-[var(--border)] text-[var(--fg-muted)] hover:border-[var(--risk-flood)] hover:text-[var(--risk-flood)]"
+              >
+                <Trash2 size={15} />
               </button>
             )}
           </div>
@@ -768,6 +784,54 @@ function EditAdmissionModal({ shelterId, admission, zones, teams, onClose, onSav
   const [conditions, setConditions] = useState(p?.conditions ?? '')
   const [drugAllergy, setDrugAllergy] = useState(p?.drugAllergy ?? '')
   const [foodAllergy, setFoodAllergy] = useState(p?.foodAllergy ?? '')
+
+  // geo cascade
+  interface GeoOpt { id: number; nameTh: string }
+  const [provinces, setProvinces] = useState<GeoOpt[]>([])
+  const [districts, setDistricts] = useState<GeoOpt[]>([])
+  const [subdistricts, setSubdistricts] = useState<GeoOpt[]>([])
+  const [provinceId, setProvinceId] = useState<number | ''>('')
+  const [districtId, setDistrictId] = useState<number | ''>('')
+  const [subdistrictId, setSubdistrictId] = useState<number | ''>('')
+  const pendingAmphoe = useRef(p?.amphoe ?? '')
+  const pendingTambon = useRef(p?.tambon ?? '')
+
+  useEffect(() => {
+    fetch('/api/geo/provinces', { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((d) => { if (Array.isArray(d)) setProvinces(d) })
+      .catch(() => {})
+  }, [])
+
+  function loadDistricts(pid: number) {
+    fetch(`/api/geo/districts?provinceId=${pid}`)
+      .then((r) => r.json())
+      .then((d) => { if (Array.isArray(d)) setDistricts(d) })
+      .catch(() => {})
+  }
+  function loadSubdistricts(did: number) {
+    fetch(`/api/geo/subdistricts?districtId=${did}`)
+      .then((r) => r.json())
+      .then((d) => { if (Array.isArray(d)) setSubdistricts(d) })
+      .catch(() => {})
+  }
+  function onSelectProvince(id: number | '') {
+    setProvinceId(id); setDistrictId(''); setSubdistrictId('')
+    setDistricts([]); setSubdistricts([])
+    setAmphoe(''); setTambon('')
+    pendingAmphoe.current = ''; pendingTambon.current = ''
+    if (id !== '') loadDistricts(id)
+  }
+  function onSelectDistrict(id: number | '') {
+    setDistrictId(id); setSubdistrictId(''); setSubdistricts([])
+    setAmphoe(id === '' ? '' : (districts.find((o) => o.id === id)?.nameTh ?? ''))
+    setTambon(''); pendingTambon.current = ''
+    if (id !== '') loadSubdistricts(id)
+  }
+  function onSelectSubdistrict(id: number | '') {
+    setSubdistrictId(id)
+    setTambon(id === '' ? '' : (subdistricts.find((o) => o.id === id)?.nameTh ?? ''))
+  }
 
   // admission fields
   const [zoneId, setZoneId] = useState(admission.zoneId ?? '')
@@ -831,105 +895,156 @@ function EditAdmissionModal({ shelterId, admission, zones, teams, onClose, onSav
   const L = 'mb-1 block text-xs font-medium text-[var(--fg-muted)]'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] shadow-2xl">
-        <div className="flex items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--bg-sunken)] px-5 py-3.5">
+    <div
+      className="fixed inset-0 z-50 flex flex-col justify-end bg-black/40 backdrop-blur-sm sm:items-center sm:justify-center sm:p-4"
+      onClick={onClose}
+    >
+      <div
+        className="flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-xl border-t border-[var(--border)] bg-[var(--bg-elevated)] shadow-2xl sm:max-w-xl sm:rounded-xl sm:border"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Grab handle — mobile only */}
+        <div aria-hidden className="flex justify-center pt-2 sm:hidden">
+          <span className="h-1 w-9 rounded-full bg-[var(--border-strong)]" />
+        </div>
+
+        {/* Header */}
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[var(--border)] px-5 py-3.5">
           <div className="flex items-center gap-2.5">
             <Pencil size={16} className="text-[var(--accent)]" />
-            <h2 className="text-base font-semibold">แก้ไขข้อมูลผู้พักพิง</h2>
+            <h2 className="text-[15px] font-semibold">แก้ไขข้อมูลผู้พักพิง</h2>
           </div>
-          <button type="button" onClick={onClose} className="flex size-8 items-center justify-center rounded-md text-[var(--fg-muted)] hover:bg-[var(--bg)] hover:text-[var(--fg)]">
+          <button type="button" onClick={onClose} className="flex size-8 items-center justify-center rounded-md text-[var(--fg-muted)] hover:bg-[var(--bg-sunken)] hover:text-[var(--fg)]">
             <X size={16} />
           </button>
         </div>
 
+        {/* Body */}
         <div className="flex-1 overflow-y-auto divide-y divide-[var(--border)]">
+
           {/* ── ข้อมูลบุคคล ── */}
-          <section className="p-5 space-y-2.5">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--fg-subtle)]">ข้อมูลบุคคล</p>
-            <div className="grid grid-cols-6 gap-2.5">
-              <div className="col-span-2">
+          <section className="space-y-3 p-5">
+            <p className="text-[10.5px] font-semibold uppercase tracking-wider text-[var(--fg-subtle)]">ข้อมูลบุคคล</p>
+
+            {/* คำนำหน้า + ชื่อ + นามสกุล */}
+            <div className="grid grid-cols-[88px_1fr_1fr] gap-2">
+              <div>
                 <label className={L}>คำนำหน้า</label>
                 <select value={prefix} onChange={(e) => setPrefix(e.target.value)} className={F}>
                   {['นาย', 'นาง', 'นางสาว', 'ด.ช.', 'ด.ญ.'].map((pr) => <option key={pr}>{pr}</option>)}
                 </select>
               </div>
-              <div className="col-span-2">
+              <div>
                 <label className={L}>ชื่อ *</label>
                 <input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="ชื่อ" className={F} />
               </div>
-              <div className="col-span-2">
+              <div>
                 <label className={L}>นามสกุล</label>
                 <input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="นามสกุล" className={F} />
               </div>
+            </div>
 
-              <div className="col-span-2">
+            {/* วันเกิด + อายุ + เพศ + สัญชาติ */}
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <div>
                 <label className={L}>วันเกิด</label>
                 <input type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} className={F} />
               </div>
-              <div className="col-span-2">
+              <div>
                 <label className={L}>อายุ (ปี)</label>
                 <input value={age} onChange={(e) => setAge(e.target.value.replace(/\D/g, ''))} placeholder="อายุ" className={`${F} font-mono`} />
               </div>
-              <div className="col-span-1">
+              <div>
                 <label className={L}>เพศ</label>
                 <select value={sex} onChange={(e) => setSex(e.target.value)} className={F}>
                   <option>ชาย</option><option>หญิง</option>
                 </select>
               </div>
-              <div className="col-span-1">
+              <div>
                 <label className={L}>สัญชาติ</label>
                 <select value={nationality} onChange={(e) => setNationality(e.target.value)} className={F}>
                   {['ไทย', 'พม่า', 'ลาว', 'กัมพูชา', 'ไร้สถานะ', 'อื่นๆ'].map((n) => <option key={n}>{n}</option>)}
                 </select>
               </div>
+            </div>
 
-              <div className="col-span-3">
+            {/* โทร + ที่อยู่ */}
+            <div className="grid grid-cols-2 gap-2">
+              <div>
                 <label className={L}>เบอร์โทรศัพท์</label>
-                <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="เบอร์โทร" className={F} />
-              </div>
-              <div className="col-span-3">
-                <label className={L}>ที่อยู่ เลขที่บ้าน</label>
-                <input value={hno} onChange={(e) => setHno(e.target.value)} placeholder="เลขที่" className={F} />
+                <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="08x-xxx-xxxx" className={F} inputMode="tel" />
               </div>
               <div className="col-span-2">
+                <label className={L}>จังหวัด</label>
+                <select
+                  className={F}
+                  value={provinceId === '' ? '' : String(provinceId)}
+                  onChange={(e) => onSelectProvince(e.target.value === '' ? '' : Number(e.target.value))}
+                >
+                  <option value="">— เลือกจังหวัด —</option>
+                  {provinces.map((p) => <option key={p.id} value={String(p.id)}>{p.nameTh}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={L}>อำเภอ</label>
+                <select
+                  className={F}
+                  value={districtId === '' ? '' : String(districtId)}
+                  disabled={provinceId === ''}
+                  onChange={(e) => onSelectDistrict(e.target.value === '' ? '' : Number(e.target.value))}
+                >
+                  <option value="">{provinceId === '' ? 'เลือกจังหวัดก่อน' : amphoe || '— เลือกอำเภอ —'}</option>
+                  {districts.map((d) => <option key={d.id} value={String(d.id)}>{d.nameTh}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={L}>ตำบล</label>
+                <select
+                  className={F}
+                  value={subdistrictId === '' ? '' : String(subdistrictId)}
+                  disabled={districtId === ''}
+                  onChange={(e) => onSelectSubdistrict(e.target.value === '' ? '' : Number(e.target.value))}
+                >
+                  <option value="">{districtId === '' ? 'เลือกอำเภอก่อน' : tambon || '— เลือกตำบล —'}</option>
+                  {subdistricts.map((s) => <option key={s.id} value={String(s.id)}>{s.nameTh}</option>)}
+                </select>
+              </div>
+              <div>
                 <label className={L}>หมู่ที่</label>
                 <input value={villno} onChange={(e) => setVillno(e.target.value)} placeholder="หมู่" className={F} />
               </div>
-              <div className="col-span-2">
-                <label className={L}>ตำบล</label>
-                <input value={tambon} onChange={(e) => setTambon(e.target.value)} placeholder="ตำบล" className={F} />
-              </div>
-              <div className="col-span-2">
-                <label className={L}>อำเภอ</label>
-                <input value={amphoe} onChange={(e) => setAmphoe(e.target.value)} placeholder="อำเภอ" className={F} />
+              <div>
+                <label className={L}>เลขที่บ้าน</label>
+                <input value={hno} onChange={(e) => setHno(e.target.value)} placeholder="เลขที่" className={F} />
               </div>
             </div>
           </section>
 
           {/* ── ข้อมูลสุขภาพ ── */}
-          <section className="p-5 space-y-2.5">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--fg-subtle)]">ข้อมูลสุขภาพ</p>
-            <div className="grid grid-cols-2 gap-2.5">
-              <div className="col-span-2">
+          <section className="space-y-3 p-5">
+            <p className="text-[10.5px] font-semibold uppercase tracking-wider text-[var(--fg-subtle)]">ข้อมูลสุขภาพ</p>
+            <div className="space-y-2">
+              <div>
                 <label className={L}>โรคประจำตัว</label>
                 <input value={conditions} onChange={(e) => setConditions(e.target.value)} placeholder="เช่น เบาหวาน ความดัน หัวใจ" className={F} />
               </div>
-              <div>
-                <label className={L}>แพ้ยา</label>
-                <input value={drugAllergy} onChange={(e) => setDrugAllergy(e.target.value)} placeholder="ระบุยาที่แพ้" className={F} />
-              </div>
-              <div>
-                <label className={L}>แพ้อาหาร</label>
-                <input value={foodAllergy} onChange={(e) => setFoodAllergy(e.target.value)} placeholder="ระบุอาหารที่แพ้" className={F} />
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className={L}>แพ้ยา</label>
+                  <input value={drugAllergy} onChange={(e) => setDrugAllergy(e.target.value)} placeholder="ระบุยาที่แพ้" className={F} />
+                </div>
+                <div>
+                  <label className={L}>แพ้อาหาร</label>
+                  <input value={foodAllergy} onChange={(e) => setFoodAllergy(e.target.value)} placeholder="ระบุอาหารที่แพ้" className={F} />
+                </div>
               </div>
             </div>
           </section>
 
           {/* ── รายละเอียดการพักอาศัย ── */}
-          <section className="p-5 space-y-2.5">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--fg-subtle)]">รายละเอียดการพักอาศัย</p>
-            <div className="grid grid-cols-2 gap-2.5">
+          <section className="space-y-3 p-5">
+            <p className="text-[10.5px] font-semibold uppercase tracking-wider text-[var(--fg-subtle)]">การพักอาศัย</p>
+            <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className={L}>โซน/อาคาร</label>
                 <select value={zoneId} onChange={(e) => setZoneId(e.target.value)} className={F}>
@@ -938,11 +1053,11 @@ function EditAdmissionModal({ shelterId, admission, zones, teams, onClose, onSav
                 </select>
               </div>
               <div>
-                <label className={L}>จุดรับเข้า (Admit)</label>
+                <label className={L}>จุดรับเข้า</label>
                 <input value={intakePoint} onChange={(e) => setIntakePoint(e.target.value)} placeholder="จุด Admit" className={F} />
               </div>
               <div>
-                <label className={L}>ทีม/หน่วยนำส่ง</label>
+                <label className={L}>ทีมนำส่ง</label>
                 <select value={broughtByTeamId} onChange={(e) => { setBroughtByTeamId(e.target.value); if (e.target.value) setBroughtByText('') }} className={F}>
                   <option value="">— เลือกทีม —</option>
                   {teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
@@ -966,11 +1081,12 @@ function EditAdmissionModal({ shelterId, admission, zones, teams, onClose, onSav
           </section>
         </div>
 
-        <div className="flex items-center justify-between gap-3 border-t border-[var(--border)] bg-[var(--bg-sunken)] px-5 py-3">
-          {error ? <span className="text-xs text-[var(--risk-flood)]">{error}</span> : <span />}
-          <div className="flex gap-2">
-            <button type="button" onClick={onClose} className="gx-btn gx-btn-ghost gx-btn-sm">ยกเลิก</button>
-            <button type="button" onClick={submit} disabled={saving} className="gx-btn gx-btn-primary gx-btn-sm disabled:opacity-50">
+        {/* Footer */}
+        <div className="flex shrink-0 flex-col gap-2 border-t border-[var(--border)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          {error && <p className="text-[12px] text-[var(--risk-flood)]">{error}</p>}
+          <div className="flex gap-2 sm:ml-auto">
+            <button type="button" onClick={onClose} className="gx-btn gx-btn-ghost flex-1 sm:flex-none">ยกเลิก</button>
+            <button type="button" onClick={submit} disabled={saving} className="gx-btn gx-btn-primary flex-1 disabled:opacity-50 sm:flex-none">
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Pencil size={14} />} บันทึก
             </button>
           </div>
@@ -1020,8 +1136,9 @@ function TransferModal({ admission, onClose, onSaved }: { admission: AdmissionRo
   const fieldCls = 'h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 text-sm outline-none focus:border-[var(--accent)]'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-      <div className="flex w-full max-w-lg flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-end bg-black/40 backdrop-blur-sm sm:items-center sm:justify-center sm:p-4">
+      <div className="flex w-full flex-col overflow-hidden rounded-t-2xl border border-[var(--border)] bg-[var(--bg-elevated)] shadow-2xl sm:max-w-lg sm:rounded-xl">
+        <div className="flex justify-center pt-3 sm:hidden"><div className="h-1 w-10 rounded-full bg-[var(--border)]" /></div>
         <div className="flex items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--bg-sunken)] px-5 py-3.5">
           <div className="flex items-center gap-2.5">
             <Hospital size={18} className="text-[var(--risk-near)]" />
@@ -1074,11 +1191,11 @@ function TransferModal({ admission, onClose, onSaved }: { admission: AdmissionRo
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-3 border-t border-[var(--border)] bg-[var(--bg-sunken)] px-5 py-3">
-          {error ? <span className="text-xs text-[var(--risk-flood)]">{error}</span> : <span />}
-          <div className="flex gap-2">
-            <button type="button" onClick={onClose} className="gx-btn gx-btn-ghost gx-btn-sm">ยกเลิก</button>
-            <button type="button" onClick={submit} disabled={saving} className="gx-btn gx-btn-primary gx-btn-sm disabled:opacity-50">
+        <div className="border-t border-[var(--border)] bg-[var(--bg-sunken)] px-4 pb-6 pt-4 sm:flex sm:items-center sm:justify-between sm:px-5 sm:pb-3 sm:pt-3">
+          {error && <p className="mb-3 text-xs text-[var(--risk-flood)] sm:mb-0">{error}</p>}
+          <div className="flex gap-2 sm:ml-auto">
+            <button type="button" onClick={onClose} className="gx-btn gx-btn-ghost gx-btn-sm flex-1 sm:flex-none">ยกเลิก</button>
+            <button type="button" onClick={submit} disabled={saving} className="gx-btn gx-btn-primary gx-btn-sm flex-1 sm:flex-none disabled:opacity-50">
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Hospital size={14} />} ยืนยันส่งต่อ
             </button>
           </div>
@@ -1173,6 +1290,41 @@ function IntakeModal({ shelterId, zones, teams, onClose, onSaved }: IntakeModalP
   const [tambon, setTambon] = useState('')
   const [amphoe, setAmphoe] = useState('')
   const [conditions, setConditions] = useState('')
+
+  // geo cascade for walk-in address
+  interface IGeoOpt { id: number; nameTh: string }
+  const [geoProvinces, setGeoProvinces] = useState<IGeoOpt[]>([])
+  const [geoDistricts, setGeoDistricts] = useState<IGeoOpt[]>([])
+  const [geoSubdistricts, setGeoSubdistricts] = useState<IGeoOpt[]>([])
+  const [geoProvinceId, setGeoProvinceId] = useState<number | ''>('')
+  const [geoDistrictId, setGeoDistrictId] = useState<number | ''>('')
+  const [geoSubdistrictId, setGeoSubdistrictId] = useState<number | ''>('')
+
+  useEffect(() => {
+    fetch('/api/geo/provinces', { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((d: IGeoOpt[]) => { if (Array.isArray(d)) setGeoProvinces(d) })
+      .catch(() => {})
+  }, [])
+
+  function onGeoProvince(id: number | '') {
+    setGeoProvinceId(id); setGeoDistrictId(''); setGeoSubdistrictId('')
+    setGeoDistricts([]); setGeoSubdistricts([])
+    setAmphoe(''); setTambon('')
+    if (id !== '') fetch(`/api/geo/districts?provinceId=${id}`).then((r) => r.json())
+      .then((d: IGeoOpt[]) => { if (Array.isArray(d)) setGeoDistricts(d) }).catch(() => {})
+  }
+  function onGeoDistrict(id: number | '') {
+    setGeoDistrictId(id); setGeoSubdistrictId(''); setGeoSubdistricts([])
+    setAmphoe(id === '' ? '' : (geoDistricts.find((o) => o.id === id)?.nameTh ?? ''))
+    setTambon('')
+    if (id !== '') fetch(`/api/geo/subdistricts?districtId=${id}`).then((r) => r.json())
+      .then((d: IGeoOpt[]) => { if (Array.isArray(d)) setGeoSubdistricts(d) }).catch(() => {})
+  }
+  function onGeoSubdistrict(id: number | '') {
+    setGeoSubdistrictId(id)
+    setTambon(id === '' ? '' : (geoSubdistricts.find((o) => o.id === id)?.nameTh ?? ''))
+  }
   const [foodAllergy, setFoodAllergy] = useState('')
   const [drugAllergy, setDrugAllergy] = useState('')
 
@@ -1264,9 +1416,10 @@ function IntakeModal({ shelterId, zones, teams, onClose, onSaved }: IntakeModalP
   const L = 'mb-1 block text-xs font-medium text-[var(--fg-muted)]'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-end bg-black/40 backdrop-blur-sm sm:items-center sm:justify-center sm:p-4">
+      <div className="flex max-h-[88vh] w-full flex-col overflow-hidden rounded-t-2xl border border-[var(--border)] bg-[var(--bg-elevated)] shadow-2xl sm:max-h-[92vh] sm:max-w-2xl sm:rounded-xl">
         {/* Header */}
+        <div className="flex justify-center pt-3 sm:hidden"><div className="h-1 w-10 rounded-full bg-[var(--border)]" /></div>
         <div className="flex items-center justify-between gap-3 border-b border-[var(--border)] bg-[var(--bg-sunken)] px-5 py-3.5">
           <div className="flex items-center gap-2.5">
             <UserPlus size={18} className="text-[var(--accent)]" />
@@ -1379,25 +1532,25 @@ function IntakeModal({ shelterId, zones, teams, onClose, onSaved }: IntakeModalP
           {tab === 'walkin' && (
             <>
               {/* ข้อมูลบุคคล */}
-              <section className="p-5 space-y-2.5">
+              <section className="space-y-2.5 p-5">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--fg-subtle)]">ข้อมูลบุคคล</p>
-                <div className="grid grid-cols-6 gap-2.5">
-                  <div className="col-span-2">
+                <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-6">
+                  <div className="col-span-1 sm:col-span-2">
                     <label className={L}>คำนำหน้า</label>
                     <select value={prefix} onChange={(e) => setPrefix(e.target.value)} className={F}>
                       {['นาย', 'นาง', 'นางสาว', 'ด.ช.', 'ด.ญ.'].map((p) => <option key={p}>{p}</option>)}
                     </select>
                   </div>
-                  <div className="col-span-2">
+                  <div className="col-span-1 sm:col-span-2">
                     <label className={L}>ชื่อ *</label>
                     <input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="ชื่อ" className={F} />
                   </div>
-                  <div className="col-span-2">
+                  <div className="col-span-2 sm:col-span-2">
                     <label className={L}>นามสกุล</label>
                     <input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="นามสกุล" className={F} />
                   </div>
 
-                  <div className="col-span-3">
+                  <div className="col-span-2 sm:col-span-3">
                     <label className={L}>เลขบัตรประชาชน 13 หลัก</label>
                     <input
                       value={nationalId}
@@ -1406,29 +1559,29 @@ function IntakeModal({ shelterId, zones, teams, onClose, onSaved }: IntakeModalP
                       className={`${F} font-mono tracking-widest`}
                     />
                   </div>
-                  <div className="col-span-3">
+                  <div className="col-span-2 sm:col-span-3">
                     <label className={L}>วัน/เดือน/ปีเกิด</label>
                     <input type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} className={F} />
                   </div>
 
-                  <div className="col-span-2">
+                  <div className="col-span-1 sm:col-span-2">
                     <label className={L}>อายุ (ปี)</label>
                     <input value={age} onChange={(e) => setAge(e.target.value.replace(/\D/g, ''))} placeholder="อายุ" className={`${F} font-mono`} />
                   </div>
-                  <div className="col-span-2">
+                  <div className="col-span-1 sm:col-span-2">
                     <label className={L}>เพศ</label>
                     <select value={sex} onChange={(e) => setSex(e.target.value)} className={F}>
                       <option>ชาย</option><option>หญิง</option>
                     </select>
                   </div>
-                  <div className="col-span-2">
+                  <div className="col-span-2 sm:col-span-2">
                     <label className={L}>สัญชาติ</label>
                     <select value={nationality} onChange={(e) => setNationality(e.target.value)} className={F}>
                       {['ไทย', 'พม่า', 'ลาว', 'กัมพูชา', 'ไร้สถานะ', 'อื่นๆ'].map((n) => <option key={n}>{n}</option>)}
                     </select>
                   </div>
 
-                  <div className="col-span-6">
+                  <div className="col-span-2 sm:col-span-6">
                     <label className={L}>หมายเลขโทรศัพท์</label>
                     <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="เบอร์โทร" className={F} />
                   </div>
@@ -1436,24 +1589,55 @@ function IntakeModal({ shelterId, zones, teams, onClose, onSaved }: IntakeModalP
               </section>
 
               {/* ที่อยู่ */}
-              <section className="p-5 space-y-2.5">
+              <section className="space-y-2.5 p-5">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--fg-subtle)]">ที่อยู่</p>
-                <div className="grid grid-cols-6 gap-2.5">
+                <div className="grid grid-cols-2 gap-2.5">
+                  {/* จังหวัด */}
                   <div className="col-span-2">
+                    <label className={L}>จังหวัด</label>
+                    <select
+                      value={geoProvinceId === '' ? '' : String(geoProvinceId)}
+                      onChange={(e) => onGeoProvince(e.target.value === '' ? '' : Number(e.target.value))}
+                      className={F}
+                    >
+                      <option value="">— เลือกจังหวัด —</option>
+                      {geoProvinces.map((p) => <option key={p.id} value={String(p.id)}>{p.nameTh}</option>)}
+                    </select>
+                  </div>
+                  {/* อำเภอ */}
+                  <div>
+                    <label className={L}>อำเภอ</label>
+                    <select
+                      value={geoDistrictId === '' ? '' : String(geoDistrictId)}
+                      disabled={geoProvinceId === ''}
+                      onChange={(e) => onGeoDistrict(e.target.value === '' ? '' : Number(e.target.value))}
+                      className={F}
+                    >
+                      <option value="">{geoProvinceId === '' ? 'เลือกจังหวัดก่อน' : '— เลือกอำเภอ —'}</option>
+                      {geoDistricts.map((d) => <option key={d.id} value={String(d.id)}>{d.nameTh}</option>)}
+                    </select>
+                  </div>
+                  {/* ตำบล */}
+                  <div>
+                    <label className={L}>ตำบล</label>
+                    <select
+                      value={geoSubdistrictId === '' ? '' : String(geoSubdistrictId)}
+                      disabled={geoDistrictId === ''}
+                      onChange={(e) => onGeoSubdistrict(e.target.value === '' ? '' : Number(e.target.value))}
+                      className={F}
+                    >
+                      <option value="">{geoDistrictId === '' ? 'เลือกอำเภอก่อน' : '— เลือกตำบล —'}</option>
+                      {geoSubdistricts.map((s) => <option key={s.id} value={String(s.id)}>{s.nameTh}</option>)}
+                    </select>
+                  </div>
+                  {/* เลขที่บ้าน + หมู่ที่ */}
+                  <div>
                     <label className={L}>เลขที่บ้าน</label>
                     <input value={hno} onChange={(e) => setHno(e.target.value)} placeholder="เลขที่" className={F} />
                   </div>
-                  <div className="col-span-1">
+                  <div>
                     <label className={L}>หมู่ที่</label>
                     <input value={villno} onChange={(e) => setVillno(e.target.value)} placeholder="หมู่" className={F} />
-                  </div>
-                  <div className="col-span-3">
-                    <label className={L}>ตำบล</label>
-                    <input value={tambon} onChange={(e) => setTambon(e.target.value)} placeholder="ตำบล" className={F} />
-                  </div>
-                  <div className="col-span-6">
-                    <label className={L}>อำเภอ</label>
-                    <input value={amphoe} onChange={(e) => setAmphoe(e.target.value)} placeholder="อำเภอ" className={F} />
                   </div>
                 </div>
               </section>
@@ -1522,17 +1706,15 @@ function IntakeModal({ shelterId, zones, teams, onClose, onSaved }: IntakeModalP
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between gap-3 border-t border-[var(--border)] bg-[var(--bg-sunken)] px-5 py-3">
-          {error ? (
-            <span className="text-xs text-[var(--risk-flood)]">{error}</span>
-          ) : tab === 'search' && !picked ? (
-            <span className="text-xs text-[var(--fg-subtle)]">เลือกรายชื่อจากผลค้นหาก่อน</span>
-          ) : (
-            <span />
+        <div className="border-t border-[var(--border)] bg-[var(--bg-sunken)] px-4 pb-6 pt-4 sm:flex sm:items-center sm:justify-between sm:px-5 sm:pb-3 sm:pt-3">
+          {(error || (tab === 'search' && !picked)) && (
+            <p className="mb-3 text-xs sm:mb-0" style={{ color: error ? 'var(--risk-flood)' : 'var(--fg-subtle)' }}>
+              {error ?? 'เลือกรายชื่อจากผลค้นหาก่อน'}
+            </p>
           )}
-          <div className="flex gap-2">
-            <button type="button" onClick={onClose} className="gx-btn gx-btn-ghost gx-btn-sm">ยกเลิก</button>
-            <button type="button" onClick={submit} disabled={saving || (tab === 'search' && !picked)} className="gx-btn gx-btn-primary gx-btn-sm disabled:opacity-50">
+          <div className="flex gap-2 sm:ml-auto">
+            <button type="button" onClick={onClose} className="gx-btn gx-btn-ghost gx-btn-sm flex-1 sm:flex-none">ยกเลิก</button>
+            <button type="button" onClick={submit} disabled={saving || (tab === 'search' && !picked)} className="gx-btn gx-btn-primary gx-btn-sm flex-1 sm:flex-none disabled:opacity-50">
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
               บันทึกรับเข้า
             </button>

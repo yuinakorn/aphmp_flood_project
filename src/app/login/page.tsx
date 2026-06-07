@@ -1,3 +1,5 @@
+import { redirect } from 'next/navigation'
+import { auth } from '@/lib/auth'
 import { isProviderIdSsoConfigured } from '@/lib/provider-id-sso'
 import { LoginClient } from './LoginClient'
 
@@ -6,6 +8,9 @@ interface LoginPageProps {
 }
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
+  const session = await auth()
+  if (session) redirect('/admin')
+
   const params = (await searchParams) ?? {}
   const error = Array.isArray(params.error) ? params.error[0] : params.error
 

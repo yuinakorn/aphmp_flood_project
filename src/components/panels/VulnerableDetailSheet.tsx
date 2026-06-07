@@ -10,6 +10,7 @@ import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from '@/components/ui/sheet'
 import { FieldActionSheet, type FieldActionMode } from '@/components/forms/FieldActionSheet'
+import { useIsMobile } from '@/hooks/use-is-mobile'
 import type { Incident, RiskLevel } from '@/types'
 
 interface PersonDetail {
@@ -87,6 +88,7 @@ interface Props {
 
 export function VulnerableDetailSheet({ personId, open, onClose, onEdit, canEdit, activeIncidents }: Props) {
   const router = useRouter()
+  const isMobile = useIsMobile()
   const [data, setData] = useState<PersonDetail | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -120,7 +122,7 @@ export function VulnerableDetailSheet({ personId, open, onClose, onEdit, canEdit
   return (
     <>
       <Sheet open={open} onOpenChange={(o) => { if (!o) onClose() }}>
-        <SheetContent side="right" className="w-full gap-0 sm:!w-[420px] sm:!max-w-none">
+        <SheetContent side={isMobile ? 'bottom' : 'right'} className="w-full gap-0 sm:!w-[420px] sm:!max-w-none">
           <SheetHeader className="border-b border-[var(--border)]">
             <SheetTitle className="text-[15px]">
               {loading ? 'กำลังโหลด…' : (data?.name ?? 'รายละเอียด')}

@@ -13,6 +13,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useIsMobile } from '@/hooks/use-is-mobile'
 import type {
   HelpRequestPriority,
   HelpRequestType,
@@ -90,6 +91,7 @@ const selectCls =
   'h-9 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] px-3 text-[13px] outline-none focus:border-[var(--accent)]'
 
 export function FieldActionSheet({ target, mode, activeIncidents, currentLifeSupport, onClose, onDone }: Props) {
+  const isMobile = useIsMobile()
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -167,7 +169,7 @@ export function FieldActionSheet({ target, mode, activeIncidents, currentLifeSup
 
   return (
     <Sheet open onOpenChange={(o) => { if (!o) onClose() }}>
-      <SheetContent side="right" className="w-full gap-0 sm:max-w-md">
+      <SheetContent side={isMobile ? 'bottom' : 'right'} className="w-full gap-0 sm:max-w-md">
         <SheetHeader className="border-b border-[var(--border)]">
           <SheetTitle className="flex items-center gap-2">
             {mode === 'visit' ? <Stethoscope size={16} /> : <LifeBuoy size={16} />}

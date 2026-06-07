@@ -15,6 +15,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useIsMobile } from '@/hooks/use-is-mobile'
 
 const LocationPicker = dynamic(
   () => import('@/components/forms/LocationPicker').then((m) => m.LocationPicker),
@@ -79,6 +80,7 @@ interface GeoOpt {
 export function AddVulnerableSheet({
   open, onClose, onDone, area, province, isNational, defaultCenter, incidentName,
 }: Props) {
+  const isMobile = useIsMobile()
   const [prefix, setPrefix] = useState('นาย')
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
@@ -232,7 +234,7 @@ export function AddVulnerableSheet({
 
   return (
     <Sheet open={open} onOpenChange={(o) => { if (!o) onClose() }}>
-      <SheetContent side="right" className="w-full gap-0 sm:!w-[40vw] sm:!max-w-none sm:min-w-[480px]">
+      <SheetContent side={isMobile ? 'bottom' : 'right'} className="w-full gap-0 sm:!w-[40vw] sm:!max-w-none sm:min-w-[480px]">
         <SheetHeader className="border-b border-[var(--border)]">
           <SheetTitle className="flex items-center gap-2">
             <UserPlus size={16} /> เพิ่มกลุ่มเปราะบาง

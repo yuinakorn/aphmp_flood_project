@@ -82,6 +82,7 @@ export function providerIdSsoProvider(): OAuthConfig<ProviderIdSsoProfile> {
         redirect_uri: redirectUri,
         response_type: 'code',
         scope: undefined,
+        prompt: 'login',
       },
     },
     token: {
@@ -109,13 +110,34 @@ export function providerIdSsoProvider(): OAuthConfig<ProviderIdSsoProfile> {
         return profile.active === false ? {} : profile
       },
     },
-    profile(profile) {
+    async profile(profile) {
       const providerId = profile.provider_id ?? profile.sub ?? profile.id ?? profile.account_id
+
+      // ถ้า SSO profile มี hash_cid → ตรวจ whitelist DB ก่อน (hash ตรงกับ users.cid_hash)
+      // ถ้าเจอและ active → ใช้ role จาก DB; ถ้าไม่เจอหรือ suspended → fallback profile-based
+      let role: UserRole = mapProviderProfileRole(profile)
+      if (profile.hash_cid) {
+        try {
+          const { getDb } = await import('@/lib/db')
+          const { users } = await import('@/db/schema')
+          const { eq } = await import('drizzle-orm')
+          const db = getDb()
+          const [staff] = await db
+            .select({ role: users.role, status: users.status })
+            .from(users)
+            .where(eq(users.cidHash, profile.hash_cid))
+            .limit(1)
+          if (staff?.status === 'active') role = staff.role as UserRole
+        } catch {
+          // DB ไม่พร้อม → ใช้ role จาก profile ต่อไป
+        }
+      }
+
       return {
         id: providerId ?? crypto.randomUUID(),
         email: providerId ? `${providerId}@provider-id.local` : `${crypto.randomUUID()}@provider-id.local`,
         name: profileName(profile),
-        role: mapProviderProfileRole(profile),
+        role,
       }
     },
     async [customFetch](input, init) {

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { Pencil, X, Loader2, Save } from 'lucide-react'
 import { LocationPicker } from '@/components/forms/LocationPicker'
@@ -63,11 +64,16 @@ export function EditShelterButton({ initial }: { initial: Initial }) {
 
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className="gx-btn gx-btn-ghost">
-        <Pencil size={14} /> แก้ไขข้อมูลศูนย์
+      <button
+        type="button"
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen(true) }}
+        title="แก้ไขข้อมูลศูนย์"
+        className="relative z-10 flex size-7 items-center justify-center rounded-md text-[var(--fg-muted)] hover:bg-[var(--bg-sunken)] hover:text-[var(--fg)]"
+      >
+        <Pencil size={14} />
       </button>
 
-      {open && (
+      {open && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-50 flex items-end bg-black/40 backdrop-blur-sm sm:items-center sm:justify-center sm:p-4">
           <div className="flex max-h-[88vh] w-full flex-col overflow-hidden rounded-t-2xl border border-[var(--border)] bg-[var(--bg-elevated)] shadow-2xl sm:max-h-[92vh] sm:max-w-xl sm:rounded-xl">
             <div className="flex justify-center pt-3 sm:hidden"><div className="h-1 w-10 rounded-full bg-[var(--border)]" /></div>
@@ -143,7 +149,7 @@ export function EditShelterButton({ initial }: { initial: Initial }) {
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
     </>
   )
 }

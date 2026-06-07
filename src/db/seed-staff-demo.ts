@@ -38,6 +38,8 @@ const DEMO_STAFF: {
   // น่าน
   { cid: '1655200345670', name: 'นพ. ประยุทธ น่านนคร', role: 'eoc', province: 'น่าน', unitName: 'สสจ.น่าน (EOC)', status: 'active' },
   { cid: '1655200891232', name: 'นาง บัวลอย เมืองน่าน', role: 'vhv', province: 'น่าน', unitName: 'รพ.สต.เวียงสา', status: 'active' },
+  // System admin
+  { cid: '5500901093625', name: 'ผู้ดูแลระบบ', role: 'admin', province: 'เชียงราย', unitName: 'ผู้ดูแลระบบ', status: 'active' },
 ]
 
 // เหตุการณ์ทดสอบประจำจังหวัด — ให้เจ้าหน้าที่แต่ละจังหวัดมีเหตุการณ์ให้เลือก (idempotent ตามชื่อ)

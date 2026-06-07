@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import dynamic from 'next/dynamic'
-import { Pencil, MapPin, Crosshair, Lock, Loader2, Wind, Maximize2, X, Check } from 'lucide-react'
+import { Pencil, MapPin, Crosshair, Lock, Loader2, Wind, Maximize2, X, Check, Trash2 } from 'lucide-react'
 import {
   Sheet,
   SheetContent,
@@ -15,6 +15,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useIsMobile } from '@/hooks/use-is-mobile'
 
 const LocationPicker = dynamic(
   () => import('@/components/forms/LocationPicker').then((m) => m.LocationPicker),
@@ -26,6 +27,7 @@ interface Props {
   open: boolean
   onClose: () => void
   onDone: () => void
+  onDelete?: () => void
   isNational: boolean
   /** จังหวัดสังกัดผู้ใช้ (ล็อกสำหรับ non-national) */
   userProvince: string | null
@@ -66,8 +68,9 @@ interface GeoOpt {
 }
 
 export function EditVulnerableSheet({
-  personId, open, onClose, onDone, isNational, userProvince, defaultCenter,
+  personId, open, onClose, onDone, onDelete, isNational, userProvince, defaultCenter,
 }: Props) {
+  const isMobile = useIsMobile()
   const [loading, setLoading] = useState(true)
   const [prefix, setPrefix] = useState('นาย')
   const [firstName, setFirstName] = useState('')
@@ -270,7 +273,7 @@ export function EditVulnerableSheet({
 
   return (
     <Sheet open={open} onOpenChange={(o) => { if (!o) onClose() }}>
-      <SheetContent side="right" className="w-full gap-0 sm:!w-[40vw] sm:!max-w-none sm:min-w-[480px]">
+      <SheetContent side={isMobile ? 'bottom' : 'right'} className="w-full gap-0 sm:!w-[40vw] sm:!max-w-none sm:min-w-[480px]">
         <SheetHeader className="border-b border-[var(--border)]">
           <SheetTitle className="flex items-center gap-2">
             <Pencil size={16} /> แก้ไขข้อมูลกลุ่มเปราะบาง
@@ -440,6 +443,18 @@ export function EditVulnerableSheet({
         )}
 
         <SheetFooter className="flex-row gap-2 border-t border-[var(--border)]">
+          {onDelete && (
+            <Button
+              type="button"
+              variant="outline"
+              className="shrink-0 border-[var(--risk-flood)] text-[var(--risk-flood)] hover:bg-[color-mix(in_oklch,var(--risk-flood)_8%,transparent)]"
+              onClick={onDelete}
+              disabled={submitting || loading}
+              title="ลบรายการนี้"
+            >
+              <Trash2 size={15} />
+            </Button>
+          )}
           <Button type="button" variant="outline" className="flex-1" onClick={onClose} disabled={submitting}>ยกเลิก</Button>
           <Button type="button" className="flex-1" onClick={submit} disabled={submitting || loading}>
             {submitting ? 'กำลังบันทึก…' : 'บันทึกการแก้ไข'}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Camera, ImagePlus, X } from 'lucide-react'
 import {
   Sheet,
@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { deriveFloodMarkLevel } from '@/lib/flood-marks'
 import { AddressSelect } from '@/components/map/AddressSelect'
+import { useIsMobile } from '@/hooks/use-is-mobile'
 import type { UserFloodMark } from '@/types'
 
 interface Props {
@@ -25,19 +26,6 @@ interface Props {
 function toLocalInputValue(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
-
-// มือถือ (< sm): เด้งฟอร์มจากด้านล่างเพื่อให้แผนที่/หมุดยังเห็นด้านบน
-function useIsMobile(): boolean {
-  const [isMobile, setIsMobile] = useState(false)
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 639px)')
-    const update = () => setIsMobile(mq.matches)
-    update()
-    mq.addEventListener('change', update)
-    return () => mq.removeEventListener('change', update)
-  }, [])
-  return isMobile
 }
 
 export function UserFloodMarkForm({ draft, onCancel, onCreated }: Props) {

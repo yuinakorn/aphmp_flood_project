@@ -17,7 +17,6 @@ import {
   LogOut,
   Menu,
 } from 'lucide-react'
-import { signOut } from 'next-auth/react'
 import {
   useRoleView,
   ROLE_LABELS,
@@ -89,7 +88,7 @@ function RoleSwitcher({ name }: { name: string }) {
         )}
         <DropdownMenuSeparator className="my-1 bg-[var(--border)]" />
         <DropdownMenuItem
-          onClick={() => signOut({ callbackUrl: '/login' })}
+          onClick={() => { window.location.href = '/api/auth/logout' }}
           className="gap-2 px-2.5 py-2 text-[12.5px] text-[var(--risk-flood)] cursor-pointer focus:text-[var(--risk-flood)]"
         >
           <LogOut className="size-4 shrink-0" strokeWidth={1.75} />
@@ -156,17 +155,18 @@ export function Masthead({ session }: Props) {
       )}
       <Link
         href="/map"
-        className="flex items-center gap-2.5 transition-opacity hover:opacity-90 md:gap-3"
+        className="flex min-w-0 items-center gap-2.5 transition-opacity hover:opacity-90 md:gap-3"
       >
         <span className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white shadow-sm">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo_MOPH.svg" alt="ตรากระทรวงสาธารณสุข" className="size-8" />
         </span>
-        <span className="leading-tight">
-          <span className="block text-[15px] font-bold tracking-tight">
-            ระบบภูมิสารสนเทศสุขภาพระดับหน้าด่าน
+        <span className="min-w-0 leading-tight">
+          <span className="block truncate text-[13px] font-bold tracking-tight sm:text-[15px]">
+            <span className="sm:hidden">สุขภาพระดับหน้าด่าน</span>
+            <span className="hidden sm:inline">ระบบภูมิสารสนเทศสุขภาพระดับหน้าด่าน</span>
           </span>
-          <span className="block text-[10.5px] text-slate-400">
+          <span className="hidden text-[10.5px] text-slate-400 sm:block">
             Spatial Health Registry &amp; Disaster Response Dashboard
           </span>
         </span>

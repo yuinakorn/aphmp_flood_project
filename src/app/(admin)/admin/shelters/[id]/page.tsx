@@ -79,6 +79,7 @@ export default async function ShelterDetailPage({ params }: { params: Promise<{ 
         id: shelter.id,
         name: shelter.name,
         type: shelter.type,
+        province: shelter.province ?? null,
         capacity: shelter.capacity ?? null,
         bedriddenCapacity: shelter.bedriddenCapacity ?? null,
         oxygenSupport: shelter.oxygenSupport ?? false,

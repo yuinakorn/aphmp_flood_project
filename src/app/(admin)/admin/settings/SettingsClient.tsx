@@ -22,7 +22,7 @@ export function SettingsClient({ isNational, province, provinceOptions }: Props)
   const [tab, setTab] = useState<TabKey>('staff')
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <div className="mx-auto max-w-6xl">
       <div>
         <p className="gx-eyebrow">ตั้งค่าระบบ</p>
         <h1 className="gx-title mt-1.5">ตั้งค่า</h1>

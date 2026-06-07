@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/sheet'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { useIsMobile } from '@/hooks/use-is-mobile'
 
 interface Props {
   draft: { lat: number; lng: number } | null
@@ -26,6 +27,7 @@ const MODES: { key: string; label: string; icon: typeof Ambulance }[] = [
 ]
 
 export function EvacPointForm({ draft, onCancel, onCreated }: Props) {
+  const isMobile = useIsMobile()
   const [name, setName] = useState('')
   const [contact, setContact] = useState('')
   const [modes, setModes] = useState<Set<string>>(new Set(['vehicle']))
@@ -73,7 +75,7 @@ export function EvacPointForm({ draft, onCancel, onCreated }: Props) {
 
   return (
     <Sheet open={!!draft} onOpenChange={(o) => { if (!o) onCancel() }}>
-      <SheetContent side="right" className="w-full sm:max-w-md">
+      <SheetContent side={isMobile ? 'bottom' : 'right'} className="w-full sm:max-w-md">
         <SheetHeader>
           <SheetTitle>เพิ่มจุดรับ-ส่งอพยพ</SheetTitle>
           <SheetDescription>

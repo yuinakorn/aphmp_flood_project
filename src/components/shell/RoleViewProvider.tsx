@@ -7,8 +7,10 @@ export type ViewRole = 'vhv' | 'officer' | 'admin'
 export const ROLE_LABELS: Record<ViewRole, string> = {
   vhv: 'อสม. (ภาคสนาม)',
   officer: 'รพ.สต. / โรงพยาบาล',
-  admin: 'ผู้บัญชาการ EOC',
+  admin: 'ผู้บัญชาการ / ผู้ดูแลระบบ',
 }
+
+const ROLE_RANK: Record<ViewRole, number> = { vhv: 0, officer: 1, admin: 2 }
 
 /** map UserRole จริงจาก session → 3 tier ที่ใช้แสดงผล */
 function normalizeRole(role: string): ViewRole {
@@ -40,8 +42,15 @@ export function RoleViewProvider({
 
   useEffect(() => {
     const saved = localStorage.getItem('gx-view-role') as ViewRole | null
-    if (saved && saved in ROLE_LABELS) setViewRoleState(saved)
-  }, [])
+    if (saved && saved in ROLE_LABELS) {
+      // ห้าม localStorage ยก viewRole สูงกว่า realRole
+      if (ROLE_RANK[saved] <= ROLE_RANK[real]) {
+        setViewRoleState(saved)
+      } else {
+        localStorage.removeItem('gx-view-role')
+      }
+    }
+  }, [real])
 
   const setViewRole = (role: ViewRole) => {
     setViewRoleState(role)

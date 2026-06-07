@@ -59,3 +59,5 @@ docker-compose.yml
 
 # uploaded files (served via /api/uploads)
 /uploads/
+
+docker-compose.prod.yml

@@ -63,8 +63,9 @@ export function CreateShelterButton() {
       </button>
 
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-          <div className="flex max-h-[92vh] w-full max-w-xl flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-end bg-black/40 backdrop-blur-sm sm:items-center sm:justify-center sm:p-4">
+          <div className="flex max-h-[88vh] w-full flex-col overflow-hidden rounded-t-2xl border border-[var(--border)] bg-[var(--bg-elevated)] shadow-2xl sm:max-h-[92vh] sm:max-w-xl sm:rounded-xl">
+            <div className="flex justify-center pt-3 sm:hidden"><div className="h-1 w-10 rounded-full bg-[var(--border)]" /></div>
             <div className="flex items-center justify-between border-b border-[var(--border)] bg-[var(--bg-sunken)] px-5 py-3.5">
               <h2 className="text-base font-semibold">เพิ่มศูนย์พักพิง / จุดรวมพล</h2>
               <button type="button" onClick={() => { setOpen(false); reset() }} className="flex size-8 items-center justify-center rounded-md text-[var(--fg-muted)] hover:bg-[var(--bg)] hover:text-[var(--fg)]">
@@ -107,11 +108,11 @@ export function CreateShelterButton() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between gap-3 border-t border-[var(--border)] bg-[var(--bg-sunken)] px-5 py-3">
-              {error ? <span className="text-xs text-[var(--risk-flood)]">{error}</span> : <span />}
-              <div className="flex gap-2">
-                <button type="button" onClick={() => { setOpen(false); reset() }} className="gx-btn gx-btn-ghost gx-btn-sm">ยกเลิก</button>
-                <button type="button" onClick={submit} disabled={saving} className="gx-btn gx-btn-primary gx-btn-sm disabled:opacity-50">
+            <div className="border-t border-[var(--border)] bg-[var(--bg-sunken)] px-4 pb-6 pt-4 sm:flex sm:items-center sm:justify-between sm:px-5 sm:pb-3 sm:pt-3">
+              {error && <p className="mb-3 text-xs text-[var(--risk-flood)] sm:mb-0">{error}</p>}
+              <div className="flex gap-2 sm:ml-auto">
+                <button type="button" onClick={() => { setOpen(false); reset() }} className="gx-btn gx-btn-ghost gx-btn-sm flex-1 sm:flex-none">ยกเลิก</button>
+                <button type="button" onClick={submit} disabled={saving} className="gx-btn gx-btn-primary gx-btn-sm flex-1 sm:flex-none disabled:opacity-50">
                   {saving ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
                   บันทึก
                 </button>

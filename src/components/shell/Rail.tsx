@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Layers, Users, Route, Building2, SlidersHorizontal, Droplets, Filter, Siren } from 'lucide-react'
+import { Layers, Users, Route, Building2, SlidersHorizontal, Droplets, Filter, Siren, Shapes } from 'lucide-react'
 import {
   Tooltip,
   TooltipContent,
@@ -23,6 +23,7 @@ const items: RailItem[] = [
   { key: 'layers', panel: 'layers', label: 'Layers', short: 'เลเยอร์', icon: Layers, shortcut: 'L' },
   { key: 'filter', panel: 'filter', label: 'ตัวกรองหมุด', short: 'ตัวกรอง', icon: Filter, shortcut: 'F' },
   { key: 'roster', panel: 'roster', label: 'รายชื่อเปราะบาง', short: 'รายชื่อ', icon: Users, shortcut: 'R' },
+  { key: 'zones', panel: 'zones', label: 'โซนเสี่ยงน้ำท่วม', short: 'โซนเสี่ยง', icon: Shapes, shortcut: 'Z' },
   { key: 'eoc', href: '/admin/eoc', label: 'ศูนย์บัญชาการ EOC', short: 'EOC', icon: Siren },
   { key: 'routes', panel: 'routes', label: 'เส้นทางอพยพ', short: 'เส้นทาง', icon: Route, shortcut: 'E' },
   { key: 'infra', panel: 'infra', label: 'สถานพยาบาล', short: 'สถานที่', icon: Building2, shortcut: 'I' },

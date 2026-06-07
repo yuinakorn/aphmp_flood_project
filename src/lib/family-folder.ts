@@ -87,6 +87,12 @@ function classifyGroup(
   return 'ทั่วไป'
 }
 
+// อยู่ในทะเบียนกลุ่มเปราะบางหรือไม่ — type IS NOT NULL (ทะเบียนดูแล เช่น ติดเตียง/ตั้งครรภ์)
+// หรือเข้ากลุ่มประชากรเปราะบางตามอายุ/พิการ/โรคเรื้อรัง
+function isVulnerableMember(m: MemberRow): boolean {
+  return m.type != null || classifyGroup(m.age, m.isDisabled, m.isChronic) !== 'ทั่วไป'
+}
+
 // หมวดเปราะบางละเอียด (สำหรับตัวกรองแผนที่) — 1 คนอยู่ได้หลายหมวด
 // keys: bedridden | dialysis | oxygen | disabled | pregnant | elderly | child
 function memberCategories(
@@ -218,7 +224,7 @@ export async function getFamilyFolderHouseholds(
       return (b.age ?? 0) - (a.age ?? 0)
     })
     const members = mem.map(toMember)
-    const vulnerableCount = members.filter((x) => x.group !== 'ทั่วไป').length
+    const vulnerableCount = mem.filter(isVulnerableMember).length
     if (vulnerableCount === 0) return null // family folder แสดงเฉพาะครัวเรือนที่มีกลุ่มเปราะบาง
     return {
       id: h.id,
@@ -298,7 +304,7 @@ export async function getVulnerableHouseholdMarkers(
         group,
         categories: memberCategories(m.type, m.lifeSupport, m.age, m.isDisabled),
         isHead: m.isHead,
-        isVulnerable: group !== 'ทั่วไป',
+        isVulnerable: isVulnerableMember(m),
         phone: m.phone || null,
       }
     })

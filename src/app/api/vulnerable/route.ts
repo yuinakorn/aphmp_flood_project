@@ -30,7 +30,7 @@ import {
   unauthorized,
 } from '@/lib/field-api'
 import { isNationalRole } from '@/lib/incident-scope'
-import { accessLog, householdMembers } from '@/db/schema'
+import { accessLog, households, householdMembers } from '@/db/schema'
 import type { UserRole } from '@/types'
 // Roles ที่เห็นข้อมูลส่วนตัวได้
 const FULL_ACCESS_ROLES = new Set<UserRole>(['admin', 'officer', 'eoc', 'vhv', 'ems', 'ddpm'])
@@ -220,9 +220,25 @@ export async function POST(req: NextRequest) {
   if (!national && !province) return badRequest('ไม่พบจังหวัดสังกัดของผู้ใช้ — ติดต่อผู้ดูแลระบบ')
 
   const db = getDb()
+
+  // household-map principle: ทุกคน = สมาชิกของบ้านหลังหนึ่ง — สร้าง household 1 หลังให้คนที่กรอกเดี่ยว
+  // มิฉะนั้นจะไม่ขึ้นหมุดบนแผนที่ (หมุดดึงพิกัดจากตาราง households)
+  const [house] = await db
+    .insert(households)
+    .values({
+      villageName: typeof body.village === 'string' ? body.village.trim() || null : null,
+      tambon: typeof body.tambon === 'string' ? body.tambon.trim() || null : null,
+      amphoe: typeof body.amphoe === 'string' ? body.amphoe.trim() || null : null,
+      province,
+      lat: String(lat),
+      lng: String(lng),
+    })
+    .returning()
+
   const [created] = await db
     .insert(householdMembers)
     .values({
+      householdId: house.id,
       prefix,
       firstName,
       lastName,

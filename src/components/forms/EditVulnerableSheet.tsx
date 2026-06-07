@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useIsMobile } from '@/hooks/use-is-mobile'
+import { type HouseOpt, houseLabel } from '@/components/forms/household-options'
 
 const LocationPicker = dynamic(
   () => import('@/components/forms/LocationPicker').then((m) => m.LocationPicker),
@@ -85,6 +86,8 @@ export function EditVulnerableSheet({
   const [village, setVillage] = useState('')
   const [tambon, setTambon] = useState('')
   const [amphoe, setAmphoe] = useState('')
+  const [houseOpts, setHouseOpts] = useState<HouseOpt[]>([])
+  const [moveTo, setMoveTo] = useState('') // '' = ไม่ย้ายครัวเรือน
   const [formProvince, setFormProvince] = useState('')
   const [lat, setLat] = useState(defaultCenter.lat)
   const [lng, setLng] = useState(defaultCenter.lng)
@@ -118,6 +121,7 @@ export function EditVulnerableSheet({
     prefillDone.current = false
     setLoading(true)
     setError(null)
+    setMoveTo('')
     fetch(`/api/vulnerable/${personId}`)
       .then((r) => r.json())
       .then((j) => {
@@ -222,7 +226,22 @@ export function EditVulnerableSheet({
   function onSelectSubdistrict(id: number | '') {
     setSubdistrictId(id)
     setTambon(id === '' ? '' : (subdistricts.find((o) => o.id === id)?.nameTh ?? ''))
+    setMoveTo('')
   }
+
+  // โหลดครัวเรือนในตำบลนี้ (สำหรับย้ายสมาชิกไปบ้านอื่น)
+  useEffect(() => {
+    const prov = isNational ? formProvince : (userProvince ?? '')
+    if (!open || !tambon || !prov) { setHouseOpts([]); return }
+    const qs = new URLSearchParams({ province: prov, tambon })
+    if (amphoe) qs.set('amphoe', amphoe)
+    let cancelled = false
+    fetch(`/api/households?${qs.toString()}`, { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((d) => { if (!cancelled && Array.isArray(d?.data)) setHouseOpts(d.data) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [open, tambon, amphoe, formProvince, userProvince, isNational])
 
   const toggleLS = (code: string) =>
     setLifeSupport((v) => (v.includes(code) ? v.filter((x) => x !== code) : [...v, code]))
@@ -259,6 +278,7 @@ export function EditVulnerableSheet({
           amphoe: amphoe.trim() || null,
           province: isNational ? formProvince : undefined,
           lat, lng,
+          householdId: moveTo || undefined,
         }),
       })
       const json = await res.json().catch(() => ({}))
@@ -418,6 +438,22 @@ export function EditVulnerableSheet({
               <Label>หมู่บ้าน/หมู่</Label>
               <Input value={village} onChange={(e) => setVillage(e.target.value)} placeholder="เช่น ม.3 บ้านกลางเวียง" />
             </div>
+
+            {/* ย้ายไปครัวเรือนอื่นในตำบลนี้ (optional) */}
+            {houseOpts.length > 0 && (
+              <div className="flex flex-col gap-1.5">
+                <Label>ย้ายไปครัวเรือนอื่น</Label>
+                <select className={selectCls} value={moveTo} onChange={(e) => setMoveTo(e.target.value)}>
+                  <option value="">— ไม่ย้าย (คงบ้านเดิม) —</option>
+                  {houseOpts.map((h) => (
+                    <option key={h.id} value={h.id}>{houseLabel(h)}</option>
+                  ))}
+                </select>
+                {moveTo !== '' && (
+                  <p className="text-[10.5px] text-[var(--fg-subtle)]">ย้ายเข้าบ้านที่เลือก — ใช้บ้านเลขที่/หมู่/พิกัดของบ้านนั้น (ทับค่าที่แก้ด้านบน)</p>
+                )}
+              </div>
+            )}
 
             {/* พิกัด */}
             <div className="flex flex-col gap-1.5">

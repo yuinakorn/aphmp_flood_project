@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useIsMobile } from '@/hooks/use-is-mobile'
+import { type HouseOpt, houseLabel } from '@/components/forms/household-options'
 
 const LocationPicker = dynamic(
   () => import('@/components/forms/LocationPicker').then((m) => m.LocationPicker),
@@ -77,6 +78,7 @@ interface GeoOpt {
   zipCode?: number | null
 }
 
+
 export function AddVulnerableSheet({
   open, onClose, onDone, area, province, isNational, defaultCenter, incidentName,
 }: Props) {
@@ -92,6 +94,8 @@ export function AddVulnerableSheet({
   const [careUnit, setCareUnit] = useState('')
   const [hno, setHno] = useState('')
   const [villno, setVillno] = useState('')
+  const [houseOpts, setHouseOpts] = useState<HouseOpt[]>([])
+  const [householdId, setHouseholdId] = useState('') // '' = สร้างบ้านใหม่
   const [village, setVillage] = useState(area.village ?? '')
   const [tambon, setTambon] = useState(area.tambon ?? '')
   const [amphoe, setAmphoe] = useState(area.amphoe ?? '')
@@ -188,6 +192,32 @@ export function AddVulnerableSheet({
   function onSelectSubdistrict(id: number | '') {
     setSubdistrictId(id)
     setTambon(id === '' ? '' : (subdistricts.find((o) => o.id === id)?.nameTh ?? ''))
+    setHouseholdId('') // เปลี่ยนตำบล → กลับเป็น "สร้างบ้านใหม่"
+  }
+
+  // โหลดครัวเรือนในตำบลที่เลือก (สำหรับ picker เลือกบ้านที่มีอยู่)
+  useEffect(() => {
+    const prov = isNational ? formProvince : (province ?? '')
+    if (!open || !tambon || !prov) return
+    const qs = new URLSearchParams({ province: prov, tambon })
+    if (amphoe) qs.set('amphoe', amphoe)
+    let cancelled = false
+    fetch(`/api/households?${qs.toString()}`, { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((d) => { if (!cancelled && Array.isArray(d?.data)) setHouseOpts(d.data) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [open, tambon, amphoe, formProvince, province, isNational])
+
+  function onSelectHouse(id: string) {
+    setHouseholdId(id)
+    if (!id) return
+    const h = houseOpts.find((o) => o.id === id)
+    if (!h) return
+    setHno(h.hno ?? '')
+    setVillno(h.villno ?? '')
+    if (h.villageName != null) setVillage(h.villageName)
+    if (h.lat != null && h.lng != null) { setLat(h.lat); setLng(h.lng) }
   }
 
   function useGps() {
@@ -216,6 +246,7 @@ export function AddVulnerableSheet({
           type, lifeSupport, medicalPriority,
           caregiverPhone: caregiverPhone.trim() || null,
           careUnit: careUnit.trim() || null,
+          householdId: householdId || undefined,
           hno: hno.trim() || null,
           villno: villno.trim() || null,
           village: village.trim() || null,
@@ -369,40 +400,69 @@ export function AddVulnerableSheet({
               </select>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="flex flex-col gap-1.5">
-              <Label>บ้านเลขที่</Label>
-              <Input value={hno} onChange={(e) => setHno(e.target.value)} placeholder="เช่น 42/1" />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>หมู่ที่</Label>
-              <Input value={villno} onChange={(e) => setVillno(e.target.value)} inputMode="numeric" placeholder="เช่น 3" />
-            </div>
-          </div>
+          {/* เลือกบ้าน — เลือกครัวเรือนที่มีอยู่ในตำบลนี้ หรือสร้างใหม่ */}
           <div className="flex flex-col gap-1.5">
-            <Label>ชื่อหมู่บ้าน</Label>
-            <Input value={village} onChange={(e) => setVillage(e.target.value)} placeholder="เช่น บ้านกลางเวียง" />
-            <p className="text-[10.5px] text-[var(--fg-subtle)]">ระบุบ้านเลขที่+หมู่ที่ตรงกับบ้านที่มีอยู่ ระบบจะรวมเป็นครัวเรือนเดียวกันให้</p>
+            <Label>ครัวเรือน</Label>
+            <select
+              className={selectCls}
+              value={householdId}
+              disabled={!tambon}
+              onChange={(e) => onSelectHouse(e.target.value)}
+            >
+              <option value="">{tambon ? '+ สร้างบ้านใหม่' : 'เลือกตำบลก่อน'}</option>
+              {houseOpts.map((h) => (
+                <option key={h.id} value={h.id}>{houseLabel(h)}</option>
+              ))}
+            </select>
+            {householdId !== '' && (
+              <p className="text-[10.5px] text-[var(--fg-subtle)]">เพิ่มเข้าบ้านที่มีอยู่ — ใช้บ้านเลขที่/หมู่/พิกัดของบ้านนี้</p>
+            )}
           </div>
 
-          {/* พิกัด */}
-          <div className="flex flex-col gap-1.5">
-            <div className="flex items-center justify-between">
-              <Label className="flex items-center gap-1.5"><MapPin size={13} className="text-[var(--accent)]" /> พิกัด (คลิก/ลากหมุด)</Label>
-              <div className="flex items-center gap-1.5">
-                <button type="button" onClick={() => setMapExpanded(true)}
-                  className="inline-flex items-center gap-1 rounded-md border border-[var(--border)] px-2 py-1 text-[11.5px] text-[var(--fg-muted)] hover:border-[var(--border-strong)] hover:text-[var(--fg)]">
-                  <Maximize2 size={12} /> ขยายแผนที่
-                </button>
-                <button type="button" onClick={useGps} disabled={geoBusy}
-                  className="inline-flex items-center gap-1 rounded-md border border-[var(--border)] px-2 py-1 text-[11.5px] text-[var(--fg-muted)] hover:border-[var(--border-strong)] hover:text-[var(--fg)] disabled:opacity-50">
-                  {geoBusy ? <Loader2 size={12} className="animate-spin" /> : <Crosshair size={12} />} ใช้ GPS
-                </button>
+          {householdId === '' && (
+            <>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="flex flex-col gap-1.5">
+                  <Label>บ้านเลขที่</Label>
+                  <Input value={hno} onChange={(e) => setHno(e.target.value)} placeholder="เช่น 42/1" />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label>หมู่ที่</Label>
+                  <Input value={villno} onChange={(e) => setVillno(e.target.value)} inputMode="numeric" placeholder="เช่น 3" />
+                </div>
               </div>
+              <div className="flex flex-col gap-1.5">
+                <Label>ชื่อหมู่บ้าน</Label>
+                <Input value={village} onChange={(e) => setVillage(e.target.value)} placeholder="เช่น บ้านกลางเวียง" />
+              </div>
+            </>
+          )}
+
+          {/* พิกัด — เฉพาะตอนสร้างบ้านใหม่ (เพิ่มเข้าบ้านเดิมจะใช้พิกัดของบ้านนั้น) */}
+          {householdId === '' ? (
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center justify-between">
+                <Label className="flex items-center gap-1.5"><MapPin size={13} className="text-[var(--accent)]" /> พิกัด (คลิก/ลากหมุด)</Label>
+                <div className="flex items-center gap-1.5">
+                  <button type="button" onClick={() => setMapExpanded(true)}
+                    className="inline-flex items-center gap-1 rounded-md border border-[var(--border)] px-2 py-1 text-[11.5px] text-[var(--fg-muted)] hover:border-[var(--border-strong)] hover:text-[var(--fg)]">
+                    <Maximize2 size={12} /> ขยายแผนที่
+                  </button>
+                  <button type="button" onClick={useGps} disabled={geoBusy}
+                    className="inline-flex items-center gap-1 rounded-md border border-[var(--border)] px-2 py-1 text-[11.5px] text-[var(--fg-muted)] hover:border-[var(--border-strong)] hover:text-[var(--fg)] disabled:opacity-50">
+                    {geoBusy ? <Loader2 size={12} className="animate-spin" /> : <Crosshair size={12} />} ใช้ GPS
+                  </button>
+                </div>
+              </div>
+              <LocationPicker lat={lat} lng={lng} onChange={(la, ln) => { setLat(la); setLng(ln) }} />
+              <p className="font-mono text-[10.5px] text-[var(--fg-subtle)]">{lat.toFixed(5)}, {lng.toFixed(5)}</p>
             </div>
-            <LocationPicker lat={lat} lng={lng} onChange={(la, ln) => { setLat(la); setLng(ln) }} />
-            <p className="font-mono text-[10.5px] text-[var(--fg-subtle)]">{lat.toFixed(5)}, {lng.toFixed(5)}</p>
-          </div>
+          ) : (
+            <div className="flex items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--bg-sunken)] px-3 py-2 text-[12px] text-[var(--fg-muted)]">
+              <MapPin size={13} className="text-[var(--accent)]" />
+              ใช้พิกัดของบ้านที่เลือก <span className="font-mono text-[10.5px] text-[var(--fg-subtle)]">{lat.toFixed(5)}, {lng.toFixed(5)}</span>
+            </div>
+          )}
 
           {error && <p className="text-[12px] text-[var(--risk-flood)]">{error}</p>}
         </div>

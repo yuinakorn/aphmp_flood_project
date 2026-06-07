@@ -102,6 +102,9 @@ export async function GET(
       age: p.age,
       cond: p.cond,
       equipment: p.equipment,
+      householdId: p.householdId,
+      hno: p.hno,
+      villno: p.villno,
       village: p.village,
       tambon: p.tambon,
       amphoe: p.amphoe,
@@ -238,16 +241,42 @@ export async function PATCH(
     }
   }
 
+  const national = isNationalRole(session.user.role as UserRole)
+  const db = getDb()
+
+  // ── ย้ายสมาชิกไปครัวเรือนที่เลือก (admin/officer) — รับพิกัด/ที่อยู่จากบ้านปลายทาง ──
+  // household-map principle: สมาชิกอยู่บ้านไหน ใช้พิกัด+ที่อยู่ของบ้านนั้น
+  if (isAdmin && isUuid(body.householdId)) {
+    const targetId = body.householdId as string
+    const [target] = await db
+      .select()
+      .from(households)
+      .where(
+        national
+          ? eq(households.id, targetId)
+          : and(eq(households.id, targetId), eq(households.province, session.user.province ?? '__none__')),
+      )
+      .limit(1)
+    if (!target) return badRequest('ไม่พบครัวเรือนที่เลือก')
+    patch.householdId = target.id
+    patch.hno = target.hno
+    patch.villno = target.villno
+    patch.village = target.villageName
+    patch.tambon = target.tambon
+    patch.amphoe = target.amphoe
+    if (target.province) patch.province = target.province
+    if (target.lat != null) patch.lat = String(target.lat)
+    if (target.lng != null) patch.lng = String(target.lng)
+  }
+
   // ถ้าไม่มี field นอกจาก updatedAt → ไม่มีอะไรอัปเดต
   if (Object.keys(patch).length === 1) return badRequest('No updatable fields provided')
 
   // province guard — non-national แก้ได้เฉพาะคนในจังหวัดสังกัด (ใส่เงื่อนไขใน WHERE)
-  const national = isNationalRole(session.user.role as UserRole)
   const where = national
     ? eq(householdMembers.id, id)
     : and(eq(householdMembers.id, id), eq(householdMembers.province, session.user.province ?? '__none__'))
 
-  const db = getDb()
   const [updated] = await db
     .update(householdMembers)
     .set(patch)

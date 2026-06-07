@@ -230,13 +230,28 @@ export async function POST(req: NextRequest) {
   const amphoe = str(body.amphoe)
 
   // household-map principle: ทุกคน = สมาชิกของบ้านหลังหนึ่ง
-  // มีบ้านเลขที่ → รวมเข้าครัวเรือนเดิมที่ตรง (hno+หมู่+ตำบล+อำเภอ+จังหวัด) · ไม่ตรง/ไม่มีเลขที่ → สร้างใหม่
+  // 1) เลือกบ้านที่มีอยู่ผ่าน picker (householdId) → ผูกตรง ๆ แม่นสุด
+  // 2) มีบ้านเลขที่ → รวมเข้าครัวเรือนเดิมที่ตรง (hno+หมู่+ตำบล+อำเภอ+จังหวัด)
+  // 3) ไม่ตรง/ไม่มีเลขที่ → สร้างใหม่
   // (หมุดบนแผนที่ดึงพิกัดจากตาราง households — ไม่ผูกบ้านจะไม่ขึ้นหมุด)
   const eqOrNull = (col: AnyPgColumn, val: string | null) =>
     val == null ? isNull(col) : eq(col, val)
 
   let house: typeof households.$inferSelect | undefined
-  if (hno) {
+  const pickedHouseholdId = isUuid(body.householdId) ? (body.householdId as string) : null
+  if (pickedHouseholdId) {
+    ;[house] = await db
+      .select()
+      .from(households)
+      .where(
+        national
+          ? eq(households.id, pickedHouseholdId)
+          : and(eq(households.id, pickedHouseholdId), eq(households.province, province ?? '__none__')),
+      )
+      .limit(1)
+    if (!house) return badRequest('ไม่พบครัวเรือนที่เลือก')
+  }
+  if (!house && hno) {
     ;[house] = await db
       .select()
       .from(households)

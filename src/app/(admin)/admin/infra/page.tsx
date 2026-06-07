@@ -6,6 +6,7 @@ import { Hospital, Stethoscope, Tent, ArrowUpRight, ChevronRight } from 'lucide-
 import type { UserRole } from '@/types'
 import { isNationalRole } from '@/lib/incident-scope'
 import { AddFacilityButton } from './AddFacilityModal'
+import { ProvinceFilter } from './ProvinceFilter'
 
 export const metadata = { title: 'สถานพยาบาล — GIS Health Intelligence' }
 export const dynamic = 'force-dynamic'
@@ -37,7 +38,7 @@ const readinessBadge: Record<string, { label: string; color: string }> = {
   unsafe: { label: 'ไม่ปลอดภัย', color: 'var(--status-crit)' },
 }
 
-export default async function InfraPage() {
+export default async function InfraPage({ searchParams }: { searchParams: Promise<Record<string, string>> }) {
   const session = await auth()
   if (!session) redirect('/login')
 
@@ -51,10 +52,20 @@ export default async function InfraPage() {
   const infra: InfraRow[] = json.data ?? []
   const role = (session.user?.role ?? 'viewer') as UserRole
   const national = isNationalRole(role)
+  const sp = await searchParams
+  const selectedProvince = national ? (sp.province ?? null) : null
+
+  // All unique provinces from data (for filter pills)
+  const allProvinces = national
+    ? [...new Set(infra.map((i) => i.province ?? 'ไม่ระบุจังหวัด'))].sort()
+    : []
+
+  // Filtered data
+  const filtered = selectedProvince ? infra.filter((i) => (i.province ?? 'ไม่ระบุจังหวัด') === selectedProvince) : infra
 
   // Group by province (for national users) or just by type (for province users)
   const provinces = national
-    ? [...new Set(infra.map((i) => i.province ?? 'ไม่ระบุจังหวัด'))].sort()
+    ? [...new Set(filtered.map((i) => i.province ?? 'ไม่ระบุจังหวัด'))].sort()
     : [session.user?.province ?? null]
 
   return (
@@ -75,6 +86,12 @@ export default async function InfraPage() {
         )}
       </div>
 
+      {national && allProvinces.length > 1 && (
+        <div className="mt-5">
+          <ProvinceFilter provinces={allProvinces} current={selectedProvince} />
+        </div>
+      )}
+
       <Link href="/admin/shelters" className="gx-note mt-4 transition-colors hover:border-[var(--accent)]" style={{ ['--tile' as string]: 'var(--infra-shelter)' }}>
         <Tent size={16} className="mt-0.5 shrink-0 text-[var(--infra-shelter)]" />
         <p className="flex-1 text-sm text-[var(--fg-muted)]">
@@ -84,16 +101,18 @@ export default async function InfraPage() {
       </Link>
 
       <div className="mt-7 flex flex-col gap-8">
-        {infra.length === 0 && (
+        {filtered.length === 0 && (
           <div className="rounded-xl border border-dashed border-[var(--border)] bg-[var(--bg-elevated)] py-12 text-center">
-            <p className="text-sm text-[var(--fg-muted)]">ยังไม่มีสถานพยาบาลในจังหวัดนี้</p>
+            <p className="text-sm text-[var(--fg-muted)]">
+              {selectedProvince ? `ไม่พบสถานพยาบาลใน ${selectedProvince}` : 'ยังไม่มีสถานพยาบาลในจังหวัดนี้'}
+            </p>
           </div>
         )}
 
         {provinces.map((province) => {
           const provinceItems = province
-            ? infra.filter((i) => (i.province ?? 'ไม่ระบุจังหวัด') === province)
-            : infra
+            ? filtered.filter((i) => (i.province ?? 'ไม่ระบุจังหวัด') === province)
+            : filtered
 
           if (provinceItems.length === 0) return null
 

@@ -139,10 +139,10 @@ export function Masthead({ session }: Props) {
       : active.status === 'monitoring'
         ? 'border-t-[3px] border-t-amber-500'
         : 'border-t-[3px] border-t-slate-500'
-    : ''
+    : 'border-t-[3px] border-t-cyan-500'
 
   return (
-    <header className={`sticky top-0 z-40 flex h-16 shrink-0 items-center gap-3 border-b border-slate-800 bg-slate-900 px-4 text-white md:gap-6 ${crisisAccent}`}>
+    <header className={`sticky top-0 z-40 flex h-16 shrink-0 items-center gap-3 border-b border-slate-800 bg-[#0C1217] px-4 text-white md:gap-6 ${crisisAccent}`}>
       {hasSidebar && (
         <button
           type="button"

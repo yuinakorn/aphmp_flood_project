@@ -124,7 +124,7 @@ export function AppSidebar({ canManageStaff = false, canTriage = false }: { canM
     <>
       {/* ───── Desktop sidebar (md+) ───── */}
       <aside
-        className={`sticky top-16 z-20 hidden h-[calc(100dvh_-_4rem)] shrink-0 self-start flex-col border-r border-slate-800 bg-slate-900 text-slate-300 transition-[width] duration-200 md:flex ${
+        className={`sticky top-16 z-20 hidden h-[calc(100dvh_-_4rem)] shrink-0 self-start flex-col border-r border-slate-800 bg-[#0C1217] text-slate-300 transition-[width] duration-200 md:flex ${
           collapsed ? 'w-16' : 'w-[232px]'
         }`}
       >
@@ -156,7 +156,7 @@ export function AppSidebar({ canManageStaff = false, canTriage = false }: { canM
             onClick={() => setMobileOpen(false)}
             aria-hidden
           />
-          <aside className="absolute left-0 top-0 flex h-full w-[264px] flex-col border-r border-slate-800 bg-slate-900 text-slate-300 shadow-xl animate-in slide-in-from-left duration-200">
+          <aside className="absolute left-0 top-0 flex h-full w-[264px] flex-col border-r border-slate-800 bg-[#0C1217] text-slate-300 shadow-xl animate-in slide-in-from-left duration-200">
             <div className="flex h-16 shrink-0 items-center justify-between border-b border-slate-800 px-4">
               <span className="text-[13px] font-semibold text-white">เมนู</span>
               <button

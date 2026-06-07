@@ -56,7 +56,7 @@ import type {
   VulnerablePerson,
 } from '@/types'
 
-const EocMap = dynamic(() => import('./EocMap'), {
+const EocFloodMap = dynamic(() => import('./EocFloodMap'), {
   ssr: false,
   loading: () => (
     <div className="flex size-full items-center justify-center bg-[var(--bg-sunken)]">
@@ -133,7 +133,7 @@ const priorityMeta = (p: string): { tone: string; label: string } =>
         ? { tone: 'var(--risk-near)', label: 'เฝ้าระวัง' }
         : { tone: 'var(--risk-safe)', label: 'เตรียมแผน' }
 
-export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, coverageRows, counters, dispositionSummary, overview, casualties, surveillanceEntries, incidentId, mapHiddenDefault }: Props) {
+export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, coverageRows, counters, dispositionSummary, overview, casualties, surveillanceEntries, incidentId, mapHiddenDefault, realRole }: Props) {
   const router = useRouter()
   const isMobile = useIsMobile()
   const { viewRole } = useRoleView()
@@ -850,7 +850,7 @@ export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, 
                 </Button>
               </div>
               <div className="h-[300px] w-full">
-                <EocMap persons={mapPersons} selected={selected} onSelect={setSelected} />
+                <EocFloodMap sessionRole={realRole} />
               </div>
             </div>
 
@@ -892,7 +892,7 @@ export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, 
           </SheetHeader>
           <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px]">
             <div className="h-[48dvh] min-h-[360px] w-full lg:h-auto">
-              <EocMap persons={mapPersons} selected={selected} onSelect={setSelected} scrollWheelZoom />
+              <EocFloodMap sessionRole={realRole} />
             </div>
             <aside className="min-h-0 border-t border-[var(--border)] bg-[var(--bg)] p-4 lg:border-l lg:border-t-0">
               <div className="lg:sticky lg:top-4">

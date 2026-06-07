@@ -13,6 +13,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { and, asc, eq, isNotNull, isNull } from 'drizzle-orm'
+import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 import { auth } from '@/lib/auth'
 import { getDb } from '@/lib/db'
 import { classifyRiskByPolygons } from '@/lib/geo'
@@ -221,19 +222,45 @@ export async function POST(req: NextRequest) {
 
   const db = getDb()
 
-  // household-map principle: ทุกคน = สมาชิกของบ้านหลังหนึ่ง — สร้าง household 1 หลังให้คนที่กรอกเดี่ยว
-  // มิฉะนั้นจะไม่ขึ้นหมุดบนแผนที่ (หมุดดึงพิกัดจากตาราง households)
-  const [house] = await db
-    .insert(households)
-    .values({
-      villageName: typeof body.village === 'string' ? body.village.trim() || null : null,
-      tambon: typeof body.tambon === 'string' ? body.tambon.trim() || null : null,
-      amphoe: typeof body.amphoe === 'string' ? body.amphoe.trim() || null : null,
-      province,
-      lat: String(lat),
-      lng: String(lng),
-    })
-    .returning()
+  const str = (v: unknown) => (typeof v === 'string' ? v.trim() || null : null)
+  const hno = str(body.hno)
+  const villno = str(body.villno)
+  const villageName = str(body.village)
+  const tambon = str(body.tambon)
+  const amphoe = str(body.amphoe)
+
+  // household-map principle: ทุกคน = สมาชิกของบ้านหลังหนึ่ง
+  // มีบ้านเลขที่ → รวมเข้าครัวเรือนเดิมที่ตรง (hno+หมู่+ตำบล+อำเภอ+จังหวัด) · ไม่ตรง/ไม่มีเลขที่ → สร้างใหม่
+  // (หมุดบนแผนที่ดึงพิกัดจากตาราง households — ไม่ผูกบ้านจะไม่ขึ้นหมุด)
+  const eqOrNull = (col: AnyPgColumn, val: string | null) =>
+    val == null ? isNull(col) : eq(col, val)
+
+  let house: typeof households.$inferSelect | undefined
+  if (hno) {
+    ;[house] = await db
+      .select()
+      .from(households)
+      .where(
+        and(
+          eqOrNull(households.hno, hno),
+          eqOrNull(households.villno, villno),
+          eqOrNull(households.tambon, tambon),
+          eqOrNull(households.amphoe, amphoe),
+          eqOrNull(households.province, province),
+        ),
+      )
+      .limit(1)
+  }
+  if (!house) {
+    ;[house] = await db
+      .insert(households)
+      .values({ hno, villno, villageName, tambon, amphoe, province, lat: String(lat), lng: String(lng) })
+      .returning()
+  }
+
+  // รวมเข้าบ้านเดิม → สมาชิกใหม่ใช้พิกัดของบ้าน (1 บ้าน = 1 พิกัด) · บ้านใหม่ → ใช้พิกัดจากฟอร์ม
+  const memberLat = house.lat != null ? String(house.lat) : String(lat)
+  const memberLng = house.lng != null ? String(house.lng) : String(lng)
 
   const [created] = await db
     .insert(householdMembers)
@@ -248,12 +275,14 @@ export async function POST(req: NextRequest) {
       cond: typeof body.cond === 'string' ? body.cond : null,
       equipment: typeof body.equipment === 'string' ? body.equipment : null,
       lifeSupport,
-      village: typeof body.village === 'string' ? body.village : null,
-      tambon: typeof body.tambon === 'string' ? body.tambon : null,
-      amphoe: typeof body.amphoe === 'string' ? body.amphoe : null,
+      hno: house.hno,
+      villno: house.villno,
+      village: house.villageName,
+      tambon: house.tambon,
+      amphoe: house.amphoe,
       province,
-      lat: String(lat),
-      lng: String(lng),
+      lat: memberLat,
+      lng: memberLng,
       caregiverPhone: typeof body.caregiverPhone === 'string' ? body.caregiverPhone : null,
       careUnit: typeof body.careUnit === 'string' ? body.careUnit : null,
       assignedVhvId: isUuid(assignedVhvId) ? assignedVhvId : null,

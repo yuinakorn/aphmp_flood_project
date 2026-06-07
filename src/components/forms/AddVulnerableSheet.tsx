@@ -90,6 +90,8 @@ export function AddVulnerableSheet({
   const [medicalPriority, setMedicalPriority] = useState('C')
   const [caregiverPhone, setCaregiverPhone] = useState('')
   const [careUnit, setCareUnit] = useState('')
+  const [hno, setHno] = useState('')
+  const [villno, setVillno] = useState('')
   const [village, setVillage] = useState(area.village ?? '')
   const [tambon, setTambon] = useState(area.tambon ?? '')
   const [amphoe, setAmphoe] = useState(area.amphoe ?? '')
@@ -214,6 +216,8 @@ export function AddVulnerableSheet({
           type, lifeSupport, medicalPriority,
           caregiverPhone: caregiverPhone.trim() || null,
           careUnit: careUnit.trim() || null,
+          hno: hno.trim() || null,
+          villno: villno.trim() || null,
           village: village.trim() || null,
           tambon: tambon.trim() || null,
           amphoe: amphoe.trim() || null,
@@ -365,9 +369,20 @@ export function AddVulnerableSheet({
               </select>
             </div>
           </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="flex flex-col gap-1.5">
+              <Label>บ้านเลขที่</Label>
+              <Input value={hno} onChange={(e) => setHno(e.target.value)} placeholder="เช่น 42/1" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label>หมู่ที่</Label>
+              <Input value={villno} onChange={(e) => setVillno(e.target.value)} inputMode="numeric" placeholder="เช่น 3" />
+            </div>
+          </div>
           <div className="flex flex-col gap-1.5">
-            <Label>หมู่บ้าน/หมู่</Label>
-            <Input value={village} onChange={(e) => setVillage(e.target.value)} placeholder="เช่น ม.3 บ้านกลางเวียง" />
+            <Label>ชื่อหมู่บ้าน</Label>
+            <Input value={village} onChange={(e) => setVillage(e.target.value)} placeholder="เช่น บ้านกลางเวียง" />
+            <p className="text-[10.5px] text-[var(--fg-subtle)]">ระบุบ้านเลขที่+หมู่ที่ตรงกับบ้านที่มีอยู่ ระบบจะรวมเป็นครัวเรือนเดียวกันให้</p>
           </div>
 
           {/* พิกัด */}

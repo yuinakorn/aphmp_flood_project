@@ -4,7 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 import { isNationalRole } from '@/lib/incident-scope'
 import { getDb } from '@/lib/db'
@@ -20,7 +20,7 @@ import {
   sessionUserId,
   unauthorized,
 } from '@/lib/field-api'
-import { accessLog, householdMembers } from '@/db/schema'
+import { accessLog, households, householdMembers } from '@/db/schema'
 import type { UserRole } from '@/types'
 
 const FULL_ACCESS_ROLES = new Set<UserRole>(['admin', 'officer', 'eoc', 'vhv', 'ems', 'ddpm'])
@@ -255,6 +255,19 @@ export async function PATCH(
     .returning()
 
   if (!updated) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  // household-map principle: 1 บ้าน = 1 พิกัด — แก้พิกัดคนเดียว ย้ายทั้งบ้าน
+  // (sync ขึ้น households เพื่อให้หมุดบนแผนที่ขยับ + sync สมาชิกทุกคนให้ risk ตรงกัน)
+  if (('lat' in patch || 'lng' in patch) && updated.householdId) {
+    const coords: { lat?: string | null; lng?: string | null } = {}
+    if ('lat' in patch) coords.lat = patch.lat as string | null
+    if ('lng' in patch) coords.lng = patch.lng as string | null
+    await db.update(households).set(coords).where(eq(households.id, updated.householdId))
+    await db
+      .update(householdMembers)
+      .set(coords)
+      .where(and(eq(householdMembers.householdId, updated.householdId), isNull(householdMembers.deletedAt)))
+  }
 
   void db
     .insert(accessLog)

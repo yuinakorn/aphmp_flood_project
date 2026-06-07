@@ -35,6 +35,7 @@ export default async function VulnerablePage() {
 
   const addButton = canEdit ? (
     <AddVulnerableButton
+      key="add-vulnerable"
       area={{ village: null, tambon: scopeIncident?.tambon ?? null, amphoe: scopeIncident?.amphoe ?? null }}
       province={province}
       isNational={national}

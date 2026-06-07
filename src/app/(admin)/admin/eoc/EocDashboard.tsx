@@ -950,35 +950,39 @@ function DispositionFunnel({
       {/* funnel cards */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
         {cards.map((c) => {
-          const dark = c.urgent && c.value > 0
+          const emphasized = c.urgent && c.value > 0
           return (
             <div
               key={c.key}
               className="flex flex-col gap-1 rounded-xl border px-3.5 py-3"
               style={
-                dark
-                  ? { background: 'var(--fg)', borderColor: 'var(--fg)' }
+                emphasized
+                  ? {
+                      background: 'color-mix(in oklch, var(--risk-flood) 14%, var(--bg-elevated))',
+                      borderColor: 'color-mix(in oklch, var(--risk-flood) 36%, var(--border))',
+                      borderTop: '2px solid var(--risk-flood)',
+                    }
                   : { background: 'var(--bg-elevated)', borderColor: 'var(--border)', borderTop: `2px solid ${c.tone}` }
               }
             >
               <div className="flex items-center justify-between">
                 <span
                   className="text-xs font-medium uppercase tracking-[0.06em]"
-                  style={{ color: dark ? 'rgba(255,255,255,0.7)' : 'var(--fg-subtle)' }}
+                  style={{ color: emphasized ? 'var(--risk-flood)' : 'var(--fg-subtle)' }}
                 >
                   {c.label}
                 </span>
-                <span style={{ color: dark ? '#fff' : c.tone }}>{c.icon}</span>
+                <span style={{ color: emphasized ? 'var(--risk-flood)' : c.tone }}>{c.icon}</span>
               </div>
               <span
                 className="font-mono text-[28px] font-semibold leading-none"
-                style={{ color: dark ? '#fff' : c.tone }}
+                style={{ color: emphasized ? 'var(--fg)' : c.tone }}
               >
                 {c.value}
               </span>
               <span
                 className="text-[11px] leading-tight"
-                style={{ color: dark ? 'rgba(255,255,255,0.85)' : 'var(--fg-muted)' }}
+                style={{ color: 'var(--fg-muted)' }}
               >
                 {c.caption}
               </span>

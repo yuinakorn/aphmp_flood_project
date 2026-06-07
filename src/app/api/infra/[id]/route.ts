@@ -1,4 +1,5 @@
 /**
+ * GET  /api/infra/:id — ดึงข้อมูลสถานพยาบาล/โครงสร้างพื้นฐาน 1 รายการ
  * DELETE /api/infra/:id — ลบจุดรับ-ส่งอพยพ (เฉพาะ type evacuation_point · ระดับสั่งการ)
  * ป้องกันการลบ รพ./ศูนย์พักพิง ผ่าน endpoint นี้
  */
@@ -12,6 +13,25 @@ import { audit } from '@/lib/audit'
 import { infrastructures } from '@/db/schema'
 
 export const dynamic = 'force-dynamic'
+
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const session = await auth()
+  if (!session?.user) return unauthorized()
+
+  const { id } = await params
+  if (!isUuid(id)) return badRequest('invalid id')
+
+  const db = getDb()
+  const [row] = await db.select().from(infrastructures).where(eq(infrastructures.id, id)).limit(1)
+  if (!row) return NextResponse.json({ error: 'ไม่พบ' }, { status: 404 })
+
+  const national = isNationalRole(session.user.role)
+  if (!national && session.user.province && row.province !== session.user.province) {
+    return forbidden()
+  }
+
+  return NextResponse.json({ data: row })
+}
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth()

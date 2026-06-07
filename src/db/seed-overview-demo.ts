@@ -4,8 +4,9 @@
  * Seed ข้อมูล "เดโม" สำหรับหน้า /admin/overview ให้ตรงกับ incident ที่ active (ต.แม่สาย อ.แม่สาย เชียงราย)
  * เพื่อให้คิว survivability / ribbon / donut / bars มีเคสจริงให้เห็น
  *
- * - พิกัดวางทับจุดน้ำใน public/data/flood-points.json เพื่อให้ classifyRisk คืน flood/near จริง
- *   (พิกัด demo ไม่ตรงภูมิศาสตร์แม่สายเป๊ะ — เป็นข้อมูลทดสอบ ดูได้เฉพาะหน้านี้ที่ไม่มีแผนที่)
+ * - วาง flood_risk_zone "ต.แม่สาย (เดโม)" ทับพื้นที่แม่สายจริง (ตรงกับชั้น ms_detail.geojson)
+ *   แล้ววางพิกัดบ้านให้ตกใน/ใกล้/นอกโซน เพื่อให้ classifyRiskByPolygons คืน flood/near/safe จริง
+ *   (เลิกใช้ flood-points.json ของน่าน ที่เป็น mockup เก่า)
  * - life_support / caregiver / last_contacted_at ใส่หลากหลายเพื่อโชว์ P1/P2/P3 + confidence
  * - idempotent: ลบของเดิม (villcode='DEMO-MS' / source_system='overview-demo') ก่อน insert ใหม่
  *
@@ -22,12 +23,17 @@ if (!process.env.DATABASE_URL && existsSync('.env.local')) {
   }
 }
 
-import floodPointsData from '../../public/data/flood-points.json'
-
-const floodCoords: [number, number][] = floodPointsData.features.map((f) => [
-  f.geometry.coordinates[1],
-  f.geometry.coordinates[0],
-])
+// โซนเสี่ยงน้ำท่วมเดโม — ครอบพื้นที่ ต.แม่สาย จริง (ms_detail bbox lng[99.8725,99.8987] lat[20.4331,20.4460])
+// เก็บเป็น [lng,lat][] ให้ตรงกับ flood_risk_zones.polygon + classifyRiskByPolygons
+const DEMO_ZONE_NAME = 'โซนเสี่ยงน้ำท่วม ต.แม่สาย (เดโม)'
+const DEMO_ZONE_PROVINCE = 'เชียงราย'
+const DEMO_ZONE_POLYGON: [number, number][] = [
+  [99.8740, 20.4345],
+  [99.8975, 20.4345],
+  [99.8975, 20.4450],
+  [99.8740, 20.4450],
+]
+const ZONE_CENTER = { lat: 20.4397, lng: 99.8857 }
 
 type Member = {
   prefix: string
@@ -112,22 +118,56 @@ const HOUSES: House[] = [
   },
 ]
 
+// คืน [lat, lng] โดยกระจายตาม index แต่คงระดับความเสี่ยงไว้
 function coordFor(proximity: 'flood' | 'near' | 'safe', i: number): [number, number] {
-  const base = floodCoords[(i * 97) % floodCoords.length] // กระจายจุด
-  if (proximity === 'flood') return base // ทับจุดน้ำ → <0.5km
-  if (proximity === 'near') return [base[0] + 0.012, base[1] + 0.012] // ~1.8km → near
-  return [base[0] + 0.06, base[1] + 0.06] // ~9km → safe
+  const jLat = (((i * 13) % 7) - 3) * 0.0012 // ±0.0036 (~0.4km)
+  const jLng = (((i * 7) % 7) - 3) * 0.0025 // ±0.0075 (~0.8km)
+  if (proximity === 'flood') return [ZONE_CENTER.lat + jLat, ZONE_CENTER.lng + jLng] // ในโพลิกอน
+  if (proximity === 'near') return [20.4500 + jLat * 0.3, ZONE_CENTER.lng + jLng] // ~0.55km เหนือขอบ → near
+  return [20.4750 + jLat, ZONE_CENTER.lng + jLng] // ~3.3km เหนือขอบ → safe
 }
 
 async function main() {
   const { getDb } = await import('@/lib/db')
-  const { households, householdMembers } = await import('./schema')
-  const { eq, sql } = await import('drizzle-orm')
+  const {
+    households,
+    householdMembers,
+    floodRiskZones,
+    healthVisits,
+    helpRequests,
+    shelterAdmissions,
+    hospitalReferrals,
+    incidentCasualties,
+  } = await import('./schema')
+  const { and, eq, inArray } = await import('drizzle-orm')
   const db = getDb()
 
-  // idempotent cleanup
+  // idempotent cleanup — ลบ row ลูกที่อ้าง member เดโมก่อน (กัน FK violation) แล้วค่อยลบ member/household
+  const demoMembers = await db
+    .select({ id: householdMembers.id })
+    .from(householdMembers)
+    .where(eq(householdMembers.sourceSystem, 'overview-demo'))
+  const demoMemberIds = demoMembers.map((m) => m.id)
+  if (demoMemberIds.length) {
+    for (const child of [healthVisits, helpRequests, shelterAdmissions, hospitalReferrals, incidentCasualties]) {
+      await db.delete(child).where(inArray(child.memberId, demoMemberIds))
+    }
+  }
   await db.delete(householdMembers).where(eq(householdMembers.sourceSystem, 'overview-demo'))
   await db.delete(households).where(eq(households.villcode, 'DEMO-MS'))
+  await db
+    .delete(floodRiskZones)
+    .where(and(eq(floodRiskZones.name, DEMO_ZONE_NAME), eq(floodRiskZones.province, DEMO_ZONE_PROVINCE)))
+
+  // โซนเสี่ยงน้ำท่วม (เกณฑ์ "ในเขตน้ำท่วม") — แทนจุดน้ำของน่าน
+  await db.insert(floodRiskZones).values({
+    province: DEMO_ZONE_PROVINCE,
+    name: DEMO_ZONE_NAME,
+    priority: 1,
+    polygon: DEMO_ZONE_POLYGON,
+    notes: 'ข้อมูลเดโม — ครอบ ต.แม่สาย (ตรงกับชั้น ms_detail)',
+  })
+  console.log(`seeded flood_risk_zone: ${DEMO_ZONE_NAME}`)
 
   let nHouse = 0
   let nMember = 0

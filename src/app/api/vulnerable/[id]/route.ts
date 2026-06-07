@@ -8,7 +8,8 @@ import { and, eq } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 import { isNationalRole } from '@/lib/incident-scope'
 import { getDb } from '@/lib/db'
-import { classifyRisk } from '@/lib/geo'
+import { classifyRiskByPolygons } from '@/lib/geo'
+import { loadRiskZonesByProvince, zonesFor } from '@/lib/flood-risk'
 import {
   badRequest,
   canWriteFieldData,
@@ -21,12 +22,6 @@ import {
 } from '@/lib/field-api'
 import { accessLog, householdMembers } from '@/db/schema'
 import type { UserRole } from '@/types'
-import floodPointsData from '../../../../../public/data/flood-points.json'
-
-const floodCoords: [number, number][] = floodPointsData.features.map((f) => [
-  f.geometry.coordinates[1],
-  f.geometry.coordinates[0],
-])
 
 const FULL_ACCESS_ROLES = new Set<UserRole>(['admin', 'officer', 'eoc', 'vhv', 'ems', 'ddpm'])
 function canViewFull(role?: UserRole): role is UserRole {
@@ -64,7 +59,11 @@ export async function GET(
 
   const lat = numberFromDb(p.lat)
   const lng = numberFromDb(p.lng)
-  const risk = lat !== null && lng !== null ? classifyRisk(lat, lng, floodCoords) : 'safe'
+  const zonesByProvince = await loadRiskZonesByProvince()
+  const risk =
+    lat !== null && lng !== null
+      ? classifyRiskByPolygons(lat, lng, zonesFor(zonesByProvince, p.province))
+      : 'safe'
 
   if (fullAccess && session?.user?.id) {
     void db

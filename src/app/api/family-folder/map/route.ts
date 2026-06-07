@@ -10,20 +10,15 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { getDb } from '@/lib/db'
-import { classifyRisk } from '@/lib/geo'
+import { classifyRiskByPolygons } from '@/lib/geo'
+import { loadRiskZonesByProvince, zonesFor } from '@/lib/flood-risk'
 import { getVulnerableHouseholdMarkers } from '@/lib/family-folder'
 import { isNationalRole } from '@/lib/incident-scope'
 import { accessLog } from '@/db/schema'
 import type { UserRole } from '@/types'
-import floodPointsData from '../../../../../public/data/flood-points.json'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-
-const floodCoords: [number, number][] = floodPointsData.features.map((f) => [
-  f.geometry.coordinates[1],
-  f.geometry.coordinates[0],
-])
 
 const FULL_ACCESS_ROLES = new Set<UserRole>(['admin', 'officer', 'eoc', 'vhv', 'ems', 'ddpm'])
 
@@ -39,9 +34,10 @@ export async function GET() {
   const scopedProvince = session?.user && !national ? sessionProvince : null
 
   const markers = await getVulnerableHouseholdMarkers(scopedProvince)
+  const zonesByProvince = await loadRiskZonesByProvince()
 
   const data = markers.map((h) => {
-    const risk = classifyRisk(h.lat, h.lng, floodCoords)
+    const risk = classifyRiskByPolygons(h.lat, h.lng, zonesFor(zonesByProvince, h.province))
     if (!fullAccess) {
       // PDPA mask — ไม่มีชื่อ/เบอร์, พิกัดปัดเศษ ~1km (2 ทศนิยม)
       return {

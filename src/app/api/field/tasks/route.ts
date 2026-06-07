@@ -2,16 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { and, asc, isNotNull, isNull } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 import { getDb } from '@/lib/db'
-import { classifyRisk } from '@/lib/geo'
+import { classifyRiskByPolygons } from '@/lib/geo'
+import { loadRiskZonesByProvince, zonesFor } from '@/lib/flood-risk'
 import { canWriteFieldData, composeName, forbidden, numberFromDb, parseBbox, unauthorized } from '@/lib/field-api'
 import { householdMembers } from '@/db/schema'
 import type { FollowUpStatus, MedicalPriority, RiskLevel } from '@/types'
-import floodPointsData from '../../../../../public/data/flood-points.json'
-
-const floodCoords: [number, number][] = floodPointsData.features.map((f) => [
-  f.geometry.coordinates[1],
-  f.geometry.coordinates[0],
-])
 
 const riskOrder: Record<RiskLevel, number> = { flood: 0, near: 1, safe: 2 }
 const priorityOrder: Record<MedicalPriority, number> = { A: 0, B: 1, C: 2 }
@@ -41,11 +36,16 @@ export async function GET(req: NextRequest) {
     .where(and(isNotNull(householdMembers.type), isNull(householdMembers.deletedAt)))
     .orderBy(asc(householdMembers.createdAt))
 
+  const zonesByProvince = await loadRiskZonesByProvince()
+
   const tasks = rows
     .map((p) => {
       const lat = numberFromDb(p.lat)
       const lng = numberFromDb(p.lng)
-      const risk = lat !== null && lng !== null ? classifyRisk(lat, lng, floodCoords) : 'safe'
+      const risk =
+        lat !== null && lng !== null
+          ? classifyRiskByPolygons(lat, lng, zonesFor(zonesByProvince, p.province))
+          : 'safe'
       return {
         id: p.id,
         name: composeName(p.prefix, p.firstName, p.lastName),

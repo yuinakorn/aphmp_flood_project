@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { desc, eq } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 import { getDb } from '@/lib/db'
-import { classifyRisk } from '@/lib/geo'
+import { classifyRiskByPolygons } from '@/lib/geo'
+import { loadRiskZonesByProvince, zonesFor } from '@/lib/flood-risk'
 import {
   badRequest,
   canTriage,
@@ -18,15 +19,9 @@ import { resolveIncidentId } from '@/lib/incident'
 import { helpRequests, householdMembers } from '@/db/schema'
 import { audit } from '@/lib/audit'
 import type { HelpRequestPriority, MedicalPriority } from '@/types'
-import floodPointsData from '../../../../public/data/flood-points.json'
 
 const REQUEST_TYPES = new Set(['medical', 'evacuation', 'supplies', 'rescue', 'shelter', 'other'])
 const PRIORITIES = new Set(['low', 'normal', 'high', 'critical'])
-
-const floodCoords: [number, number][] = floodPointsData.features.map((f) => [
-  f.geometry.coordinates[1],
-  f.geometry.coordinates[0],
-])
 
 function escalatedPriority(
   current: HelpRequestPriority,
@@ -104,8 +99,11 @@ export async function POST(req: NextRequest) {
 
     const personLat = numberFromDb(person.lat)
     const personLng = numberFromDb(person.lng)
+    const zonesByProvince = await loadRiskZonesByProvince()
     const risk =
-      personLat !== null && personLng !== null ? classifyRisk(personLat, personLng, floodCoords) : 'safe'
+      personLat !== null && personLng !== null
+        ? classifyRiskByPolygons(personLat, personLng, zonesFor(zonesByProvince, person.province))
+        : 'safe'
     finalPriority = escalatedPriority(
       finalPriority,
       person.medicalPriority as MedicalPriority,

@@ -59,6 +59,62 @@ export function pointInPolygon(lat: number, lng: number, polygon: KmlPolygon): b
   return inside
 }
 
+/** ระยะกันชน (กม.) ที่ถือว่า "ใกล้เขต" เมื่ออยู่นอกโพลิกอนน้ำท่วม */
+export const FLOOD_BUFFER_KM = 1.0
+
+/**
+ * ระยะ (กม.) จากจุด (lat,lng) ไปยังเซกเมนต์ A→B โดยใช้ projection equirectangular
+ * รอบจุด query — แม่นพอสำหรับระยะระดับ <2 กม. โพลิกอนเก็บเป็น [lng,lat]
+ */
+function pointToSegmentKm(
+  lat: number,
+  lng: number,
+  aLng: number,
+  aLat: number,
+  bLng: number,
+  bLat: number,
+): number {
+  const kx = 111.32 * Math.cos((lat * Math.PI) / 180)
+  const ky = 110.574
+  const px = lng * kx, py = lat * ky
+  const ax = aLng * kx, ay = aLat * ky
+  const bx = bLng * kx, by = bLat * ky
+  const dx = bx - ax, dy = by - ay
+  const len2 = dx * dx + dy * dy
+  let t = len2 ? ((px - ax) * dx + (py - ay) * dy) / len2 : 0
+  t = Math.max(0, Math.min(1, t))
+  const cx = ax + t * dx, cy = ay + t * dy
+  return Math.hypot(px - cx, py - cy)
+}
+
+/**
+ * จำแนกความเสี่ยงน้ำท่วมจาก "โซนเสี่ยง" (flood_risk_zones) — โพลิกอน [lng,lat][]:
+ *   • อยู่ในโพลิกอนโซนใดโซนหนึ่ง            → 'flood' (ในเขตน้ำท่วม)
+ *   • อยู่นอกโซนแต่ห่างขอบ ≤ bufferKm        → 'near'  (ใกล้เขต)
+ *   • นอกนั้น / ไม่มีโซน                      → 'safe'  (ปลอดภัย)
+ */
+export function classifyRiskByPolygons(
+  lat: number,
+  lng: number,
+  polygons: [number, number][][],
+  bufferKm: number = FLOOD_BUFFER_KM,
+): RiskLevel {
+  if (!polygons.length) return 'safe'
+  for (const poly of polygons) {
+    if (poly.length >= 3 && pointInPolygon(lat, lng, poly)) return 'flood'
+  }
+  let min = Infinity
+  for (const poly of polygons) {
+    const n = poly.length
+    if (n < 2) continue
+    for (let i = 0, j = n - 1; i < n; j = i++) {
+      const d = pointToSegmentKm(lat, lng, poly[j][0], poly[j][1], poly[i][0], poly[i][1])
+      if (d < min) min = d
+    }
+  }
+  return min <= bufferKm ? 'near' : 'safe'
+}
+
 /**
  * Returns the smallest flood level (1–5) whose polygon contains the point,
  * or null if the point is not inside any flood zone.

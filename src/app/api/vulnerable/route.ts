@@ -15,7 +15,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { and, asc, eq, isNotNull, isNull } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 import { getDb } from '@/lib/db'
-import { classifyRisk } from '@/lib/geo'
+import { classifyRiskByPolygons } from '@/lib/geo'
+import { loadRiskZonesByProvince, zonesFor } from '@/lib/flood-risk'
 import {
   badRequest,
   canWriteFieldData,
@@ -31,13 +32,6 @@ import {
 import { isNationalRole } from '@/lib/incident-scope'
 import { accessLog, householdMembers } from '@/db/schema'
 import type { UserRole } from '@/types'
-import floodPointsData from '../../../../public/data/flood-points.json'
-
-const floodCoords: [number, number][] = floodPointsData.features.map((f) => [
-  f.geometry.coordinates[1],
-  f.geometry.coordinates[0],
-])
-
 // Roles ที่เห็นข้อมูลส่วนตัวได้
 const FULL_ACCESS_ROLES = new Set<UserRole>(['admin', 'officer', 'eoc', 'vhv', 'ems', 'ddpm'])
 
@@ -85,6 +79,8 @@ export async function GET(req: NextRequest) {
     .orderBy(asc(householdMembers.amphoe), asc(householdMembers.tambon), asc(householdMembers.firstName))
     .limit(limit)
 
+  const zonesByProvince = await loadRiskZonesByProvince()
+
   const data = rows
     .map((p) => {
       const lat = numberFromDb(p.lat)
@@ -97,7 +93,10 @@ export async function GET(req: NextRequest) {
         }
       }
 
-      const risk = lat !== null && lng !== null ? classifyRisk(lat, lng, floodCoords) : 'safe'
+      const risk =
+        lat !== null && lng !== null
+          ? classifyRiskByPolygons(lat, lng, zonesFor(zonesByProvince, p.province))
+          : 'safe'
 
       if (!fullAccess) {
         // PDPA mask — anonymous/viewer เห็นแค่ aggregate context

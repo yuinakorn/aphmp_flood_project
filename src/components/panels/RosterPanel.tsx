@@ -12,6 +12,7 @@ interface Props {
   initialFilter?: FilterKey
   onSelect: (p: VulnerablePerson) => void
   onClose: () => void
+  admittedCount?: number
 }
 
 const typeColor: Record<string, string> = {
@@ -38,7 +39,7 @@ const order: Record<RiskLevel, number> = { flood: 0, near: 1, safe: 2 }
 // ระดับวิกฤตทางการแพทย์ — A สำคัญสุด (เลขน้อย = ขึ้นก่อน)
 const medRank = (p?: string | null) => (p === 'A' ? 0 : p === 'B' ? 1 : p === 'C' ? 2 : 3)
 
-export function RosterPanel({ persons, initialFilter = 'all', onSelect, onClose }: Props) {
+export function RosterPanel({ persons, initialFilter = 'all', onSelect, onClose, admittedCount = 0 }: Props) {
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<FilterKey>(initialFilter)
 
@@ -83,10 +84,14 @@ export function RosterPanel({ persons, initialFilter = 'all', onSelect, onClose 
     { key: 'at_risk',  label: 'เสี่ยง',          count: counts.atRisk,   color: 'var(--risk-near)' },
   ]
 
+  const hintText = admittedCount > 0
+    ? `${counts.total} จาก ${counts.total + admittedCount} ราย (ในศูนย์ฯ ${admittedCount})`
+    : `${counts.total} ราย · เสี่ยง ${counts.flooded + counts.atRisk}`
+
   return (
     <PanelShell
       title="รายชื่อกลุ่มเปราะบาง"
-      hint={`${counts.total} ราย · เสี่ยง ${counts.flooded + counts.atRisk}`}
+      hint={hintText}
       onClose={onClose}
     >
       {/* Filter tabs */}

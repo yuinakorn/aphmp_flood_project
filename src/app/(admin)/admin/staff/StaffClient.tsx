@@ -7,6 +7,7 @@ import {
   Loader2, CircleUser, Clock, Pencil, Save, CheckCircle2, Search, X,
 } from 'lucide-react'
 import type { UserRole } from '@/types'
+import { maskCid } from '@/lib/cid'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -22,6 +23,7 @@ import {
 interface StaffRow {
   id: string
   name: string
+  nationalId: string | null
   role: UserRole
   province: string | null
   unitName: string | null
@@ -288,6 +290,11 @@ function StaffTableRow({
         </div>
       </TableCell>
 
+      {/* เลขบัตร ปชช. */}
+      <TableCell className="whitespace-nowrap font-mono text-xs text-[var(--fg-muted)]">
+        {r.nationalId ? maskCid(r.nationalId) : '—'}
+      </TableCell>
+
       {/* สถานะ */}
       <TableCell>
         <StatusBadge status={r.status} />
@@ -518,9 +525,11 @@ export function StaffClient({ isNational, province, provinceOptions }: Props) {
     if (unitFilter && r.unitName !== unitFilter) return false
     if (search) {
       const q = search.toLowerCase()
+      const digits = search.replace(/\D/g, '')
       const hit = r.name.toLowerCase().includes(q)
         || (r.province ?? '').toLowerCase().includes(q)
         || (r.unitName ?? '').toLowerCase().includes(q)
+        || (digits.length > 0 && (r.nationalId ?? '').includes(digits))
       if (!hit) return false
     }
     return true
@@ -548,6 +557,7 @@ export function StaffClient({ isNational, province, provinceOptions }: Props) {
     <TableHeader>
       <TableRow className="hover:bg-transparent">
         <TableHead>ชื่อ-สกุล</TableHead>
+        <TableHead className="w-[150px]">เลขบัตร ปชช.</TableHead>
         <TableHead className="w-[100px]">สถานะ</TableHead>
         <TableHead>บทบาท</TableHead>
         <TableHead>จังหวัด / หน่วยงาน</TableHead>
@@ -654,7 +664,7 @@ export function StaffClient({ isNational, province, provinceOptions }: Props) {
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--fg-subtle)] pointer-events-none" />
           <input
             type="text"
-            placeholder="ค้นหาชื่อ หน่วยงาน จังหวัด..."
+            placeholder="ค้นหาชื่อ เลขบัตร ปชช. หน่วยงาน จังหวัด..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="h-8 w-full rounded-md border border-[var(--border)] bg-[var(--bg)] pl-8 pr-8 text-sm outline-none transition-colors focus:border-[var(--accent)]"

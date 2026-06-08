@@ -7,7 +7,7 @@
 import { desc, eq } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { users } from '@/db/schema'
-import { hashCid } from '@/lib/cid'
+import { hashCid, normalizeCid } from '@/lib/cid'
 import type { UserRole } from '@/types'
 
 export type StaffStatus = 'pending' | 'active' | 'suspended'
@@ -79,6 +79,7 @@ export async function createPendingStaff(
     .insert(users)
     .values({
       cidHash,
+      nationalId: normalizeCid(input.cid),
       name: input.name,
       role: input.role ?? 'officer',
       province: input.province,
@@ -97,6 +98,7 @@ export async function createPendingStaff(
 export interface StaffListRow {
   id: string
   name: string
+  nationalId: string | null
   role: UserRole
   province: string | null
   unitName: string | null
@@ -119,6 +121,7 @@ export async function listStaff(opts: { national: boolean; province: string | nu
   return rows.map((r) => ({
     id: r.id,
     name: r.name,
+    nationalId: r.nationalId,
     role: r.role as UserRole,
     province: r.province,
     unitName: r.unitName,
@@ -177,6 +180,7 @@ export async function createWhitelistStaff(
     .insert(users)
     .values({
       cidHash,
+      nationalId: normalizeCid(input.cid),
       name: input.name,
       role: input.role,
       province: input.province,

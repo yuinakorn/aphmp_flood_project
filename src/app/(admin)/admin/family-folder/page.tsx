@@ -1,8 +1,8 @@
 import { auth } from '@/lib/auth'
 import { redirect } from 'next/navigation'
-import { FolderHeart } from 'lucide-react'
 import { FamilyFolderClient } from './FamilyFolderClient'
 import { getFamilyFolderSummary, getFamilyFolderHouseholds } from '@/lib/family-folder'
+import { getActiveIncident } from '@/lib/incident-scope'
 
 export const metadata = { title: 'Family Folder กลุ่มเปราะบาง — GIS Health Intelligence' }
 
@@ -10,33 +10,23 @@ export default async function FamilyFolderPage() {
   const session = await auth()
   if (!session) redirect('/login')
 
+  const role = session.user?.role ?? 'viewer'
+  const province = session.user?.province ?? null
+  const scope = await getActiveIncident(role, province)
+  const isCrisis = !!scope
+
   const [summary, { households, total }] = await Promise.all([
     getFamilyFolderSummary(),
-    getFamilyFolderHouseholds(200),
+    getFamilyFolderHouseholds(300, 0, undefined, { withRisk: isCrisis }),
   ])
 
   return (
-    <div className="mx-auto max-w-6xl">
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <p className="gx-eyebrow">Family Folder</p>
-          <h1 className="gx-title mt-1.5 flex items-center gap-2.5">
-            <FolderHeart size={26} strokeWidth={1.75} className="text-[var(--cat-folder)]" />
-            ครอบครัวกลุ่มเปราะบาง
-          </h1>
-          <p className="mt-1.5 text-sm text-[var(--fg-muted)]">
-            บ้านที่มีสมาชิกกลุ่มเปราะบาง · สมาชิก + ความสัมพันธ์ในครัวเรือน
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-6">
-        <FamilyFolderClient
-          summary={summary}
-          initialHouseholds={households}
-          total={total}
-        />
-      </div>
-    </div>
+    <FamilyFolderClient
+      summary={summary}
+      initialHouseholds={households}
+      total={total}
+      isCrisis={isCrisis}
+      incidentName={scope?.name ?? null}
+    />
   )
 }

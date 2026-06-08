@@ -81,7 +81,8 @@ export const floodPolygons = pgTable('flood_polygons', {
 // ดู docs/new/AUTH-SPEC.md — แยก authentication (ThaiD) ออกจาก authorization (ตารางนี้)
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
-  cidHash: text('cid_hash').unique(),       // SHA-256 ของ CID 13 หลัก (PDPA — ไม่เก็บ raw) · match กับ ThaiD
+  cidHash: text('cid_hash').unique(),       // SHA-256 ของ CID 13 หลัก · match กับ ThaiD
+  nationalId: text('national_id'),          // เลขบัตร 13 หลัก (raw) — แสดงแบบ masked ในทะเบียน + ใช้ค้นหา; ทุก access ถูก log
   name: text('name').notNull(),             // เติมจาก ThaiD ได้
   role: text('role').notNull().default('viewer'), // admin | eoc | officer | vhv | ems | rescue | ddpm | shelter_manager | viewer
   province: text('province'),               // จังหวัดสังกัด — กุญแจ scope ทั้งระบบ
@@ -383,6 +384,35 @@ export const helpRequests = pgTable('help_requests', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 }, (t) => [index('idx_help_requests_incident_id').on(t.incidentId)])
+
+// คำร้องขอความช่วยเหลือจาก "ภายนอก" (ประชาชนแจ้งเองผ่านฟอร์มสาธารณะ /report)
+// แยกจาก help_requests เพราะยังไม่ยืนยันตัวตน — ต้องผ่าน จนท. ตรวจสอบก่อน (กล่อง "รอตรวจสอบ")
+// approve → สร้าง help_requests จริง (helpRequestId), reject → status=rejected
+export const publicHelpReports = pgTable('public_help_reports', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  reporterName: text('reporter_name'),            // ชื่อผู้แจ้ง (ไม่บังคับ)
+  reporterPhone: text('reporter_phone').notNull(), // เบอร์ติดต่อกลับ (บังคับ)
+  requestType: text('request_type').notNull(),     // medical | evacuation | supplies | rescue | shelter | other
+  description: text('description'),                 // รายละเอียดเหตุ
+  peopleCount: integer('people_count'),            // จำนวนคนที่ต้องการความช่วยเหลือ
+  province: text('province'),                       // จังหวัด — ใช้ route ให้ จนท.จังหวัด
+  addressText: text('address_text'),               // ที่อยู่ข้อความ (ชาวบ้านพิมพ์เอง)
+  lat: numeric('lat', { precision: 10, scale: 6 }),
+  lng: numeric('lng', { precision: 10, scale: 6 }),
+  status: text('status').notNull().default('pending'), // pending | approved | rejected
+  reviewNote: text('review_note'),                 // หมายเหตุ จนท. ตอนตรวจ
+  reviewedBy: uuid('reviewed_by'),
+  reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+  helpRequestId: uuid('help_request_id').references(() => helpRequests.id), // คำร้องจริงหลัง approve
+  incidentId: uuid('incident_id').references(() => incidents.id),
+  userAgent: text('user_agent'),
+  ip: inet('ip'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+}, (t) => [
+  index('idx_public_help_reports_status').on(t.status),
+  index('idx_public_help_reports_province').on(t.province),
+])
 
 // Assignment and status timeline for EMS/rescue/field teams
 export const caseAssignments = pgTable('case_assignments', {

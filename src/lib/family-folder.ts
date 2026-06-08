@@ -1,6 +1,9 @@
 import { getDb } from '@/lib/db'
-import { households, householdMembers, shelterAdmissions } from '@/db/schema'
+import { households, householdMembers, shelterAdmissions, infrastructures } from '@/db/schema'
 import { and, asc, eq, inArray } from 'drizzle-orm'
+import { classifyRiskByPolygons } from '@/lib/geo'
+import { loadRiskZonesByProvince, zonesFor } from '@/lib/flood-risk'
+import type { RiskLevel } from '@/types'
 
 export interface HouseholdMember {
   pid: number
@@ -21,10 +24,16 @@ export interface VulnerableHousehold {
   hno: string
   village: string
   villno: string
+  tambon?: string
+  province?: string
   lat?: number
   lng?: number
   members: HouseholdMember[]
   vulnerableCount: number
+  // เติมเฉพาะโหมดวิกฤต (withRisk) — ใช้เรียง/ติดป้ายบ้านเสี่ยง
+  floodRisk?: RiskLevel
+  evacuated?: boolean
+  shelterName?: string | null
 }
 
 // สมาชิกบ้านสำหรับ popup บนแผนที่ — มีเบอร์ + flag กลุ่มเปราะบาง
@@ -38,6 +47,8 @@ export interface HouseholdMapMember {
   isHead: boolean
   isVulnerable: boolean
   phone: string | null
+  shelterId?: string | null
+  shelterName?: string | null
 }
 
 // หมุดบ้านบนแผนที่ — full data (masking ทำที่ route ตาม role)
@@ -194,6 +205,7 @@ export async function getFamilyFolderHouseholds(
   limit = 200,
   offset = 0,
   villcode?: string,
+  opts?: { withRisk?: boolean },
 ): Promise<{ households: VulnerableHousehold[]; total: number }> {
   const db = getDb()
   const houseRows = await db
@@ -232,6 +244,8 @@ export async function getFamilyFolderHouseholds(
       hno: h.hno ?? '-',
       village: h.villageName ?? '-',
       villno: h.villno ?? '',
+      tambon: h.tambon ?? undefined,
+      province: h.province ?? undefined,
       lat: h.lat != null ? Number(h.lat) : undefined,
       lng: h.lng != null ? Number(h.lng) : undefined,
       members,
@@ -243,7 +257,49 @@ export async function getFamilyFolderHouseholds(
     .map(buildHouse)
     .filter((h): h is VulnerableHousehold => h !== null)
 
-  return { households: all.slice(offset, offset + limit), total: all.length }
+  const page = all.slice(offset, offset + limit)
+
+  // โหมดวิกฤต — เติม flood-risk (polygon + buffer) + สถานะอพยพ ต่อบ้าน เพื่อเรียง/ติดป้าย
+  if (opts?.withRisk && page.length > 0) {
+    const zonesByProvince = await loadRiskZonesByProvince()
+    for (const h of page) {
+      h.floodRisk =
+        h.lat != null && h.lng != null
+          ? classifyRiskByPolygons(h.lat, h.lng, zonesFor(zonesByProvince, h.province ?? null))
+          : 'safe'
+    }
+
+    // สถานะอพยพ — สมาชิกคนใดในบ้าน admitted อยู่ศูนย์พักพิง = บ้านนี้อพยพแล้ว
+    const pageHouseIds = new Set(page.map((h) => h.id))
+    const memberToHouse = new Map<string, string>()
+    const pageMemberIds: string[] = []
+    for (const m of memberRows) {
+      if (m.householdId && pageHouseIds.has(m.householdId)) {
+        memberToHouse.set(m.id, m.householdId)
+        pageMemberIds.push(m.id)
+      }
+    }
+    if (pageMemberIds.length > 0) {
+      const admRows = await db
+        .select({ memberId: shelterAdmissions.memberId, shelterName: infrastructures.name })
+        .from(shelterAdmissions)
+        .innerJoin(infrastructures, eq(shelterAdmissions.shelterId, infrastructures.id))
+        .where(and(inArray(shelterAdmissions.memberId, pageMemberIds), eq(shelterAdmissions.status, 'admitted')))
+      const evac = new Map<string, string>() // householdId → shelterName
+      for (const r of admRows) {
+        const hid = r.memberId ? memberToHouse.get(r.memberId) : undefined
+        if (hid) evac.set(hid, r.shelterName)
+      }
+      for (const h of page) {
+        if (evac.has(h.id)) {
+          h.evacuated = true
+          h.shelterName = evac.get(h.id) ?? null
+        }
+      }
+    }
+  }
+
+  return { households: page, total: all.length }
 }
 
 // หมุดบ้านสำหรับแผนที่ — เฉพาะบ้านที่มีพิกัด + มีสมาชิกกลุ่มเปราะบาง ≥1 คน
@@ -262,26 +318,34 @@ export async function getVulnerableHouseholdMarkers(
     .from(householdMembers)
     .where(inArray(householdMembers.householdId, houseRows.map((h) => h.id)))
 
-  // คนที่กำลังพักอยู่ศูนย์พักพิง (admitted) → ไม่ได้อยู่บ้าน จึงไม่แสดงในหมุดบ้าน
+  // คนที่กำลังพักอยู่ศูนย์พักพิง (admitted)
   const memberIds = memberRows.map((m) => m.id)
-  const admittedIds = new Set<string>()
+  const admittedMap = new Map<string, { shelterId: string; shelterName: string }>()
   if (memberIds.length > 0) {
     const admRows = await db
-      .select({ memberId: shelterAdmissions.memberId })
+      .select({
+        memberId: shelterAdmissions.memberId,
+        shelterId: shelterAdmissions.shelterId,
+        shelterName: infrastructures.name,
+      })
       .from(shelterAdmissions)
+      .innerJoin(infrastructures, eq(shelterAdmissions.shelterId, infrastructures.id))
       .where(
         and(
           inArray(shelterAdmissions.memberId, memberIds),
           eq(shelterAdmissions.status, 'admitted'),
         ),
       )
-    for (const r of admRows) if (r.memberId) admittedIds.add(r.memberId)
+    for (const r of admRows) {
+      if (r.memberId) {
+        admittedMap.set(r.memberId, { shelterId: r.shelterId, shelterName: r.shelterName })
+      }
+    }
   }
 
   const membersByHouse = new Map<string, MemberRow[]>()
   for (const m of memberRows) {
     if (!m.householdId) continue // query กรองเฉพาะ member ที่ผูกครัวเรือนอยู่แล้ว
-    if (admittedIds.has(m.id)) continue // อยู่ศูนย์พักพิงแล้ว — ตัดออกจากหมุดบ้าน
     const arr = membersByHouse.get(m.householdId) ?? []
     arr.push(m)
     membersByHouse.set(m.householdId, arr)
@@ -296,6 +360,7 @@ export async function getVulnerableHouseholdMarkers(
     })
     const members: HouseholdMapMember[] = mem.map((m) => {
       const group = classifyGroup(m.age, m.isDisabled, m.isChronic)
+      const shelter = admittedMap.get(m.id)
       return {
         name: `${m.prefix ?? ''}${m.firstName}${m.lastName ? ' ' + m.lastName : ''}`.trim(),
         age: m.age ?? 0,
@@ -306,6 +371,8 @@ export async function getVulnerableHouseholdMarkers(
         isHead: m.isHead,
         isVulnerable: isVulnerableMember(m),
         phone: m.phone || null,
+        shelterId: shelter?.shelterId ?? null,
+        shelterName: shelter?.shelterName ?? null,
       }
     })
     const vulnerableCount = members.filter((x) => x.isVulnerable).length

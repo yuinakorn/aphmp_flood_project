@@ -53,6 +53,28 @@ export type HelpRequestStatus =
   | 'en_route'
   | 'resolved'
   | 'cancelled'
+/** คำร้องจากประชาชน (ฟอร์มสาธารณะ) — ยังไม่ยืนยันตัวตน รอ จนท. ตรวจสอบ */
+export type PublicReportStatus = 'pending' | 'approved' | 'rejected'
+export interface PublicHelpReport {
+  id: string
+  reporterName: string | null
+  reporterPhone: string
+  requestType: HelpRequestType
+  description: string | null
+  peopleCount: number | null
+  province: string | null
+  addressText: string | null
+  lat: number | null
+  lng: number | null
+  status: PublicReportStatus
+  reviewNote: string | null
+  reviewedBy: string | null
+  reviewedAt: string | null
+  helpRequestId: string | null
+  incidentId: string | null
+  createdAt: string | null
+}
+
 export type ShelterReadinessStatus = 'open' | 'near_capacity' | 'full' | 'closed' | 'unsafe'
 export type IncidentType = 'flood' | 'storm' | 'other'
 export type IncidentStatus = 'active' | 'monitoring' | 'closed'
@@ -275,6 +297,7 @@ export interface DispositionSummary {
 
 export interface VulnerablePerson {
   id: number
+  householdId?: string | null  // UUID ของครัวเรือน — ใช้เปิด popup หมุดบ้านเมื่อเลือกจากรายชื่อ
   name: string
   nationalId?: string | null  // masked (เห็นเฉพาะ 4 หลักท้าย) — server mask ตาม PDPA
   type: VulnerableType
@@ -284,6 +307,7 @@ export interface VulnerablePerson {
   vil: string
   tambon?: string
   amphoe?: string
+  province?: string
   fullAddress?: string
   lat: number
   lng: number
@@ -299,6 +323,8 @@ export interface VulnerablePerson {
   lastKnownStatus?: string
   lifeSupport?: string[] | null
   disposition?: IncidentDisposition  // โหมดวิกฤตเท่านั้น — derive ใน page.tsx จาก incident-disposition
+  isAdmitted?: boolean
+  shelterName?: string | null
 }
 
 export interface HouseholdMapMember {
@@ -312,6 +338,8 @@ export interface HouseholdMapMember {
   isHead?: boolean
   isVulnerable: boolean
   phone?: string | null
+  shelterId?: string | null
+  shelterName?: string | null
 }
 
 // โซนเสี่ยงน้ำท่วม — polygon ที่เจ้าหน้าที่วาดเพื่อระบุพื้นที่ที่น้ำจะท่วมก่อน (เก็บ [lng, lat][])

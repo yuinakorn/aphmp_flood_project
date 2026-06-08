@@ -225,19 +225,26 @@ function householdPopupHtml(h: VulnerableHouseholdMarker, risk: RiskLevel, canRe
       ? `<a href="tel:${escapeHtml(phone.replace(/[^0-9+]/g, ''))}" style="font-family:var(--font-mono);font-size:11.5px;color:var(--accent);text-decoration:none;white-space:nowrap">${escapeHtml(phone)}</a>`
       : '<span style="color:var(--fg-subtle)">-</span>'
 
-  const headTag = (isHead?: boolean) =>
-    isHead ? ' <span style="font-size:9px;color:var(--fg-subtle)">(หัวหน้าครัวเรือน)</span>' : ''
+  // ⚠️ ป้าย "หัวหน้าครัวเรือน" + ความสัมพันธ์ (m.position) ซ่อนชั่วคราว —
+  // is_head/family_position ยังไม่มีช่องกรอกในฟอร์มจริง (มีแต่ seed/demo) จึงไม่แสดงเพื่อกันเข้าใจผิด
+  // เปิดคืนเมื่อมี input จริง: คืน headTag(m.isHead) ที่ชื่อ + ใส่ m.position กลับใน meta
 
-  // คนเปราะบาง → ชื่อ + ความสัมพันธ์·อายุ + badge กลุ่ม
+  // คนเปราะบาง → ชื่อ + อายุ + badge กลุ่ม (ประเภทเปราะบาง — กรอกจริง)
   const vulnRow = (m: VulnerableHouseholdMarker['members'][number]) => {
     const gColor = GROUP_COLOR[m.group] ?? 'var(--fg-subtle)'
     const name = m.name ? escapeHtml(m.name) : 'สมาชิก'
-    const meta = [m.position, m.age != null ? `${m.age} ปี` : null].filter(Boolean).join(' · ')
+    const meta = [m.age != null ? `${m.age} ปี` : null].filter(Boolean).join(' · ')
+    const shelterBadge = m.shelterName
+      ? `<span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:9.5px;background:#0ea5e9;color:#fff;font-weight:bold;margin-top:2px">พักที่: ${escapeHtml(m.shelterName)}</span>`
+      : ''
     return `<div style="display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:6px 0;border-left:2.5px solid ${gColor};padding-left:8px">
       <div>
-        <div style="font-size:12.5px;font-weight:600;color:var(--fg)">${name}${headTag(m.isHead)}</div>
+        <div style="font-size:12.5px;font-weight:600;color:var(--fg)">${name}</div>
         ${meta ? `<div style="font-size:10.5px;color:var(--fg-subtle)">${escapeHtml(meta)}</div>` : ''}
-        <span style="display:inline-block;margin-top:2px;padding:1px 6px;border-radius:4px;font-size:9.5px;background:color-mix(in oklch, ${gColor} 18%, transparent);color:${gColor}">${m.group}</span>
+        <div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-top:2px">
+          <span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:9.5px;background:color-mix(in oklch, ${gColor} 18%, transparent);color:${gColor}">${m.group}</span>
+          ${shelterBadge}
+        </div>
       </div>
       <div style="align-self:center">${phoneCell(m.phone)}</div>
     </div>`
@@ -248,8 +255,14 @@ function householdPopupHtml(h: VulnerableHouseholdMarker, risk: RiskLevel, canRe
     const sexAge = [m.sex && m.sex !== '-' ? m.sex : null, m.age != null ? `${m.age} ปี` : null]
       .filter(Boolean)
       .join(' · ') || 'สมาชิก'
+    const shelterBadge = m.shelterName
+      ? `<span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:9.5px;background:#0ea5e9;color:#fff;font-weight:bold;margin-top:2px">พักที่: ${escapeHtml(m.shelterName)}</span>`
+      : ''
     return `<div style="display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:6px 0;border-left:2.5px solid var(--border);padding-left:8px">
-      <div style="font-size:12.5px;font-weight:500;color:var(--fg);align-self:center">${escapeHtml(sexAge)}${headTag(m.isHead)}</div>
+      <div>
+        <div style="font-size:12.5px;font-weight:500;color:var(--fg)">${escapeHtml(sexAge)}</div>
+        ${shelterBadge}
+      </div>
       <div style="align-self:center">${phoneCell(m.phone)}</div>
     </div>`
   }
@@ -592,13 +605,22 @@ export function FloodMap({
     const marker = markerMapRef.current.get(focusHouseholdId)
     const group = vulnGroupRef.current
     if (!map || !marker) return
-    map.closePopup()
-    // หมุดอาจถูกซ่อนใน cluster — ขยาย cluster ให้เห็นหมุดก่อนเปิด popup
-    if (group) {
-      group.zoomToShowLayer(marker, () => marker.openPopup())
-    } else {
-      map.once('moveend', () => marker.openPopup())
+
+    // รอให้ flyTo animation จบก่อน แล้วค่อยเปิด popup
+    const doOpen = () => {
+      map.closePopup()
+      if (group) {
+        group.zoomToShowLayer(marker, () => marker.openPopup())
+      } else {
+        marker.openPopup()
+      }
     }
+
+    // flyTo จะ trigger moveend เมื่อจบ — ฟังรอ + timeout กันค้าง
+    let done = false
+    const onDone = () => { if (!done) { done = true; doOpen() } }
+    map.once('moveend', onDone)
+    setTimeout(onDone, 800) // safety: ถ้า moveend ไม่ fire (เช่น อยู่ตรงจุดแล้ว)
   }, [focusHouseholdId, mapReady])
 
   // Infra markers (vector squares using divIcon, no emoji)

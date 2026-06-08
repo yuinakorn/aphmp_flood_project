@@ -5,7 +5,7 @@
  * (หมุดบ้าน cluster + popup สมาชิกครบ + หมุดสถานพยาบาล/ศูนย์พักพิง)
  * โหลด households (/api/family-folder/map) + infra (/api/infra) เองแบบ scope จังหวัดฝั่ง server
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useMemo } from 'react'
 import type { Map as LeafletMap } from 'leaflet'
 import { MapWrapper } from '@/components/map/MapWrapper'
 import type {
@@ -13,6 +13,8 @@ import type {
   Infrastructure,
   LayerState,
   VulnerableHouseholdMarker,
+  Incident,
+  VulnerablePerson,
 } from '@/types'
 import { Button } from '@/components/ui/button'
 
@@ -35,16 +37,39 @@ const BASEMAPS: { value: BasemapType; label: string }[] = [
 ]
 
 interface Props {
+  activeIncidents?: Incident[]
+  persons?: VulnerablePerson[]
+  infra?: Infrastructure[]
+  onSelect?: (p: VulnerablePerson) => void
   sessionUserId?: string | null
   sessionRole?: string | null
 }
 
-export default function EocFloodMap({ sessionUserId = null, sessionRole = null }: Props) {
+function matchesAreas(
+  m: { province?: string | null; amphoe?: string | null; tambon?: string | null },
+  areas?: { province?: string | null; amphoe?: string | null; tambon?: string | null }[]
+): boolean {
+  if (!areas || areas.length === 0) return true
+  return areas.some((a) => {
+    if (a.province && m.province !== a.province) return false
+    if (a.amphoe && m.amphoe !== a.amphoe) return false
+    if (a.tambon && m.tambon !== a.tambon) return false
+    return true
+  })
+}
+
+export default function EocFloodMap({
+  activeIncidents = [],
+  sessionUserId = null,
+  sessionRole = null,
+}: Props) {
   const [households, setHouseholds] = useState<VulnerableHouseholdMarker[]>([])
   const [infra, setInfra] = useState<Infrastructure[]>([])
   const [basemap, setBasemap] = useState<BasemapType>('sat')
   const mapRef = useRef<LeafletMap | null>(null)
   const didFitRef = useRef(false)
+
+  const activeIncident = activeIncidents?.[0] ?? null
 
   useEffect(() => {
     Promise.all([
@@ -56,13 +81,29 @@ export default function EocFloodMap({ sessionUserId = null, sessionRole = null }
     })
   }, [])
 
+  // กรองห้ามแสดงหมุดที่ไม่เกี่ยวข้องกับ incident ที่เลือก
+  const filteredHouseholds = useMemo(() => {
+    if (!activeIncident) return households
+    return households.filter((h) =>
+      matchesAreas(
+        { province: h.province, amphoe: h.amphoe, tambon: h.tambon },
+        activeIncident.areas
+      )
+    )
+  }, [households, activeIncident])
+
+  const filteredInfra = useMemo(() => {
+    if (!activeIncident || !activeIncident.province) return infra
+    return infra.filter((i) => i.province === activeIncident.province)
+  }, [infra, activeIncident])
+
   // โฟกัสแผนที่ตามข้อมูลครั้งแรกที่ทั้งแผนที่และข้อมูลพร้อม
   useEffect(() => {
     const map = mapRef.current
     if (!map || didFitRef.current) return
     const pts: [number, number][] = [
-      ...households.map((h) => [h.lat, h.lng] as [number, number]),
-      ...infra.map((i) => [Number(i.lat), Number(i.lng)] as [number, number]),
+      ...filteredHouseholds.map((h) => [h.lat, h.lng] as [number, number]),
+      ...filteredInfra.map((i) => [Number(i.lat), Number(i.lng)] as [number, number]),
     ].filter(([la, ln]) => Number.isFinite(la) && Number.isFinite(ln))
     if (pts.length === 0) return
     didFitRef.current = true
@@ -70,14 +111,14 @@ export default function EocFloodMap({ sessionUserId = null, sessionRole = null }
       const L = (await import('leaflet')).default
       map.fitBounds(L.latLngBounds(pts), { padding: [40, 40], maxZoom: 14 })
     })()
-  }, [households, infra])
+  }, [filteredHouseholds, filteredInfra])
 
   return (
     <div className="relative size-full">
       <MapWrapper
         layers={EOC_LAYERS}
-        households={households}
-        infra={infra}
+        households={filteredHouseholds}
+        infra={filteredInfra}
         basemap={basemap}
         floodMarkProvince={null}
         sessionUserId={sessionUserId}

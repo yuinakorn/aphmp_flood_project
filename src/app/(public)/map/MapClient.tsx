@@ -148,17 +148,44 @@ export function MapClient({ session, canManageStaff = false, canTriage = false, 
   const didFitRef = useRef(false)
   const [mapReady, setMapReady] = useState(false)
   const [rosterFilter, setRosterFilter] = useState<'all' | 'flooded' | 'at_risk'>('all')
+  const [focusHouseholdId, setFocusHouseholdId] = useState<string | null>(null)
+
+  const provinceVulnerable = useMemo(() => {
+    return vulnerable.filter((p) => {
+      if (province === 'chiangmai') return p.province === 'เชียงใหม่'
+      if (province === 'nan') return p.province === 'น่าน'
+      if (province === 'chiangrai') return p.province === 'เชียงราย' && p.amphoe === 'เมืองเชียงราย'
+      if (province === 'chiangrai_maesai') return p.province === 'เชียงราย' && p.amphoe === 'แม่สาย'
+      return false
+    })
+  }, [vulnerable, province])
+
+  const provinceHouseholds = useMemo(() => {
+    return households.filter((h) => {
+      if (province === 'chiangmai') return h.province === 'เชียงใหม่'
+      if (province === 'nan') return h.province === 'น่าน'
+      if (province === 'chiangrai') return h.province === 'เชียงราย' && h.amphoe === 'เมืองเชียงราย'
+      if (province === 'chiangrai_maesai') return h.province === 'เชียงราย' && h.amphoe === 'แม่สาย'
+      return false
+    })
+  }, [households, province])
 
   // สถิติกลุ่มเปราะบาง — คิดจากข้อมูลที่ scope จังหวัดแล้ว (ถูกต้องทุกจังหวัด ไม่ผูกกับโซนเชียงใหม่)
   const vulnStats: VulnerableStats = useMemo(() => {
     let flood = 0, near = 0, safe = 0
-    for (const p of vulnerable) {
-      if (p.risk === 'flood') flood++
-      else if (p.risk === 'near') near++
-      else safe++
+    for (const p of provinceVulnerable) {
+      if (p.isAdmitted) {
+        safe++
+      } else if (p.risk === 'flood') {
+        flood++
+      } else if (p.risk === 'near') {
+        near++
+      } else {
+        safe++
+      }
     }
-    return { flood, near, safe, total: vulnerable.length }
-  }, [vulnerable])
+    return { flood, near, safe, total: provinceVulnerable.length }
+  }, [provinceVulnerable])
 
   // ── ตัวกรองหมุดบ้าน (faceted) — เซตว่าง = แสดงทั้งหมด ──
   const [filterRisk, setFilterRisk] = useState<Set<RiskLevel>>(new Set())
@@ -205,12 +232,12 @@ export function MapClient({ session, canManageStaff = false, canTriage = false, 
   const zonesWithCount = useMemo(
     () => riskZones.map((z) => ({
       ...z,
-      count: households.reduce(
+      count: provinceHouseholds.reduce(
         (sum, h) => sum + (pointInPolygon(h.lat, h.lng, z.polygon) ? h.vulnerableCount : 0),
         0,
       ),
     })),
-    [riskZones, households],
+    [riskZones, provinceHouseholds],
   )
 
   const startDraw = useCallback(() => {
@@ -270,19 +297,19 @@ export function MapClient({ session, canManageStaff = false, canTriage = false, 
   }, [])
 
   const filteredHouseholds = useMemo(() => {
-    if (filterRisk.size === 0 && filterGroups.size === 0 && filterTambons.size === 0) return households
-    return households.filter((h) => {
+    if (filterRisk.size === 0 && filterGroups.size === 0 && filterTambons.size === 0) return provinceHouseholds
+    return provinceHouseholds.filter((h) => {
       if (filterRisk.size > 0 && !filterRisk.has((h.risk ?? 'safe') as RiskLevel)) return false
       if (filterTambons.size > 0 && !(h.tambon && filterTambons.has(h.tambon))) return false
       if (filterGroups.size > 0 && !h.members.some((m) => (m.categories ?? []).some((c) => filterGroups.has(c)))) return false
       return true
     })
-  }, [households, filterRisk, filterGroups, filterTambons])
+  }, [provinceHouseholds, filterRisk, filterGroups, filterTambons])
 
-  // ผู้ป่วยกลุ่มวิกฤต (priority A) ที่อยู่ในเขตน้ำท่วม — ใช้ขึ้นแถบเตือนเชิงปฏิบัติการ
+  // ผู้ป่วยกลุ่มวิกฤต (priority A) ที่อยู่ในเขตน้ำท่วม และยังไม่อพยพเข้าศูนย์ — ใช้ขึ้นแถบเตือนเชิงปฏิบัติการ
   const criticalCount = useMemo(
-    () => vulnerable.filter((p) => p.risk === 'flood' && p.medicalPriority === 'A').length,
-    [vulnerable],
+    () => provinceVulnerable.filter((p) => p.risk === 'flood' && p.medicalPriority === 'A' && !p.isAdmitted).length,
+    [provinceVulnerable],
   )
 
   const [basemap, setBasemap] = useState<BasemapType>('sat')
@@ -444,7 +471,7 @@ export function MapClient({ session, canManageStaff = false, canTriage = false, 
   // โหลด GeoJSON + วิเคราะห์ว่า household ไหนอยู่ในโซนน้ำท่วมจากแบบจำลอง
   useEffect(() => {
     const activeLayers = CR_FLOOD_LAYERS.filter(cfg => layers.crFlood[cfg.key])
-    if (activeLayers.length === 0 || households.length === 0) return
+    if (activeLayers.length === 0 || provinceHouseholds.length === 0) return
 
     let cancelled = false
     ;(async () => {
@@ -465,14 +492,14 @@ export function MapClient({ session, canManageStaff = false, canTriage = false, 
         // yield ให้ browser วาด frame ก่อน แล้วค่อย compute
         await new Promise(r => setTimeout(r, 0))
         if (cancelled) return
-        const analysis = analyzeCrFloodHouseholds(households, geo)
+        const analysis = analyzeCrFloodHouseholds(provinceHouseholds, geo)
         if (cancelled) return
         setCrFloodAnalysis(prev => ({ ...prev, [cfg.key]: analysis }))
       }
     })()
 
     return () => { cancelled = true }
-  }, [layers.crFlood, households])
+  }, [layers.crFlood, provinceHouseholds])
 
   // รวม hitMap จากทุก layer ที่เปิดอยู่ — เอาระดับน้ำลึกที่สุดต่อ household
   const crFloodHitMap = useMemo(() => {
@@ -586,8 +613,30 @@ export function MapClient({ session, canManageStaff = false, canTriage = false, 
   }, [])
 
   const flyTo = useCallback((person: VulnerablePerson) => {
-    mapRef.current?.flyTo([person.lat, person.lng], 16, { duration: 0.6 })
-  }, [])
+    // หา household ที่ตรงกัน — ใช้ householdId เป็นหลัก, fallback หาบ้านใกล้สุดจากพิกัด
+    let hh: VulnerableHouseholdMarker | undefined
+    if (person.householdId) {
+      hh = households.find((h) => h.id === person.householdId)
+    }
+    if (!hh) {
+      // fallback: หาบ้านที่ใกล้พิกัดคนที่สุด (ภายใน ~50m)
+      let bestDist = Infinity
+      for (const h of households) {
+        const d = Math.abs(h.lat - person.lat) + Math.abs(h.lng - person.lng)
+        if (d < bestDist) { bestDist = d; hh = h }
+      }
+      // ถ้าบ้านใกล้สุดห่างเกินไป (>~500m) ถือว่าไม่ match
+      if (bestDist > 0.005) hh = undefined
+    }
+
+    setFocusHouseholdId(null)          // reset ก่อน เพื่อให้ effect ทำงานแม้เลือกคนเดิมซ้ำ
+    // fly ไปที่พิกัดของหมุดบ้าน (ไม่ใช่พิกัดของตัวบุคคลที่อาจ jitter ต่างกัน)
+    const targetLat = hh?.lat ?? person.lat
+    const targetLng = hh?.lng ?? person.lng
+    mapRef.current?.flyTo([targetLat, targetLng], 17, { duration: 0.6 })
+    // ตั้ง focusHouseholdId หลัง frame ถัดไปเพื่อให้ FloodMap เห็น null → id (trigger effect)
+    requestAnimationFrame(() => setFocusHouseholdId(hh?.id ?? null))
+  }, [households])
 
   const flyToInfra = useCallback((item: Infrastructure) => {
     mapRef.current?.flyTo([Number(item.lat), Number(item.lng)], 16, { duration: 0.6 })
@@ -610,7 +659,7 @@ export function MapClient({ session, canManageStaff = false, canTriage = false, 
 
   const drawRoute = useCallback(
     async (personId: number) => {
-      const person = vulnerable.find((p) => p.id === personId)
+      const person = provinceVulnerable.find((p) => p.id === personId)
       if (!person) return
       const shelters = infra.filter(
         (x) =>
@@ -649,17 +698,17 @@ export function MapClient({ session, canManageStaff = false, canTriage = false, 
         )
         .addTo(routeGroupRef.current)
     },
-    [vulnerable, infra],
+    [provinceVulnerable, infra],
   )
 
   const routeAll = useCallback(async () => {
     routeGroupRef.current?.clearLayers()
-    for (const p of vulnerable) {
+    for (const p of provinceVulnerable) {
       if (p.risk === 'flood' || p.risk === 'near') {
         await drawRoute(p.id)
       }
     }
-  }, [vulnerable, drawRoute])
+  }, [provinceVulnerable, drawRoute])
 
   // เส้นทางอพยพจากบ้าน (พิกัดครัวเรือน) → ศูนย์อพยพ/หน่วยบริการที่ใกล้สุด
   const drawHouseRoute = useCallback(
@@ -727,7 +776,7 @@ export function MapClient({ session, canManageStaff = false, canTriage = false, 
     }
 
     const pts: [number, number][] = [
-      ...households.map((h) => [h.lat, h.lng] as [number, number]),
+      ...provinceHouseholds.map((h) => [h.lat, h.lng] as [number, number]),
       ...infra.map((i) => [Number(i.lat), Number(i.lng)] as [number, number]),
     ].filter(([la, ln]) => Number.isFinite(la) && Number.isFinite(ln))
     if (pts.length === 0) return
@@ -736,7 +785,7 @@ export function MapClient({ session, canManageStaff = false, canTriage = false, 
       const L = (await import('leaflet')).default
       map.fitBounds(L.latLngBounds(pts), { padding: [60, 60], maxZoom: 13 })
     })()
-  }, [mapReady, households, infra, isNational, userProvince])
+  }, [mapReady, provinceHouseholds, infra, isNational, userProvince])
 
   // สั่งอพยพจาก popup บ้าน → สร้างคำขอช่วยเหลือ (evacuation) เข้าสู่คิว EOC/ทีมภาคสนาม
   const requestEvacuation = useCallback(async (h: VulnerableHouseholdMarker): Promise<boolean> => {
@@ -839,15 +888,16 @@ export function MapClient({ session, canManageStaff = false, canTriage = false, 
         )}
         {activePanel === 'roster' && (
           <RosterPanel
-            persons={vulnerable}
+            persons={provinceVulnerable.filter((p) => !p.isAdmitted)}
             initialFilter={rosterFilter}
             onSelect={flyTo}
+            admittedCount={provinceVulnerable.filter((p) => p.isAdmitted).length}
             onClose={() => { setActivePanel(null); setRosterFilter('all') }}
           />
         )}
         {activePanel === 'routes' && (
           <RoutesPanel
-            persons={vulnerable}
+            persons={provinceVulnerable.filter((p) => !p.isAdmitted)}
             infra={infra}
             onRouteAll={routeAll}
             onClear={clearRoutes}
@@ -864,7 +914,7 @@ export function MapClient({ session, canManageStaff = false, canTriage = false, 
         )}
         {activePanel === 'crFloodRoster' && crFloodHitMap && (
           <CrFloodRosterPanel
-            households={households}
+            households={provinceHouseholds}
             crFloodHitMap={crFloodHitMap}
             onSelect={flyToHousehold}
             onClose={() => setActivePanel(null)}
@@ -892,6 +942,7 @@ export function MapClient({ session, canManageStaff = false, canTriage = false, 
             infra={infra}
             basemap={basemap}
             floodMarkProvince={floodMarkProvince}
+            focusHouseholdId={focusHouseholdId}
             userFloodMarks={userFloodMarks}
             pinMode={pinMode}
             onPinPlace={onPinPlace}

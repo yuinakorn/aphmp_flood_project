@@ -14,9 +14,9 @@ import {
   Clock,
   UserX,
   Check,
-  CreditCard,
   Activity,
 } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import type { OverviewData, QueueHousehold } from '@/lib/overview'
 
 // คิวสั่งการ (โหมดวิกฤต) — port จากหน้า Overview เดิม: hero คิว survivability + rail (กลุ่มเปราะบาง + ศูนย์ใกล้เต็ม)
@@ -46,13 +46,12 @@ function factorTag(ls: string[]): string {
   return 'เฝ้า'
 }
 
-function bringList(ls: string[]): string[] {
-  const out: string[] = []
-  if (ls.includes('oxygen') || ls.includes('ventilator')) out.push('ถัง O2 สำรอง + สายให้ออกซิเจน')
-  if (ls.some((c) => c.startsWith('dialysis'))) out.push('น้ำยาฟอกไต + ชุดต่อปลอดเชื้อ')
-  if (ls.includes('anti_seizure')) out.push('ยากันชัก (พกให้พอ 7 วัน)')
-  if (ls.includes('feeding_tube')) out.push('สายให้อาหาร + อาหารทางสาย')
-  out.push('บัตรประชาชน + บัตรทอง ทุกคน')
+function bringList(ls: string[]): { icon: LucideIcon; label: string }[] {
+  const out: { icon: LucideIcon; label: string }[] = []
+  if (ls.includes('oxygen') || ls.includes('ventilator')) out.push({ icon: Wind, label: 'ถัง O2 สำรอง' })
+  if (ls.some((c) => c.startsWith('dialysis'))) out.push({ icon: Droplets, label: 'น้ำยาฟอกไต' })
+  if (ls.includes('anti_seizure')) out.push({ icon: Pill, label: 'ยากันชัก' })
+  if (ls.includes('feeding_tube')) out.push({ icon: Activity, label: 'สายให้อาหาร' })
   return out
 }
 
@@ -237,19 +236,19 @@ function QueueRow({ h }: { h: QueueHousehold }) {
             ))}
           </div>
           <div>
-            <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--fg-subtle)]">รายการต้องนำติดตัวเมื่ออพยพ</h4>
-            <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-sunken)] p-3.5">
-              {bringList(h.lifeSupport).map((b, i) => (
-                <div key={i} className="flex items-center gap-2.5 py-1 text-[12.5px] text-[var(--fg-muted)]">
-                  {i === 0 && h.lifeSupport.length > 0 ? (
-                    <Wind className="size-4 shrink-0 text-[var(--risk-flood)]" strokeWidth={1.75} />
-                  ) : (
-                    <CreditCard className="size-4 shrink-0 text-[var(--risk-flood)]" strokeWidth={1.75} />
-                  )}
-                  {b}
+            {bringList(h.lifeSupport).length > 0 && (
+              <>
+                <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--fg-subtle)]">รายการต้องนำติดตัวเมื่ออพยพ</h4>
+                <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-sunken)] p-3.5">
+                  {bringList(h.lifeSupport).map((b, i) => (
+                    <div key={i} className="flex items-center gap-2.5 py-1 text-[12.5px] text-[var(--fg-muted)]">
+                      <b.icon className="size-4 shrink-0 text-[var(--risk-flood)]" strokeWidth={1.75} />
+                      {b.label}
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </>
+            )}
             <p className="mt-2 text-[11px] text-[var(--fg-subtle)]">
               ความเชื่อมั่นข้อมูล {Math.round(h.confidence * 100)}% · คะแนน {h.score.toFixed(2)}
             </p>
@@ -309,7 +308,7 @@ export function CommandQueue({ data }: { data: OverviewData }) {
             </div>
           </div>
           <span className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-[color-mix(in_oklch,var(--accent)_10%,transparent)] px-2.5 py-1 text-[11px] font-semibold text-[var(--accent)]">
-            <span className="size-1.5 rounded-full bg-[var(--accent)]" />คำนวณสด
+            <span className="size-1.5 rounded-full bg-[var(--accent)]" />live
           </span>
         </header>
 

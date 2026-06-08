@@ -14,6 +14,8 @@ import {
   Droplets,
   Building2,
   AlertTriangle,
+  Anchor,
+  Inbox,
   Settings,
   ChevronsLeft,
   ChevronsRight,
@@ -21,15 +23,25 @@ import {
 } from 'lucide-react'
 import { useSidebar } from '@/components/shell/SidebarProvider'
 
-type Item = { href: string; icon: typeof LayoutDashboard; label: string }
+type Item = { href: string; icon: typeof LayoutDashboard; label: string; badge?: number }
 type Section = { label: string | null; items: Item[] }
 
-function buildSections(canManageStaff: boolean, canTriage: boolean): Section[] {
+function buildSections(canManageStaff: boolean, canTriage: boolean, pendingReports: number): Section[] {
   const systemItems: Item[] = [
     { href: '/admin/water-level', icon: Droplets, label: 'ระดับน้ำ' },
     { href: '/admin/infra', icon: Building2, label: 'สถานพยาบาล' },
     { href: '/admin/incidents', icon: AlertTriangle, label: 'เหตุการณ์ภัยพิบัติ' },
   ]
+  if (canTriage) {
+    systemItems.push({ href: '/admin/rescue-teams', icon: Anchor, label: 'ทีมกู้ภัย' })
+  }
+  const topItems: Item[] = [
+    { href: '/admin/eoc', icon: Siren, label: 'ศูนย์บัญชาการ EOC' },
+    { href: '/map', icon: Map, label: 'แผนที่ปฏิบัติการ' },
+  ]
+  if (canTriage) {
+    topItems.push({ href: '/admin/help-reports', icon: Inbox, label: 'รับแจ้งเหตุประชาชน', badge: pendingReports })
+  }
   if (canManageStaff) {
     systemItems.push({ href: '/admin/settings', icon: Settings, label: 'ตั้งค่า' })
   }
@@ -44,10 +56,7 @@ function buildSections(canManageStaff: boolean, canTriage: boolean): Section[] {
   return [
     {
       label: null,
-      items: [
-        { href: '/admin/eoc', icon: Siren, label: 'ศูนย์บัญชาการ EOC' },
-        { href: '/map', icon: Map, label: 'แผนที่ปฏิบัติการ' },
-      ],
+      items: topItems,
     },
     {
       label: 'ทะเบียนสุขภาพ',
@@ -96,11 +105,21 @@ function NavList({ sections, showLabels, onNavigate }: { sections: Section[]; sh
                   showLabels ? 'justify-start' : 'justify-center'
                 } ${on ? 'bg-slate-800 font-semibold text-white' : 'font-medium text-slate-300 hover:bg-slate-800 hover:text-white'}`}
               >
-                <Icon
-                  className={`size-[18px] shrink-0 ${on ? 'text-[var(--color-risk-safe)]' : ''}`}
-                  strokeWidth={1.75}
-                />
+                <span className="relative shrink-0">
+                  <Icon
+                    className={`size-[18px] ${on ? 'text-[var(--color-risk-safe)]' : ''}`}
+                    strokeWidth={1.75}
+                  />
+                  {!showLabels && it.badge ? (
+                    <span className="absolute -right-1.5 -top-1.5 size-2 rounded-full bg-rose-500 ring-2 ring-[#0C1217]" />
+                  ) : null}
+                </span>
                 {showLabels && <span className="truncate">{it.label}</span>}
+                {showLabels && it.badge ? (
+                  <span className="ml-auto rounded-full bg-rose-500 px-1.5 py-0.5 text-[10.5px] font-bold leading-none text-white">
+                    {it.badge}
+                  </span>
+                ) : null}
               </Link>
             )
           })}
@@ -110,10 +129,10 @@ function NavList({ sections, showLabels, onNavigate }: { sections: Section[]; sh
   )
 }
 
-export function AppSidebar({ canManageStaff = false, canTriage = false }: { canManageStaff?: boolean; canTriage?: boolean }) {
+export function AppSidebar({ canManageStaff = false, canTriage = false, pendingReports = 0 }: { canManageStaff?: boolean; canTriage?: boolean; pendingReports?: number }) {
   const { collapsed, toggleCollapsed, mobileOpen, setMobileOpen } = useSidebar()
   const pathname = usePathname()
-  const sections = buildSections(canManageStaff, canTriage)
+  const sections = buildSections(canManageStaff, canTriage, pendingReports)
 
   // ปิด drawer อัตโนมัติเมื่อเปลี่ยนหน้า
   useEffect(() => {

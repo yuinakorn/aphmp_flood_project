@@ -9,7 +9,6 @@ import {
   Search,
   Stethoscope,
   Anchor,
-  Plus,
   MapPin,
   Activity,
   ChevronRight,
@@ -25,10 +24,6 @@ import {
   ArrowRight,
   Hospital,
   PhoneOff,
-  Pencil,
-  Trash2,
-  Check,
-  X as XIcon,
 } from 'lucide-react'
 import { useRoleView } from '@/components/shell/RoleViewProvider'
 import { FieldActionSheet, type FieldActionMode } from '@/components/forms/FieldActionSheet'
@@ -42,6 +37,7 @@ import {
 } from '@/components/ui/sheet'
 import { OpsPanel } from './OpsPanel'
 import { CommandQueue } from './CommandQueue'
+import { RescueTeamManager } from '@/components/rescue/RescueTeamManager'
 import type { OverviewData } from '@/lib/overview'
 import type {
   CoverageRow,
@@ -50,7 +46,6 @@ import type {
   IncidentCasualty,
   IncidentCounters,
   RescueTeam,
-  RescueTeamType,
   RiskLevel,
   SurveillanceEntry,
   VulnerablePerson,
@@ -113,16 +108,6 @@ const riskColor: Record<RiskLevel, string> = {
 }
 const riskLabel: Record<RiskLevel, string> = { flood: 'ในเขตน้ำท่วม', near: 'ใกล้เขต', safe: 'ปลอดภัย' }
 
-const teamTypeLabel: Record<RescueTeamType, string> = {
-  rescue_boat: 'เรือกู้ภัยน้ำหลาก',
-  gmc_truck: 'รถบรรทุกลุยน้ำ GMC',
-  ems_medical: 'หน่วยแพทย์สนามฉุกเฉิน',
-  mcat_psych: 'หน่วยสุขภาพจิต MCAT',
-  volunteer_kitchen: 'ครัวพระราชทาน/อาหาร',
-  other: 'อื่นๆ',
-}
-const TEAM_TYPES = Object.keys(teamTypeLabel) as RescueTeamType[]
-
 const priorityRank = (p: string) => (p === 'critical' ? 0 : p === 'high' ? 1 : p === 'normal' ? 2 : 3)
 const priorityMeta = (p: string): { tone: string; label: string } =>
   p === 'critical'
@@ -164,7 +149,9 @@ export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, 
     const near = persons.filter((p) => p.risk === 'near').length
     const safe = persons.filter((p) => p.risk === 'safe').length
     const open = requests.filter((r) => r.status !== 'resolved' && r.status !== 'cancelled').length
-    return { total: persons.length, flood, near, safe, open, teams: rescueTeams.length }
+    const admitted = persons.filter((p) => p.isAdmitted).length
+    const unadmitted = persons.length - admitted
+    return { total: persons.length, flood, near, safe, open, teams: rescueTeams.length, admitted, unadmitted }
   }, [persons, requests, rescueTeams])
 
   // ── geo drill: amphoe → tambon → village → people ──
@@ -397,7 +384,14 @@ export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, 
               {!isNormalMode && (
                 <SegBtn active={seg === 'queue'} onClick={() => setSeg('queue')} count={overview.queue.length} urgent={overview.queue.length > 0}>คิวสั่งการ</SegBtn>
               )}
-              <SegBtn active={seg === 'roster'} onClick={() => { setSeg('roster') }} count={counts.total}>พื้นที่</SegBtn>
+              <SegBtn
+                active={seg === 'roster'}
+                onClick={() => { setSeg('roster') }}
+                count={isNormalMode ? counts.total : `${counts.unadmitted}/${counts.total}`}
+                urgent={!isNormalMode && counts.unadmitted > 0}
+              >
+                พื้นที่
+              </SegBtn>
               <SegBtn active={seg === 'requests'} onClick={() => setSeg('requests')} count={counts.open} urgent={counts.open > 0}>คำร้อง / Triage</SegBtn>
               <SegBtn active={seg === 'teams'} onClick={() => setSeg('teams')} count={counts.teams}>ทีมกู้ภัย</SegBtn>
               {counters && incidentId && (
@@ -445,6 +439,14 @@ export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, 
                   {mapHidden ? <PanelRightOpen size={14} /> : <PanelRightClose size={14} />}
                   {mapHidden ? 'แสดงแผนที่' : 'ซ่อนแผนที่'}
                 </button>
+              </div>
+            )}
+            {seg === 'queue' && (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-[var(--fg-muted)]">
+                <span className="font-semibold text-[var(--fg-subtle)]">ระดับความเร่งด่วน:</span>
+                <span className="inline-flex items-center gap-1"><span className="size-1.5 rounded-full bg-[var(--risk-flood)]" />P1 วิกฤต — ถึงชีวิตทันที</span>
+                <span className="inline-flex items-center gap-1"><span className="size-1.5 rounded-full bg-[var(--risk-near)]" />P2 เร่งด่วน — รีบช่วย</span>
+                <span className="inline-flex items-center gap-1"><span className="size-1.5 rounded-full bg-[var(--risk-safe)]" />P3 เฝ้าระวัง — ติดตามอาการ</span>
               </div>
             )}
           </div>
@@ -742,15 +744,25 @@ export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, 
                   {leafPeople.map((p) => {
                     const risk = (p.risk ?? 'safe') as RiskLevel
                     const isSel = selected?.id === p.id
+                    const isAdmitted = p.isAdmitted
                     return (
                       <li key={p.id}>
                         <div
                           onClick={() => setSelected(p)}
-                          className={`flex cursor-pointer items-center gap-3.5 border-b border-[var(--border)] px-4 py-3 transition-colors last:border-b-0 ${isSel ? 'bg-[color-mix(in_oklch,var(--accent)_8%,transparent)]' : 'hover:bg-[var(--bg-sunken)]'}`}
+                          className={`flex cursor-pointer items-center gap-3.5 border-b border-[var(--border)] px-4 py-3 transition-colors last:border-b-0 ${isSel ? 'bg-[color-mix(in_oklch,var(--accent)_8%,transparent)]' : 'hover:bg-[var(--bg-sunken)]'} ${isAdmitted ? 'opacity-75 bg-[color-mix(in_oklch,var(--risk-safe)_4%,transparent)]' : ''}`}
                         >
                           <span className="flex w-16 shrink-0 items-center gap-2">
-                            <span className="size-2.5 shrink-0 rounded-full" style={{ background: riskColor[risk] }} />
-                            <span className="text-[10px] font-medium uppercase tracking-wide" style={{ color: riskColor[risk] }}>{risk === 'flood' ? 'วิกฤต' : risk === 'near' ? 'เฝ้า' : 'ปกติ'}</span>
+                            {isAdmitted ? (
+                              <>
+                                <span className="size-2.5 shrink-0 rounded-full bg-[var(--risk-safe)]" />
+                                <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--risk-safe)]">ในศูนย์</span>
+                              </>
+                            ) : (
+                              <>
+                                <span className="size-2.5 shrink-0 rounded-full" style={{ background: riskColor[risk] }} />
+                                <span className="text-[10px] font-medium uppercase tracking-wide" style={{ color: riskColor[risk] }}>{risk === 'flood' ? 'วิกฤต' : risk === 'near' ? 'เฝ้า' : 'ปกติ'}</span>
+                              </>
+                            )}
                           </span>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-baseline gap-2">
@@ -759,7 +771,14 @@ export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, 
                               {isSearching && <span className="truncate text-xs text-[var(--fg-subtle)]">· {p.vil}</span>}
                             </div>
                             <div className="mt-0.5 flex items-center gap-2">
-                              <span className="truncate text-xs text-[var(--fg-muted)]">{p.cond || p.label}</span>
+                              <span className="truncate text-xs text-[var(--fg-muted)]">
+                                {p.cond || p.label}
+                                {isAdmitted && p.shelterName && (
+                                  <span className="ml-1.5 font-medium text-[var(--risk-safe)]">
+                                    · พักที่ {p.shelterName}
+                                  </span>
+                                )}
+                              </span>
                               {p.eq && (
                                 <span className="shrink-0 rounded bg-[color-mix(in_oklch,var(--risk-flood)_12%,transparent)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--risk-flood)]">
                                   {p.eq}
@@ -814,7 +833,7 @@ export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, 
             </ul>
           )}
 
-          {seg === 'teams' && <TeamsSegment teams={rescueTeams} canRegister={canCommand} onChange={() => router.refresh()} />}
+          {seg === 'teams' && <RescueTeamManager teams={rescueTeams} canManage={canCommand} mode="dispatch" onChange={() => router.refresh()} />}
 
           {seg === 'ops' && counters && incidentId && (
             <OpsPanel
@@ -850,7 +869,7 @@ export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, 
                 </Button>
               </div>
               <div className="h-[300px] w-full">
-                <EocFloodMap sessionRole={realRole} />
+                <EocFloodMap sessionRole={realRole} activeIncidents={activeIncidents} />
               </div>
             </div>
 
@@ -892,7 +911,7 @@ export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, 
           </SheetHeader>
           <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px]">
             <div className="h-[48dvh] min-h-[360px] w-full lg:h-auto">
-              <EocFloodMap sessionRole={realRole} />
+              <EocFloodMap sessionRole={realRole} activeIncidents={activeIncidents} />
             </div>
             <aside className="min-h-0 border-t border-[var(--border)] bg-[var(--bg)] p-4 lg:border-l lg:border-t-0">
               <div className="lg:sticky lg:top-4">
@@ -1048,7 +1067,7 @@ function CasualtyStat({ label, value, tone }: { label: string; value: number | n
   )
 }
 
-function SegBtn({ active, onClick, count, urgent, children }: { active: boolean; onClick: () => void; count?: number; urgent?: boolean; children: React.ReactNode }) {
+function SegBtn({ active, onClick, count, urgent, children }: { active: boolean; onClick: () => void; count?: number | string; urgent?: boolean; children: React.ReactNode }) {
   return (
     <button
       type="button"
@@ -1101,175 +1120,6 @@ function SelectedPersonContext({
         <button type="button" onClick={() => onAction({ id: String(selected.id), name: selected.name, mode: 'visit', lifeSupport: selected.lifeSupport ?? [] })} className="gx-btn gx-btn-ghost gx-btn-sm flex-1"><Stethoscope size={14} />เยี่ยม</button>
         {canCommand && <button type="button" onClick={() => onAction({ id: String(selected.id), name: selected.name, mode: 'help', lifeSupport: selected.lifeSupport ?? [] })} className="gx-btn gx-btn-primary gx-btn-sm flex-1"><LifeBuoy size={14} />ขอช่วยเหลือ</button>}
       </div>
-    </div>
-  )
-}
-
-const STATUS_META: Record<RescueTeam['status'], { label: string; cls: string }> = {
-  active:  { label: 'พร้อม',    cls: 'gx-badge gx-badge-safe' },
-  standby: { label: 'รอสั่งการ', cls: 'gx-badge gx-badge-near' },
-  offline: { label: 'ออฟไลน์',  cls: 'gx-badge' },
-}
-const STATUS_CYCLE: RescueTeam['status'][] = ['active', 'standby', 'offline']
-
-function TeamsSegment({ teams, canRegister, onChange }: { teams: RescueTeam[]; canRegister: boolean; onChange: () => void }) {
-  const [name, setName] = useState('')
-  const [teamType, setTeamType] = useState<RescueTeamType>('rescue_boat')
-  const [contact, setContact] = useState('')
-  const [zone, setZone] = useState('')
-  const [saving, setSaving] = useState(false)
-
-  const [editId, setEditId] = useState<string | null>(null)
-  const [editName, setEditName] = useState('')
-  const [editType, setEditType] = useState<RescueTeamType>('rescue_boat')
-  const [editContact, setEditContact] = useState('')
-  const [editZone, setEditZone] = useState('')
-  const [editSaving, setEditSaving] = useState(false)
-  const [deleteId, setDeleteId] = useState<string | null>(null)
-
-  const submit = async () => {
-    if (!name.trim()) return
-    setSaving(true)
-    await fetch('/api/rescue-teams', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name, teamType, contact, zone }),
-    }).catch(() => {})
-    setSaving(false)
-    setName(''); setContact(''); setZone('')
-    onChange()
-  }
-
-  function startEdit(t: RescueTeam) {
-    setEditId(t.id)
-    setEditName(t.name)
-    setEditType(t.teamType)
-    setEditContact(t.contact ?? '')
-    setEditZone(t.zone ?? '')
-  }
-
-  const saveEdit = async () => {
-    if (!editId || !editName.trim()) return
-    setEditSaving(true)
-    await fetch(`/api/rescue-teams/${editId}`, {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: editName, teamType: editType, contact: editContact, zone: editZone }),
-    }).catch(() => {})
-    setEditSaving(false)
-    setEditId(null)
-    onChange()
-  }
-
-  const cycleStatus = async (t: RescueTeam) => {
-    const next = STATUS_CYCLE[(STATUS_CYCLE.indexOf(t.status) + 1) % STATUS_CYCLE.length]
-    await fetch(`/api/rescue-teams/${t.id}`, {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ status: next }),
-    }).catch(() => {})
-    onChange()
-  }
-
-  const confirmDelete = async () => {
-    if (!deleteId) return
-    await fetch(`/api/rescue-teams/${deleteId}`, { method: 'DELETE' }).catch(() => {})
-    setDeleteId(null)
-    onChange()
-  }
-
-  return (
-    <div className="space-y-3">
-      {canRegister && (
-        <div className="rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] p-4">
-          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-[var(--fg-subtle)]">ขึ้นทะเบียนทีมกู้ภัย / หน่วยเคลื่อนที่เร็ว</p>
-          <div className="grid grid-cols-2 gap-2.5 text-sm">
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="ชื่อหน่วยงาน" className="col-span-2 rounded-lg border border-[var(--border)] bg-[var(--bg-sunken)] p-2.5 outline-none focus:border-[var(--accent)]" />
-            <select value={teamType} onChange={(e) => setTeamType(e.target.value as RescueTeamType)} className="rounded-lg border border-[var(--border)] bg-[var(--bg-sunken)] p-2.5">
-              {TEAM_TYPES.map((t) => <option key={t} value={t}>{teamTypeLabel[t]}</option>)}
-            </select>
-            <input value={contact} onChange={(e) => setContact(e.target.value)} placeholder="เบอร์ติดต่อ" className="rounded-lg border border-[var(--border)] bg-[var(--bg-sunken)] p-2.5 outline-none focus:border-[var(--accent)]" />
-            <input value={zone} onChange={(e) => setZone(e.target.value)} placeholder="โซนรับผิดชอบ" className="col-span-2 rounded-lg border border-[var(--border)] bg-[var(--bg-sunken)] p-2.5 outline-none focus:border-[var(--accent)]" />
-          </div>
-          <button type="button" onClick={submit} disabled={saving} className="gx-btn gx-btn-primary gx-btn-sm mt-3 w-full">
-            <Plus size={14} /> {saving ? 'กำลังบันทึก...' : 'ขึ้นทะเบียน'}
-          </button>
-        </div>
-      )}
-
-      <ul className="overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)]">
-        {teams.map((t) => (
-          <li key={t.id} className="border-b border-[var(--border)] last:border-b-0">
-            {editId === t.id ? (
-              /* ── inline edit ── */
-              <div className="space-y-2 p-4">
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <input value={editName} onChange={(e) => setEditName(e.target.value)} className="col-span-2 rounded-lg border border-[var(--border)] bg-[var(--bg-sunken)] p-2 outline-none focus:border-[var(--accent)]" />
-                  <select value={editType} onChange={(e) => setEditType(e.target.value as RescueTeamType)} className="rounded-lg border border-[var(--border)] bg-[var(--bg-sunken)] p-2">
-                    {TEAM_TYPES.map((ty) => <option key={ty} value={ty}>{teamTypeLabel[ty]}</option>)}
-                  </select>
-                  <input value={editContact} onChange={(e) => setEditContact(e.target.value)} placeholder="เบอร์ติดต่อ" className="rounded-lg border border-[var(--border)] bg-[var(--bg-sunken)] p-2 outline-none focus:border-[var(--accent)]" />
-                  <input value={editZone} onChange={(e) => setEditZone(e.target.value)} placeholder="โซนรับผิดชอบ" className="col-span-2 rounded-lg border border-[var(--border)] bg-[var(--bg-sunken)] p-2 outline-none focus:border-[var(--accent)]" />
-                </div>
-                <div className="flex gap-2">
-                  <button type="button" onClick={saveEdit} disabled={editSaving} className="gx-btn gx-btn-primary gx-btn-sm flex-1 disabled:opacity-50">
-                    <Check size={13} /> {editSaving ? 'กำลังบันทึก...' : 'บันทึก'}
-                  </button>
-                  <button type="button" onClick={() => setEditId(null)} className="gx-btn gx-btn-ghost gx-btn-sm">
-                    <XIcon size={13} /> ยกเลิก
-                  </button>
-                </div>
-              </div>
-            ) : (
-              /* ── normal row ── */
-              <div className="flex items-center gap-3 px-4 py-3" style={{ ['--tile' as string]: 'var(--signal-data)' }}>
-                <span className="gx-icon-tile size-9 shrink-0"><Anchor size={16} /></span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-[var(--fg)]">{t.name}</p>
-                  <p className="truncate text-xs text-[var(--fg-muted)]">{teamTypeLabel[t.teamType]}{t.zone ? ` · ${t.zone}` : ''}{t.contact ? ` · ${t.contact}` : ''}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => cycleStatus(t)}
-                  title="คลิกเพื่อเปลี่ยนสถานะ"
-                  className={`shrink-0 cursor-pointer ${STATUS_META[t.status].cls}`}
-                >
-                  <span className="gx-badge-dot" />{STATUS_META[t.status].label}
-                </button>
-                {canRegister && (
-                  <div className="flex shrink-0 gap-1">
-                    <button type="button" onClick={() => startEdit(t)} className="gx-btn gx-btn-ghost gx-btn-sm" title="แก้ไข">
-                      <Pencil size={13} />
-                    </button>
-                    <button type="button" onClick={() => setDeleteId(t.id)} className="gx-btn gx-btn-ghost gx-btn-sm text-[var(--risk-flood)] hover:!border-[var(--risk-flood)]" title="ลบ">
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-          </li>
-        ))}
-        {teams.length === 0 && <li className="px-4 py-10 text-center text-sm text-[var(--fg-subtle)]">ยังไม่มีทีมขึ้นทะเบียน</li>}
-      </ul>
-
-      {/* confirm delete dialog */}
-      {deleteId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-xl border border-[var(--border)] bg-[var(--bg-elevated)] p-5 shadow-2xl">
-            <p className="text-sm font-semibold text-[var(--fg)]">ยืนยันการลบทีม</p>
-            <p className="mt-1 text-xs text-[var(--fg-muted)]">
-              {teams.find((t) => t.id === deleteId)?.name} — ข้อมูลจะถูกลบถาวร
-            </p>
-            <div className="mt-4 flex gap-2">
-              <button type="button" onClick={confirmDelete} className="gx-btn gx-btn-sm flex-1 border-[var(--risk-flood)] bg-[var(--risk-flood)] text-white hover:opacity-90">
-                <Trash2 size={13} /> ลบ
-              </button>
-              <button type="button" onClick={() => setDeleteId(null)} className="gx-btn gx-btn-ghost gx-btn-sm flex-1">ยกเลิก</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

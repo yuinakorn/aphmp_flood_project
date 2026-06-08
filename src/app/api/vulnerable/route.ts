@@ -31,7 +31,7 @@ import {
   unauthorized,
 } from '@/lib/field-api'
 import { isNationalRole } from '@/lib/incident-scope'
-import { accessLog, households, householdMembers } from '@/db/schema'
+import { accessLog, households, householdMembers, shelterAdmissions, infrastructures } from '@/db/schema'
 import type { UserRole } from '@/types'
 // Roles ที่เห็นข้อมูลส่วนตัวได้
 const FULL_ACCESS_ROLES = new Set<UserRole>(['admin', 'officer', 'eoc', 'vhv', 'ems', 'ddpm'])
@@ -74,8 +74,23 @@ export async function GET(req: NextRequest) {
   if (scopedProvince) conditions.push(eq(householdMembers.province, scopedProvince))
 
   const rows = await db
-    .select()
+    .select({
+      member: householdMembers,
+      shelterAdmissionId: shelterAdmissions.id,
+      shelterName: infrastructures.name,
+    })
     .from(householdMembers)
+    .leftJoin(
+      shelterAdmissions,
+      and(
+        eq(householdMembers.id, shelterAdmissions.memberId),
+        eq(shelterAdmissions.status, 'admitted')
+      )
+    )
+    .leftJoin(
+      infrastructures,
+      eq(shelterAdmissions.shelterId, infrastructures.id)
+    )
     .where(and(...conditions))
     .orderBy(asc(householdMembers.amphoe), asc(householdMembers.tambon), asc(householdMembers.firstName))
     .limit(limit)
@@ -83,7 +98,10 @@ export async function GET(req: NextRequest) {
   const zonesByProvince = await loadRiskZonesByProvince()
 
   const data = rows
-    .map((p) => {
+    .map((row) => {
+      const p = row.member
+      const isAdmitted = !!row.shelterAdmissionId
+      const shelterName = row.shelterName ?? null
       const lat = numberFromDb(p.lat)
       const lng = numberFromDb(p.lng)
 
@@ -103,6 +121,7 @@ export async function GET(req: NextRequest) {
         // PDPA mask — anonymous/viewer เห็นแค่ aggregate context
         return {
           id: p.id,
+          householdId: p.householdId ?? null,
           type: p.type,
           label: p.label,
           tambon: p.tambon,
@@ -114,12 +133,15 @@ export async function GET(req: NextRequest) {
           // พิกัดปัดเศษให้ห่างจากบ้านจริง ~500m (3 ทศนิยม ≈ 111m/digit)
           lat: lat !== null ? Math.round(lat * 100) / 100 : null,
           lng: lng !== null ? Math.round(lng * 100) / 100 : null,
+          isAdmitted,
+          shelterName,
         }
       }
 
       // Full access
       return {
         id: p.id,
+        householdId: p.householdId ?? null,
         name: composeName(p.prefix, p.firstName, p.lastName),
         nationalId: maskNationalId(p.nationalId),
         prefix: p.prefix,
@@ -150,6 +172,8 @@ export async function GET(req: NextRequest) {
         sourceSyncedAt: p.sourceSyncedAt?.toISOString() ?? null,
         lifeSupport: p.lifeSupport ?? null,
         risk,
+        isAdmitted,
+        shelterName,
       }
     })
     .filter(Boolean)

@@ -10,18 +10,13 @@ import type { Session } from 'next-auth'
 import { getDb } from '@/lib/db'
 import { accessLog } from '@/db/schema'
 import { isUuid } from '@/lib/field-api'
+import { clientIp } from '@/lib/request-ip'
 
 interface AuditEntry {
   action: string                     // เช่น create_incident | transfer_admission | reveal_national_id
   entity?: string                    // ชนิด entity เช่น incident | shelter_admission | referral
   targetId?: string | null           // id ของ entity (ต้องเป็น uuid; ถ้าไม่ใช่จะข้าม)
   metadata?: Record<string, unknown> // context เพิ่มเติม (ไม่มี PII)
-}
-
-function clientIp(req: Request): string | null {
-  const xff = req.headers.get('x-forwarded-for')
-  if (xff) return xff.split(',')[0].trim()
-  return req.headers.get('x-real-ip')
 }
 
 export async function audit(

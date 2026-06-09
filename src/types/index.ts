@@ -335,6 +335,10 @@ export interface HouseholdMapMember {
   group: 'ผู้สูงอายุ' | 'เด็กเล็ก' | 'ผู้พิการ' | 'โรคเรื้อรัง' | 'ทั่วไป'
   /** หมวดเปราะบางละเอียด (ระดับคน) สำหรับตัวกรองแผนที่ — bedridden|dialysis|oxygen|disabled|pregnant|elderly|child */
   categories?: string[]
+  /** ระดับความเร่งด่วนทางการแพทย์ A/B/C — A = วิกฤต (popup ต้องอธิบายเหตุผล) */
+  medicalPriority?: MedicalPriority
+  /** อุปกรณ์พยุงชีพที่ใช้ — เหตุผลหลักที่จัดเป็นกลุ่มวิกฤต (oxygen|ventilator|dialysis_*|...) */
+  lifeSupport?: string[] | null
   isHead?: boolean
   isVulnerable: boolean
   phone?: string | null
@@ -342,12 +346,21 @@ export interface HouseholdMapMember {
   shelterName?: string | null
 }
 
-// โซนเสี่ยงน้ำท่วม — polygon ที่เจ้าหน้าที่วาดเพื่อระบุพื้นที่ที่น้ำจะท่วมก่อน (เก็บ [lng, lat][])
+// โซนพื้นที่เสี่ยงภัย — polygon ที่เจ้าหน้าที่วาดเพื่อระบุพื้นที่เสี่ยง (เก็บ [lng, lat][])
+// category: permanent (ถาวร เช่น น้ำท่วม) / temporary (ชั่วคราว เช่น แผ่นดินไหว โรคระบาด)
+// hazardType: code ของชนิดภัย (ตั้งค่าได้ที่ตาราง hazard_types) — ดู src/lib/risk-zone.ts
+// hazardLabel/Color/Emoji: denormalize จาก hazard_types เพื่อแสดงผลโดยไม่ต้อง fetch แยก
 export interface FloodRiskZone {
   id: string
   province: string
   name: string
-  priority: number // 1 = ท่วมก่อน (เร่งด่วนสุด)
+  category: 'permanent' | 'temporary'
+  hazardType: string
+  hazardLabel?: string
+  hazardColor?: string
+  hazardEmoji?: string
+  color?: string | null // สีที่ผู้วาดเลือกเอง (override) — null = ใช้สีตามชนิดภัย/ลำดับ
+  priority: number // 1 = เร่งด่วนสุด
   polygon: [number, number][] // [lng, lat][]
   notes?: string | null
   createdAt?: string | null

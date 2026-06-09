@@ -143,7 +143,7 @@ export function RescueTeamManager({
           >
             <Plus size={14} /> เพิ่มทีมด่วน
           </button>
-          <a href="/admin/rescue-teams" className="text-xs text-[var(--fg-muted)] underline-offset-2 hover:text-[var(--fg)] hover:underline">
+          <a href="/admin/settings/rescue-teams" className="text-xs text-[var(--fg-muted)] underline-offset-2 hover:text-[var(--fg)] hover:underline">
             จัดการทะเบียนทีม →
           </a>
         </div>
@@ -221,7 +221,7 @@ export function RescueTeamManager({
               <Plus size={14} /> {saving ? 'กำลังบันทึก...' : 'เพิ่มทีม'}
             </button>
             <p className="mt-2 text-[11px] text-[var(--fg-subtle)]">
-              แก้ไข/ลบ และจัดการรายละเอียดทั้งหมดทำได้ที่หน้า <a href="/admin/rescue-teams" className="underline">จัดการทะเบียนทีม</a>
+              แก้ไข/ลบ และจัดการรายละเอียดทั้งหมดทำได้ที่หน้า <a href="/admin/settings/rescue-teams" className="underline">จัดการทะเบียนทีม</a>
             </p>
           </div>
         </div>

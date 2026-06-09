@@ -250,20 +250,46 @@ export const userFloodMarkCodeSeq = pgTable('user_flood_mark_code_seq', {
   lastNo: integer('last_no').notNull().default(0),
 })
 
-// โซนเสี่ยงน้ำท่วม — เจ้าหน้าที่ระดับสั่งการวาด polygon ระบุพื้นที่ที่น้ำจะท่วมก่อน (ตั้งถาวรต่อจังหวัด)
+// โซนพื้นที่เสี่ยงภัย — เจ้าหน้าที่ระดับสั่งการวาด polygon ระบุพื้นที่เสี่ยง (scope ตามจังหวัด)
+// แบ่ง 2 ระดับ: category = ถาวร(permanent เช่น น้ำท่วม)/ชั่วคราว(temporary เช่น แผ่นดินไหว โรคระบาด)
+//             hazardType = ชนิดภัยจริง (flood/earthquake/epidemic/other)
 // polygon เก็บเป็น [lng, lat][] (ลำดับเดียวกับ pointInPolygon / KML) เพื่อ point-in-polygon นับกลุ่มเปราะบาง
+// (ชื่อตาราง flood_risk_zones คงไว้เพื่อ backward-compat; เกณฑ์ "ในเขตน้ำท่วม" ใช้เฉพาะ hazard_type='flood')
 export const floodRiskZones = pgTable('flood_risk_zones', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
   province: text('province').notNull(),
   name: text('name').notNull(),
-  priority: smallint('priority').notNull().default(1), // 1 = ท่วมก่อน (เร่งด่วนสุด) → มากขึ้น = ท่วมทีหลัง
+  category: text('category').notNull().default('permanent'), // permanent | temporary
+  hazardType: text('hazard_type').notNull().default('flood'), // flood | earthquake | epidemic | other
+  priority: smallint('priority').notNull().default(1), // 1 = เร่งด่วนสุด → มากขึ้น = รองลงมา
+  color: text('color'), // สีที่ผู้วาดเลือกเอง (override สีตามชนิดภัย/ลำดับ); null = ใช้สี default
   polygon: jsonb('polygon').$type<[number, number][]>().notNull(),
   notes: text('notes'),
   createdBy: uuid('created_by'),
   deletedAt: timestamp('deleted_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
-}, (t) => [index('idx_flood_risk_zones_province').on(t.province)])
+}, (t) => [
+  index('idx_flood_risk_zones_province').on(t.province),
+  index('idx_flood_risk_zones_category').on(t.province, t.category, t.hazardType),
+])
+
+// ชนิดภัย (ทะเบียนตั้งค่าได้) — ผู้ดูแลระบบ CRUD ที่ /admin/settings/hazard-types
+// โซน (flood_risk_zones.hazard_type) อ้างอิงด้วย `code`; isSystem = ชนิดภัยหลักของระบบ (ลบไม่ได้, code คงที่)
+export const hazardTypes = pgTable('hazard_types', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  code: text('code').notNull(),                                  // slug อ้างอิง เช่น 'flood'
+  label: text('label').notNull(),                                // ชื่อแสดงผล เช่น 'น้ำท่วม'
+  category: text('category').notNull().default('temporary'),     // permanent | temporary
+  color: text('color').notNull().default('oklch(0.62 0.02 260)'),
+  emoji: text('emoji').notNull().default('⚠️'),
+  sortOrder: integer('sort_order').notNull().default(0),
+  isActive: boolean('is_active').notNull().default(true),
+  isSystem: boolean('is_system').notNull().default(false),
+  createdBy: uuid('created_by'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+}, (t) => [uniqueIndex('hazard_types_code_key').on(t.code)])
 
 // Infrastructure
 export const infrastructures = pgTable('infrastructures', {

@@ -218,7 +218,7 @@ export function Masthead({ session }: Props) {
               <DropdownMenuSeparator className="my-1 border-t border-[var(--border)]" />
 
               <DropdownMenuItem
-                render={<Link href="/admin/incidents" />}
+                render={<Link href="/admin/settings/incidents" />}
                 className="gap-2 px-2.5 py-2 text-[12.5px] cursor-pointer"
               >
                 <AlertTriangle className="size-4 shrink-0 opacity-70" />
@@ -258,7 +258,7 @@ export function Masthead({ session }: Props) {
               </DropdownMenuItem>
 
               <DropdownMenuItem
-                render={<Link href="/admin/infra" />}
+                render={<Link href="/admin/settings/facilities" />}
                 className="gap-2 px-2.5 py-2 text-[12.5px] cursor-pointer"
               >
                 <Building2 className="size-4 shrink-0 opacity-70" />

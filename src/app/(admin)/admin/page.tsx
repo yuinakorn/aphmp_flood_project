@@ -38,7 +38,7 @@ const cards = [
     tile: 'var(--infra-shelter)',
   },
   {
-    href: '/admin/infra',
+    href: '/admin/settings/facilities',
     icon: Building2,
     title: 'สถานพยาบาล',
     desc: 'ทะเบียน รพ. / รพ.สต. / หน่วยบริการด่านหน้า',

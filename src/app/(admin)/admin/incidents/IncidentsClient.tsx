@@ -160,7 +160,7 @@ export function IncidentsClient({ canCreate, province: myProvince, isNational, p
     s === 'active' ? 'gx-badge gx-badge-flood' : s === 'monitoring' ? 'gx-badge gx-badge-near' : 'gx-badge'
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <div>
       {activeCount > 0 && (
         <div className="gx-banner-crisis mb-3 py-2 text-[13px]">
           <AlertTriangle size={15} className="shrink-0" />

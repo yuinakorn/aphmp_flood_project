@@ -12,14 +12,12 @@ import {
   Tent,
   Hospital,
   Droplets,
-  Building2,
-  AlertTriangle,
-  Anchor,
   Inbox,
   Settings,
   ChevronsLeft,
   ChevronsRight,
   X,
+  LifeBuoy,
 } from 'lucide-react'
 import { useSidebar } from '@/components/shell/SidebarProvider'
 
@@ -29,20 +27,16 @@ type Section = { label: string | null; items: Item[] }
 function buildSections(canManageStaff: boolean, canTriage: boolean, pendingReports: number): Section[] {
   const systemItems: Item[] = [
     { href: '/admin/water-level', icon: Droplets, label: 'ระดับน้ำ' },
-    { href: '/admin/infra', icon: Building2, label: 'สถานพยาบาล' },
-    { href: '/admin/incidents', icon: AlertTriangle, label: 'เหตุการณ์ภัยพิบัติ' },
   ]
-  if (canTriage) {
-    systemItems.push({ href: '/admin/rescue-teams', icon: Anchor, label: 'ทีมกู้ภัย' })
-  }
   const topItems: Item[] = [
     { href: '/admin/eoc', icon: Siren, label: 'ศูนย์บัญชาการ EOC' },
     { href: '/map', icon: Map, label: 'แผนที่ปฏิบัติการ' },
+    { href: '/admin/rescue-missions', icon: LifeBuoy, label: 'ปฏิบัติการกู้ภัย' },
   ]
   if (canTriage) {
     topItems.push({ href: '/admin/help-reports', icon: Inbox, label: 'รับแจ้งเหตุประชาชน', badge: pendingReports })
   }
-  if (canManageStaff) {
+  if (canManageStaff || canTriage) {
     systemItems.push({ href: '/admin/settings', icon: Settings, label: 'ตั้งค่า' })
   }
   const healthItems: Item[] = [
@@ -85,7 +79,7 @@ function NavList({ sections, showLabels, onNavigate }: { sections: Section[]; sh
       {sections.map((sec, i) => (
         <div key={i} className="flex flex-col gap-0.5">
           {sec.label && showLabels ? (
-            <p className="px-2.5 pb-1 pt-4 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+            <p className="px-2.5 pb-1 pt-4 text-[11.5px] font-bold uppercase tracking-[0.12em] text-slate-500">
               {sec.label}
             </p>
           ) : i > 0 ? (
@@ -101,7 +95,7 @@ function NavList({ sections, showLabels, onNavigate }: { sections: Section[]; sh
                 onClick={onNavigate}
                 aria-current={on ? 'page' : undefined}
                 title={showLabels ? undefined : it.label}
-                className={`flex items-center gap-3 rounded-md px-2.5 py-2 text-[13.5px] transition-colors ${
+                className={`flex items-center gap-3 rounded-md px-2.5 py-2 text-[14.5px] transition-colors ${
                   showLabels ? 'justify-start' : 'justify-center'
                 } ${on ? 'bg-slate-800 font-semibold text-white' : 'font-medium text-slate-300 hover:bg-slate-800 hover:text-white'}`}
               >
@@ -116,7 +110,7 @@ function NavList({ sections, showLabels, onNavigate }: { sections: Section[]; sh
                 </span>
                 {showLabels && <span className="truncate">{it.label}</span>}
                 {showLabels && it.badge ? (
-                  <span className="ml-auto rounded-full bg-rose-500 px-1.5 py-0.5 text-[10.5px] font-bold leading-none text-white">
+                  <span className="ml-auto rounded-full bg-rose-500 px-1.5 py-0.5 text-[11px] font-bold leading-none text-white">
                     {it.badge}
                   </span>
                 ) : null}
@@ -152,7 +146,7 @@ export function AppSidebar({ canManageStaff = false, canTriage = false, pendingR
           type="button"
           onClick={toggleCollapsed}
           aria-label={collapsed ? 'กางเมนู' : 'หุบเมนู'}
-          className={`flex shrink-0 items-center gap-2.5 border-t border-slate-800 px-3 py-2.5 text-[12.5px] font-medium text-slate-400 transition-colors hover:bg-slate-800 hover:text-white ${
+          className={`flex shrink-0 items-center gap-2.5 border-t border-slate-800 px-3 py-2.5 text-sm font-medium text-slate-400 transition-colors hover:bg-slate-800 hover:text-white ${
             collapsed ? 'justify-center' : 'justify-start'
           }`}
         >
@@ -177,7 +171,7 @@ export function AppSidebar({ canManageStaff = false, canTriage = false, pendingR
           />
           <aside className="absolute left-0 top-0 flex h-full w-[264px] flex-col border-r border-slate-800 bg-[#0C1217] text-slate-300 shadow-xl animate-in slide-in-from-left duration-200">
             <div className="flex h-16 shrink-0 items-center justify-between border-b border-slate-800 px-4">
-              <span className="text-[13px] font-semibold text-white">เมนู</span>
+              <span className="text-sm font-semibold text-white">เมนู</span>
               <button
                 type="button"
                 onClick={() => setMobileOpen(false)}

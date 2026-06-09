@@ -1,0 +1,1 @@
+ALTER TABLE "flood_risk_zones" ADD COLUMN "color" text;

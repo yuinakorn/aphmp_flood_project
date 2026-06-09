@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import dynamic from 'next/dynamic'
 import {
   LifeBuoy, MapPin, CheckCircle2, Phone, AlertTriangle, Loader2, Maximize2,
@@ -77,6 +77,9 @@ export function ReportForm() {
   const [mapExpanded, setMapExpanded] = useState(false)
   const [lat, setLat] = useState(DEFAULT_LAT)
   const [lng, setLng] = useState(DEFAULT_LNG)
+  const [locatingDevice, setLocatingDevice] = useState(false)
+  const [locationNotice, setLocationNotice] = useState<string | null>(null)
+  const [deviceLocationRequested, setDeviceLocationRequested] = useState(false)
   const [website, setWebsite] = useState('') // honeypot
 
   const [submitting, setSubmitting] = useState(false)
@@ -85,6 +88,35 @@ export function ReportForm() {
 
   const phoneValid = /^[0-9+\-\s]{6,20}$/.test(reporterPhone.trim())
   const canSubmit = !!requestType && phoneValid && !submitting
+
+  const requestDeviceLocation = useCallback(() => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      setLocationNotice('อุปกรณ์นี้ไม่รองรับการระบุตำแหน่ง จะแสดงแผนที่จากจุดกึ่งกลางแทน')
+      return
+    }
+
+    setLocatingDevice(true)
+    setLocationNotice(null)
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords
+        setLat(latitude)
+        setLng(longitude)
+        setLocatingDevice(false)
+      },
+      (err) => {
+        const msg =
+          err.code === err.PERMISSION_DENIED
+            ? 'ไม่ได้รับสิทธิ์เข้าถึงตำแหน่งจากอุปกรณ์ กรุณาเลื่อนแผนที่ไปยังจุดเกิดเหตุหรืออนุญาตสิทธิ์แล้วลองอีกครั้ง'
+            : err.code === err.POSITION_UNAVAILABLE
+              ? 'ไม่สามารถระบุตำแหน่งปัจจุบันได้ในขณะนี้ กรุณาปักหมุดบนแผนที่แทน'
+              : 'ระบุตำแหน่งใช้เวลานานเกินไป กรุณาลองใหม่อีกครั้ง'
+        setLocationNotice(msg)
+        setLocatingDevice(false)
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+    )
+  }, [])
 
   async function submit() {
     if (!canSubmit) {
@@ -172,7 +204,7 @@ export function ReportForm() {
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-12 items-stretch">
         {/* ───── Left Panel: Illustration & Help Message ───── */}
-        <div className="md:col-span-5 flex flex-col justify-between relative overflow-hidden rounded-3xl bg-gradient-to-br from-sky-400 via-sky-500 to-blue-600 p-6 md:p-8 text-white shadow-xl min-h-[380px] md:min-h-[580px]">
+        <div className="md:col-span-5 flex flex-col justify-between relative overflow-hidden rounded-3xl bg-gradient-to-br from-sky-400 via-sky-500 to-blue-600 p-5 md:p-7 text-white shadow-xl min-h-[360px] md:min-h-[540px]">
           {/* Decorative background gradients */}
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
           <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-700/20 rounded-full blur-3xl -ml-20 -mb-20 pointer-events-none" />
@@ -183,29 +215,29 @@ export function ReportForm() {
               <Sparkles size={13} className="text-amber-300" />
               <span>ศูนย์รับแจ้งเหตุประสานงานกู้ภัยน้ำท่วม</span>
             </div>
-            <h2 className="mt-4 text-2xl md:text-3xl font-extrabold tracking-tight leading-tight">
+            <h2 className="mt-3 text-2xl md:text-[2rem] font-extrabold tracking-tight leading-tight">
               แจ้งขอความช่วยเหลือ <br/>ผ่านระบบ FloodWatch
             </h2>
-            <p className="mt-2 text-xs md:text-sm text-sky-50 font-light max-w-ch leading-relaxed">
+            <p className="mt-2 text-xs md:text-[13px] text-sky-50 font-light max-w-ch leading-relaxed">
               กรอกข้อมูลความต้องการของคุณในระบบนี้ ข้อมูลจะส่งตรงไปยังทีมกู้ภัยและเจ้าหน้าที่เคลื่อนที่ในพื้นที่ทันที เพื่อดำเนินการคัดกรองความเร่งด่วนและประสานงานเข้าช่วยเหลืออย่างเร่งด่วน
             </p>
           </div>
 
           {/* Friendly vector illustration */}
-          <div className="relative z-10 my-4 flex justify-center items-center flex-1">
+          <div className="relative z-10 my-3 flex justify-center items-center flex-1">
             <img
               src="/images/flood_help_illustration.png"
               alt="ช่วยเหลือภัยน้ำท่วม"
-              className="w-full max-w-[240px] md:max-w-[280px] h-auto object-contain animate-float drop-shadow-md"
+              className="w-full max-w-[220px] md:max-w-[250px] h-auto object-contain animate-float drop-shadow-md"
             />
           </div>
 
           {/* Hotline / Security note */}
           <div className="relative z-10 space-y-4">
-            <div className="rounded-2xl border border-white/20 bg-white/10 p-3.5 backdrop-blur-md">
+            <div className="rounded-2xl border border-white/20 bg-white/10 p-3 backdrop-blur-md">
               <div className="flex items-start gap-3">
                 <Phone size={18} className="mt-0.5 shrink-0 text-amber-300 animate-pulse" />
-                <div className="text-xs space-y-1">
+                <div className="text-xs space-y-0.5">
                   <p className="font-bold text-amber-200">สายด่วนช่วยเหลือเฉพาะหน้า (24 ชม.)</p>
                   <p className="text-sky-100">เจ็บป่วยฉุกเฉิน/โรงพยาบาล: โทร <a href="tel:1669" className="font-bold text-white underline">1669</a></p>
                   <p className="text-sky-100 font-light">ปภ. สายด่วนสาธารณภัย: โทร <a href="tel:1784" className="font-bold text-white underline">1784</a></p>
@@ -213,7 +245,7 @@ export function ReportForm() {
               </div>
             </div>
 
-            <p className="text-center md:text-left text-[10px] text-sky-100/60 font-light">
+            <p className="text-center md:text-left text-[10px] text-sky-100/60 font-light leading-relaxed">
               * ข้อมูลของท่านจะใช้เฉพาะเพื่อช่วยชีวิตและติดต่อประสานงานกู้ภัยตาม พ.ร.บ. คุ้มครองข้อมูลส่วนบุคคล (PDPA)
             </p>
           </div>
@@ -263,6 +295,12 @@ export function ReportForm() {
                     setPeopleCount('')
                     setAddressText('')
                     setUsePin(false)
+                    setMapExpanded(false)
+                    setLat(DEFAULT_LAT)
+                    setLng(DEFAULT_LNG)
+                    setLocatingDevice(false)
+                    setLocationNotice(null)
+                    setDeviceLocationRequested(false)
                     setStep(1)
                   }}
                   className="mt-8 inline-flex items-center gap-2 text-sm font-semibold text-sky-600 hover:text-sky-700 underline-offset-4 hover:underline"
@@ -456,9 +494,9 @@ export function ReportForm() {
                         <MapPin className="text-sky-600" size={20} />
                         3. ระบุตำแหน่งและที่อยู่ที่พบเหตุ
                       </h3>
-                      <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 mb-5">ที่อยู่อย่างละเอียดและพิกัดหมุดบนแผนที่ เพื่อให้เรือกู้ภัยและเจ้าหน้าที่นำทางไปพบโดยเร็วที่สุด</p>
+                      <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 mb-4">ที่อยู่อย่างละเอียดและพิกัดหมุดบนแผนที่ เพื่อให้เรือกู้ภัยและเจ้าหน้าที่นำทางไปพบได้เร็วขึ้น</p>
 
-                      <div className="space-y-4">
+                      <div className="space-y-3">
                         <div>
                           <label className="mb-1.5 block text-xs font-bold text-slate-500 uppercase tracking-wider">
                             ข้อมูลที่อยู่ / จุดสังเกตในพื้นที่
@@ -468,12 +506,12 @@ export function ReportForm() {
                             value={addressText}
                             onChange={(e) => setAddressText(e.target.value)}
                             placeholder="บ้านเลขที่ หมู่บ้าน ซอย ตำบล หรือจุดเด่นสังเกตเห็นง่าย (เช่น หลังวัด...)"
-                            className="w-full rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3.5 text-[15px] outline-hidden focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-all text-slate-800 dark:text-slate-200"
+                            className="w-full rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 text-[15px] outline-hidden focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-all text-slate-800 dark:text-slate-200"
                           />
                         </div>
 
                         {/* Map Picker Widget */}
-                        <div className="rounded-2xl border border-slate-150 dark:border-slate-800 overflow-hidden bg-slate-50 dark:bg-slate-950 p-4">
+                        <div className="rounded-2xl border border-slate-150 dark:border-slate-800 overflow-hidden bg-slate-50 dark:bg-slate-950 p-3">
                           {!usePin ? (
                             <div className="text-center py-6">
                               <MapPin className="mx-auto text-slate-300 dark:text-slate-700 mb-2" size={32} />
@@ -481,37 +519,62 @@ export function ReportForm() {
                               <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 mb-4">การปักพิกัด GPS จะช่วยลดความผิดพลาดในการค้นหาบ้านท่ามกลางพื้นที่น้ำท่วมได้สูงสุด</p>
                               <button
                                 type="button"
-                                onClick={() => setUsePin(true)}
+                                onClick={() => {
+                                  setUsePin(true)
+                                  setLocationNotice(null)
+                                  if (!deviceLocationRequested) {
+                                    setDeviceLocationRequested(true)
+                                    requestDeviceLocation()
+                                  }
+                                }}
                                 className="inline-flex items-center gap-2 rounded-xl bg-sky-50 dark:bg-sky-950 border border-sky-200 dark:border-sky-900 px-4 py-2.5 text-xs font-bold text-sky-700 dark:text-sky-400 transition-colors cursor-pointer"
                               >
                                 <MapPin size={14} /> เปิดแผนที่เพื่อปักหมุดตำแหน่ง
                               </button>
                             </div>
                           ) : (
-                            <div className="space-y-3">
+                            <div className="space-y-2.5">
                               <div className="flex items-center justify-between">
                                 <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-400">
                                   <MapPin size={14} className="text-sky-600 animate-pulse" /> เลื่อนแผนที่และกดปักหมุดตรงพิกัดของคุณ
                                 </span>
                                 <button
                                   type="button"
-                                  onClick={() => setUsePin(false)}
+                                  onClick={() => {
+                                    setUsePin(false)
+                                    setLocatingDevice(false)
+                                    setLocationNotice(null)
+                                  }}
                                   className="text-xs font-medium text-slate-400 dark:text-slate-600 hover:text-rose-500 dark:hover:text-rose-400 transition-colors cursor-pointer"
                                 >
                                   ไม่ปักหมุดพิกัด
                                 </button>
                               </div>
+                              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200/80 bg-white/80 px-3 py-1.5 text-[11px] text-slate-500 shadow-xs dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400">
+                                <span className="inline-flex items-center gap-1.5">
+                                  {locatingDevice ? <Loader2 size={12} className="animate-spin text-sky-600" /> : <MapPin size={12} className="text-sky-600" />}
+                                  {locatingDevice ? 'กำลังใช้พิกัดจากอุปกรณ์...' : locationNotice ?? 'พิกัดเริ่มต้นจะอ้างอิงจากตำแหน่งปัจจุบันของอุปกรณ์โดยอัตโนมัติ'}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={requestDeviceLocation}
+                                  disabled={locatingDevice}
+                                  className="inline-flex items-center gap-1 rounded-lg border border-sky-200 bg-sky-50 px-2 py-1 font-semibold text-sky-700 transition-colors hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-sky-900 dark:bg-sky-950/50 dark:text-sky-400"
+                                >
+                                  <MapPin size={12} /> ใช้พิกัดปัจจุบัน
+                                </button>
+                              </div>
                               <div className="relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800">
-                                <LocationPicker lat={lat} lng={lng} onChange={(la, ln) => { setLat(la); setLng(ln) }} heightClass="h-[160px]" />
+                                <LocationPicker lat={lat} lng={lng} onChange={(la, ln) => { setLat(la); setLng(ln) }} heightClass="h-[190px] md:h-[220px]" />
                                 <button
                                   type="button"
                                   onClick={() => setMapExpanded(true)}
-                                  className="absolute right-2.5 top-2.5 z-[1000] inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 px-2.5 py-1.5 text-[11px] font-bold text-slate-700 dark:text-slate-300 shadow-xs backdrop-blur hover:bg-white dark:hover:bg-slate-800 cursor-pointer"
+                                  className="absolute bottom-2.5 right-2.5 z-[1000] inline-flex items-center gap-1.5 rounded-full border border-slate-200/90 dark:border-slate-800 bg-white/92 dark:bg-slate-900/92 px-3 py-1.5 text-[11px] font-bold text-slate-700 dark:text-slate-300 shadow-sm backdrop-blur hover:bg-white dark:hover:bg-slate-800 cursor-pointer"
                                 >
                                   <Maximize2 size={13} /> ขยายเต็มหน้าจอ
                                 </button>
                               </div>
-                              <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-normal">สามารถขยายขนาดเต็มหน้าจอเพื่อกดค้นหาพิกัดบ้านและปักหมุดได้อย่างแม่นยำยิ่งขึ้น</p>
+                              <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-normal">ขยายเต็มหน้าจอได้ หากต้องการปักหมุดให้ละเอียดขึ้น</p>
                             </div>
                           )}
                         </div>
@@ -527,7 +590,7 @@ export function ReportForm() {
                 </div>
 
                 {/* Form Action Buttons */}
-                <div className="mt-8 pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-4">
+                <div className="mt-6 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-4">
                   {step > 1 ? (
                     <button
                       type="button"

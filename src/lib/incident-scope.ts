@@ -127,19 +127,8 @@ export function areaMemberWhere(
   return sql`(${sql.join(perArea, sql` OR `)})`
 }
 
-/** JS predicate รุ่นเดียวกับ areaMemberWhere — สำหรับกรอง array ใน-memory */
-export function memberMatchesAreas(
-  m: { province?: string | null; amphoe?: string | null; tambon?: string | null },
-  areas: IncidentArea[] | undefined,
-): boolean {
-  if (!areas || areas.length === 0) return true
-  return areas.some((a) => {
-    if (a.province && m.province !== a.province) return false
-    if (a.amphoe && m.amphoe !== a.amphoe) return false
-    if (a.tambon && m.tambon !== a.tambon) return false
-    return true
-  })
-}
+/** JS predicate รุ่นเดียวกับ areaMemberWhere — สำหรับกรอง array ใน-memory (client-safe ด้วย) */
+export { memberMatchesAreas } from '@/lib/incident-area-match'
 
 /** รายชื่อเหตุการณ์ที่ user มีสิทธิ์เลือก — scope ตามจังหวัดสังกัด (national เห็นทุกจังหวัด) */
 export async function getSelectableIncidents(

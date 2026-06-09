@@ -175,7 +175,7 @@ export default async function SheltersPage() {
       {shelters.length === 0 && (
         <div className="mt-6 rounded-xl border border-dashed border-[var(--border)] bg-[var(--bg-elevated)] py-12 text-center">
           <Users size={28} className="mx-auto mb-2 text-[var(--fg-subtle)]" />
-          <p className="text-sm text-[var(--fg-muted)]">ยังไม่มีศูนย์พักพิงในระบบ — เพิ่มที่หน้า /admin/infra</p>
+          <p className="text-sm text-[var(--fg-muted)]">ยังไม่มีศูนย์พักพิงในระบบ — เพิ่มที่หน้า ตั้งค่า › สถานพยาบาล</p>
         </div>
       )}
     </div>

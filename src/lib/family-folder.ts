@@ -368,6 +368,8 @@ export async function getVulnerableHouseholdMarkers(
         position: m.isHead ? 'หัวหน้าครัวเรือน' : (m.familyPosition ?? 'สมาชิก'),
         group,
         categories: memberCategories(m.type, m.lifeSupport, m.age, m.isDisabled),
+        medicalPriority: m.medicalPriority ?? undefined,
+        lifeSupport: m.lifeSupport ?? null,
         isHead: m.isHead,
         isVulnerable: isVulnerableMember(m),
         phone: m.phone || null,

@@ -5,7 +5,7 @@
  * โพลิกอนเก็บเป็น [lng,lat][] (ตรงกับ pointInPolygon / classifyRiskByPolygons ใน geo.ts)
  * จัดกลุ่มตามจังหวัด เพื่อให้แต่ละคนถูกจำแนกเทียบกับโซนในจังหวัดของตนเองเท่านั้น
  */
-import { isNull } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
 import { floodRiskZones } from '@/db/schema'
 
@@ -13,10 +13,11 @@ export type ZonesByProvince = Map<string, [number, number][][]>
 
 export async function loadRiskZonesByProvince(): Promise<ZonesByProvince> {
   const db = getDb()
+  // เกณฑ์ "ในเขตน้ำท่วม" นับเฉพาะโซนภัยน้ำท่วม — ไม่รวมโซนแผ่นดินไหว/โรคระบาด/อื่น ๆ
   const rows = await db
     .select({ province: floodRiskZones.province, polygon: floodRiskZones.polygon })
     .from(floodRiskZones)
-    .where(isNull(floodRiskZones.deletedAt))
+    .where(and(isNull(floodRiskZones.deletedAt), eq(floodRiskZones.hazardType, 'flood')))
 
   const map: ZonesByProvince = new Map()
   for (const r of rows) {

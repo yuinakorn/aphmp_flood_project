@@ -122,6 +122,7 @@ export function FieldActionSheet({ target, mode, activeIncidents, currentLifeSup
     setSubmitting(true)
     setError(null)
     try {
+      const incidentId = activeIncidents.length === 1 ? activeIncidents[0].id : undefined
       const endpoint = mode === 'visit' ? '/api/health-visits' : '/api/help-requests'
       const body =
         mode === 'visit'
@@ -132,12 +133,14 @@ export function FieldActionSheet({ target, mode, activeIncidents, currentLifeSup
               needsHelp,
               helpType: needsHelp ? helpTypeVisit : null,
               notes: notes.trim() || null,
+              incidentId,
             }
           : {
               memberId: target.id,
               requestType,
               priority,
               description: description.trim() || null,
+              incidentId,
             }
       const res = await fetch(endpoint, {
         method: 'POST',

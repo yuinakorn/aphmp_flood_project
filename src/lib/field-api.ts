@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server'
 import type { Session } from 'next-auth'
 import type { UserRole } from '@/types'
 
-const WRITE_ROLES = new Set<UserRole>(['admin', 'officer', 'eoc', 'vhv', 'ems', 'ddpm', 'shelter_manager'])
-const TRIAGE_ROLES = new Set<UserRole>(['admin', 'officer', 'eoc', 'ems', 'ddpm'])
+const WRITE_ROLES = new Set<UserRole>(['admin', 'officer', 'eoc', 'vhv', 'ems', 'ddpm', 'shelter_manager', 'rescue'])
+const TRIAGE_ROLES = new Set<UserRole>(['admin', 'officer', 'eoc', 'ems', 'ddpm', 'rescue'])
 // เปิด/ปิด/จัดการเหตุการณ์ = ผู้บัญชาการเท่านั้น (แคบกว่า triage)
 const INCIDENT_MANAGE_ROLES = new Set<UserRole>(['admin', 'eoc', 'ddpm'])
 // จัดการทะเบียนเจ้าหน้าที่ (อนุมัติ/whitelist/ระงับ) — ผู้บัญชาการ; non-national scope แค่จังหวัดตัวเอง

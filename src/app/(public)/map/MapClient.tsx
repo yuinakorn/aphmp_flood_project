@@ -7,9 +7,12 @@ import { Masthead } from '@/components/shell/Masthead'
 import { AppSidebar } from '@/components/shell/AppSidebar'
 import { StatusStrip } from '@/components/shell/StatusStrip'
 import { Rail, type RailPanel } from '@/components/shell/Rail'
+import { useIncidentScope } from '@/components/shell/IncidentScopeProvider'
+import { memberMatchesAreas } from '@/lib/incident-area-match'
 import { LayersPanel } from '@/components/panels/LayersPanel'
 import { FilterPanel } from '@/components/panels/FilterPanel'
-import { RiskZonePanel } from '@/components/panels/RiskZonePanel'
+import { RiskZonePanel, type SaveZoneInput } from '@/components/panels/RiskZonePanel'
+import type { HazardTypeDef } from '@/lib/risk-zone'
 import { RosterPanel } from '@/components/panels/RosterPanel'
 import { RoutesPanel } from '@/components/panels/RoutesPanel'
 import { InfraPanel } from '@/components/panels/InfraPanel'
@@ -102,6 +105,34 @@ const PROVINCE_NAME_TO_ID: Record<string, ProvinceId> = {
   'เชียงราย': 'chiangrai',
 }
 
+// แปลงอำเภอ (ไทย) → ProvinceId เพื่อ align พาเนลระดับน้ำ/โซนให้ตรงพื้นที่เหตุการณ์
+// (จังหวัดเดียวกันมีได้หลายพื้นที่เฝ้าระวัง เช่น เชียงราย: เมือง vs แม่สาย)
+const AMPHOE_NAME_TO_ID: Record<string, ProvinceId> = {
+  'เมืองเชียงราย': 'chiangrai',
+  'แม่สาย': 'chiangrai_maesai',
+}
+
+// ProvinceId → ชื่อจังหวัด (ไทย) สำหรับบันทึกโซน (national role ต้องส่ง province เอง)
+const ID_TO_PROVINCE_NAME: Record<ProvinceId, string> = {
+  chiangmai: 'เชียงใหม่',
+  nan: 'น่าน',
+  chiangrai: 'เชียงราย',
+  chiangrai_maesai: 'เชียงราย',
+}
+
+/** เลือก ProvinceId ของพื้นที่เฝ้าระวังน้ำที่ตรงกับพื้นที่หลักของเหตุการณ์ (อำเภอก่อน แล้วค่อย fallback จังหวัด) */
+function incidentToProvinceId(
+  areas: { province?: string | null; amphoe?: string | null }[] | undefined,
+): ProvinceId | null {
+  for (const a of areas ?? []) {
+    if (a.amphoe && AMPHOE_NAME_TO_ID[a.amphoe]) return AMPHOE_NAME_TO_ID[a.amphoe]
+  }
+  for (const a of areas ?? []) {
+    if (a.province && PROVINCE_NAME_TO_ID[a.province]) return PROVINCE_NAME_TO_ID[a.province]
+  }
+  return null
+}
+
 // กรอบพิกัดโดยประมาณของ 8 จังหวัดเหนือ [[south, west], [north, east]] — ใช้โฟกัสแผนที่ตามจังหวัด login
 const PROVINCE_BOUNDS: Record<string, [[number, number], [number, number]]> = {
   'เชียงใหม่': [[17.0, 98.0], [20.2, 99.7]],
@@ -145,12 +176,44 @@ export function MapClient({ session, canManageStaff = false, canTriage = false, 
   const [province, setProvince] = useState<ProvinceId>(
     (userProvince && PROVINCE_NAME_TO_ID[userProvince]) || 'chiangmai',
   )
+  // โหมดวิกฤต: เหตุการณ์ที่กำลังจัดการ — null = โหมดปกติ (ใช้ dropdown จังหวัดตามเดิม)
+  const { active: activeIncident } = useIncidentScope()
+  // พื้นที่ผลกระทบจริงของเหตุการณ์ (multi-อำเภอ/ตำบล) — ใช้ scope ข้อมูลแทน dropdown เมื่อมีเหตุการณ์
+  // ถ้าไม่มีแถว incident_areas แต่เหตุการณ์ระบุพื้นที่หลักไว้ → ใช้พื้นที่หลักเป็น scope (กันข้อมูลข้ามเหตุการณ์)
+  const activeAreas = useMemo(() => {
+    if (!activeIncident) return null
+    if (activeIncident.areas?.length) return activeIncident.areas
+    if (activeIncident.province || activeIncident.amphoe || activeIncident.tambon) {
+      return [{ province: activeIncident.province, amphoe: activeIncident.amphoe, tambon: activeIncident.tambon }]
+    }
+    return null
+  }, [activeIncident])
+  // พื้นที่เฝ้าระวังน้ำที่ตรงกับเหตุการณ์ (null = เหตุการณ์อยู่นอก config ระดับน้ำ → คงข้อมูลที่ scope ด้วย activeAreas)
+  const incidentProvinceId = activeIncident
+    ? incidentToProvinceId(activeIncident.areas ?? [activeIncident])
+    : null
+  // โหมดวิกฤต → พาเนลระดับน้ำ/โซน/ป้ายพื้นที่ ยึดตามเหตุการณ์; โหมดปกติ → ตาม dropdown ที่ผู้ใช้เลือก
+  const effectiveProvince = incidentProvinceId ?? province
+
+  // จังหวัด (ไทย) ที่อยู่ในขอบเขตเหตุการณ์ — โหมดวิกฤตยึด incident_areas (รองรับหลายจังหวัด),
+  // โหมดปกติยึด dropdown จังหวัดที่เลือก เพื่อไม่ให้เห็นโซนข้ามจังหวัด/ข้ามเหตุการณ์
+  const scopedZoneProvinces = useMemo(() => {
+    if (activeAreas) {
+      const set = new Set<string>()
+      for (const a of activeAreas) if (a.province) set.add(a.province)
+      return set
+    }
+    const name = ID_TO_PROVINCE_NAME[province]
+    return name ? new Set([name]) : new Set<string>()
+  }, [activeAreas, province])
   const didFitRef = useRef(false)
   const [mapReady, setMapReady] = useState(false)
   const [rosterFilter, setRosterFilter] = useState<'all' | 'flooded' | 'at_risk'>('all')
   const [focusHouseholdId, setFocusHouseholdId] = useState<string | null>(null)
 
   const provinceVulnerable = useMemo(() => {
+    // โหมดวิกฤต → ยึดพื้นที่ตามเหตุการณ์ (incident_areas) ไม่ปนข้ามเหตุการณ์ในจังหวัดเดียวกัน
+    if (activeAreas) return vulnerable.filter((p) => memberMatchesAreas(p, activeAreas))
     return vulnerable.filter((p) => {
       if (province === 'chiangmai') return p.province === 'เชียงใหม่'
       if (province === 'nan') return p.province === 'น่าน'
@@ -158,9 +221,10 @@ export function MapClient({ session, canManageStaff = false, canTriage = false, 
       if (province === 'chiangrai_maesai') return p.province === 'เชียงราย' && p.amphoe === 'แม่สาย'
       return false
     })
-  }, [vulnerable, province])
+  }, [vulnerable, province, activeAreas])
 
   const provinceHouseholds = useMemo(() => {
+    if (activeAreas) return households.filter((h) => memberMatchesAreas(h, activeAreas))
     return households.filter((h) => {
       if (province === 'chiangmai') return h.province === 'เชียงใหม่'
       if (province === 'nan') return h.province === 'น่าน'
@@ -168,7 +232,7 @@ export function MapClient({ session, canManageStaff = false, canTriage = false, 
       if (province === 'chiangrai_maesai') return h.province === 'เชียงราย' && h.amphoe === 'แม่สาย'
       return false
     })
-  }, [households, province])
+  }, [households, province, activeAreas])
 
   // สถิติกลุ่มเปราะบาง — คิดจากข้อมูลที่ scope จังหวัดแล้ว (ถูกต้องทุกจังหวัด ไม่ผูกกับโซนเชียงใหม่)
   const vulnStats: VulnerableStats = useMemo(() => {
@@ -210,39 +274,71 @@ export function MapClient({ session, canManageStaff = false, canTriage = false, 
   const ZONE_EDIT_ROLES = new Set(['admin', 'officer', 'eoc', 'ems', 'ddpm'])
   const canEditZones = !!session && ZONE_EDIT_ROLES.has(session.role)
   const [riskZones, setRiskZones] = useState<FloodRiskZone[]>([])
+  const [hazardTypes, setHazardTypes] = useState<HazardTypeDef[]>([])
   const [drawing, setDrawing] = useState(false)
   const [draftZone, setDraftZone] = useState<[number, number][]>([]) // [lat, lng][]
+  const [editingZone, setEditingZone] = useState<FloodRiskZone | null>(null) // null = วาดใหม่
+
+  // ทะเบียนชนิดภัย (ตั้งค่าได้ที่ /admin/settings/hazard-types) — ใช้เป็นตัวเลือกในฟอร์มวาดโซน
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/hazard-types?active=1', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : { data: [] }))
+      .then((j) => { if (!cancelled) setHazardTypes((j.data ?? []) as HazardTypeDef[]) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [])
+
+  // คิวรีจังหวัดที่ scope ไว้ — กรองตั้งแต่ต้นทาง (API) ไม่ดึงโซนข้ามจังหวัด/ข้ามเหตุการณ์มา
+  const zonesQuery = useMemo(() => {
+    const provinces = [...scopedZoneProvinces]
+    return provinces.length ? `?provinces=${provinces.map(encodeURIComponent).join(',')}` : ''
+  }, [scopedZoneProvinces])
 
   const loadZones = useCallback(async () => {
     try {
-      const res = await fetch('/api/flood-risk-zones', { cache: 'no-store' })
+      const res = await fetch(`/api/flood-risk-zones${zonesQuery}`, { cache: 'no-store' })
       if (res.ok) setRiskZones(((await res.json()).data ?? []) as FloodRiskZone[])
     } catch { /* เงียบไว้ — โซนเป็นข้อมูลเสริม */ }
-  }, [])
+  }, [zonesQuery])
 
+  // โหลดโซนเมื่อ scope จังหวัดเปลี่ยน (เปลี่ยนเหตุการณ์/จังหวัด) — กัน race ด้วย cancelled flag
   useEffect(() => {
-    fetch('/api/flood-risk-zones', { cache: 'no-store' })
+    let cancelled = false
+    fetch(`/api/flood-risk-zones${zonesQuery}`, { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : { data: [] }))
-      .then((j) => setRiskZones((j.data ?? []) as FloodRiskZone[]))
+      .then((j) => { if (!cancelled) setRiskZones((j.data ?? []) as FloodRiskZone[]) })
       .catch(() => {})
-  }, [])
+    return () => { cancelled = true }
+  }, [zonesQuery])
 
   // นับกลุ่มเปราะบางในแต่ละโซน — ใช้ชุดเดียวกับหมุดบนแผนที่ (sum vulnerableCount ของบ้านในโซน)
   // เพื่อให้ตรงกับ badge ที่ผู้ใช้เห็น (ไม่ใช้ /api/vulnerable ที่เกณฑ์ต่างกัน)
   const zonesWithCount = useMemo(
-    () => riskZones.map((z) => ({
-      ...z,
-      count: provinceHouseholds.reduce(
-        (sum, h) => sum + (pointInPolygon(h.lat, h.lng, z.polygon) ? h.vulnerableCount : 0),
-        0,
-      ),
-    })),
-    [riskZones, provinceHouseholds],
+    () => riskZones
+      .filter((z) => scopedZoneProvinces.has(z.province))
+      .map((z) => ({
+        ...z,
+        count: provinceHouseholds.reduce(
+          (sum, h) => sum + (pointInPolygon(h.lat, h.lng, z.polygon) ? h.vulnerableCount : 0),
+          0,
+        ),
+      })),
+    [riskZones, provinceHouseholds, scopedZoneProvinces],
   )
 
   const startDraw = useCallback(() => {
     setPinMode(false)
+    setEditingZone(null)
     setDraftZone([])
+    setDrawing(true)
+    setActivePanel('zones')
+  }, [])
+  // แก้ไขโซนเดิม — โหลด polygon ([lng,lat]→[lat,lng]) ลง draft แล้วเข้าโหมดแก้ไข (prefill ฟอร์มผ่าน key remount)
+  const startEdit = useCallback((z: FloodRiskZone) => {
+    setPinMode(false)
+    setEditingZone(z)
+    setDraftZone(z.polygon.map(([lng, lat]) => [lat, lng] as [number, number]))
     setDrawing(true)
     setActivePanel('zones')
   }, [])
@@ -250,23 +346,37 @@ export function MapClient({ session, canManageStaff = false, canTriage = false, 
     setDraftZone((prev) => [...prev, [lat, lng]])
   }, [])
   const undoDraftVertex = useCallback(() => setDraftZone((prev) => prev.slice(0, -1)), [])
-  const cancelDraw = useCallback(() => { setDrawing(false); setDraftZone([]) }, [])
-  const saveDraw = useCallback(async (name: string, priority: number): Promise<boolean> => {
+  const moveDraftVertex = useCallback((index: number, lat: number, lng: number) => {
+    setDraftZone((prev) => prev.map((p, i) => (i === index ? [lat, lng] : p)))
+  }, [])
+  const removeDraftVertex = useCallback((index: number) => {
+    setDraftZone((prev) => (prev.length > 3 ? prev.filter((_, i) => i !== index) : prev))
+  }, [])
+  const cancelDraw = useCallback(() => { setDrawing(false); setDraftZone([]); setEditingZone(null) }, [])
+  const saveDraw = useCallback(async (input: SaveZoneInput): Promise<boolean> => {
     if (draftZone.length < 3) return false
     try {
       const polygon = draftZone.map(([lat, lng]) => [lng, lat]) // เก็บเป็น [lng,lat]
-      const res = await fetch('/api/flood-risk-zones', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, priority, polygon }),
-      })
+      const res = editingZone
+        ? await fetch(`/api/flood-risk-zones/${editingZone.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...input, polygon }),
+          })
+        : await fetch('/api/flood-risk-zones', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            // national: ส่งชื่อจังหวัด (ไทย) ของพื้นที่ที่กำลังดู · non-national: server ล็อกจังหวัดสังกัดเอง
+            body: JSON.stringify({ ...input, polygon, province: ID_TO_PROVINCE_NAME[effectiveProvince] ?? null }),
+          })
       if (!res.ok) return false
       setDrawing(false)
       setDraftZone([])
+      setEditingZone(null)
       await loadZones()
       return true
     } catch { return false }
-  }, [draftZone, loadZones])
+  }, [draftZone, loadZones, effectiveProvince, editingZone])
   const deleteZone = useCallback(async (id: string) => {
     try {
       const res = await fetch(`/api/flood-risk-zones/${id}`, { method: 'DELETE' })
@@ -647,6 +757,12 @@ export function MapClient({ session, canManageStaff = false, canTriage = false, 
     mapRef.current?.flyToBounds(PROVINCE_CONFIGS[p].bounds, { duration: 0.7, padding: [40, 40] })
   }, [])
 
+  // โหมดวิกฤต: บินแผนที่ไปกรอบพื้นที่เหตุการณ์ครั้งเดียวเมื่อเปลี่ยนเหตุการณ์ (ไม่ setState ในเอฟเฟกต์)
+  useEffect(() => {
+    if (!incidentProvinceId) return
+    mapRef.current?.flyToBounds(PROVINCE_CONFIGS[incidentProvinceId].bounds, { duration: 0.7, padding: [40, 40] })
+  }, [activeIncident?.id, incidentProvinceId])
+
   const onFloodClick = useCallback(() => {
     setRosterFilter('flooded')
     setActivePanel('roster')
@@ -824,16 +940,16 @@ export function MapClient({ session, canManageStaff = false, canTriage = false, 
       <AppSidebar canManageStaff={canManageStaff} canTriage={canTriage} />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
       <StatusStrip
-        waterLevel={summarySnap[province]?.s2?.level ?? waterLevel}
-        s1Level={summarySnap[province]?.s1?.level ?? null}
-        s1Alert={summarySnap[province]?.s1?.alert ?? 'normal'}
+        waterLevel={summarySnap[effectiveProvince]?.s2?.level ?? waterLevel}
+        s1Level={summarySnap[effectiveProvince]?.s1?.level ?? null}
+        s1Alert={summarySnap[effectiveProvince]?.s1?.alert ?? 'normal'}
         activeZone={activeZone}
-        alertLevel={summarySnap[province]?.s2?.alert ?? alertLevel}
+        alertLevel={summarySnap[effectiveProvince]?.s2?.alert ?? alertLevel}
         vulnerable={vulnStats}
         updatedAt={alertUpdatedAt}
-        province={province}
+        province={effectiveProvince}
         onProvinceChange={onProvinceChange}
-        lockProvince={!isNational}
+        lockProvince={!isNational || !!activeIncident}
         onFloodClick={onFloodClick}
         onNearClick={onNearClick}
       />
@@ -873,11 +989,16 @@ export function MapClient({ session, canManageStaff = false, canTriage = false, 
         )}
         {activePanel === 'zones' && (
           <RiskZonePanel
+            // remount เมื่อสลับ วาดใหม่ ↔ แก้ไขโซน เพื่อ prefill ค่าฟอร์มจาก editingZone
+            key={editingZone?.id ?? 'new'}
             zones={zonesWithCount}
+            hazardTypes={hazardTypes}
             canEdit={canEditZones}
             drawing={drawing}
             draftCount={draftZone.length}
+            editingZone={editingZone}
             onStartDraw={startDraw}
+            onStartEdit={startEdit}
             onUndoVertex={undoDraftVertex}
             onCancelDraw={cancelDraw}
             onSaveDraw={saveDraw}
@@ -957,10 +1078,12 @@ export function MapClient({ session, canManageStaff = false, canTriage = false, 
             onRequestHouseRoute={drawHouseRoute}
             canRequestEvac={canPin}
             onRequestEvacuation={requestEvacuation}
-            riskZones={riskZones}
+            riskZones={editingZone ? zonesWithCount.filter((z) => z.id !== editingZone.id) : zonesWithCount}
             drawMode={drawing}
             draftZone={draftZone}
             onDrawVertex={addDraftVertex}
+            onMoveVertex={moveDraftVertex}
+            onRemoveVertex={removeDraftVertex}
             evacPinMode={evacPinMode}
             onEvacPlace={onEvacPlace}
             crFlood={layers.crFlood}

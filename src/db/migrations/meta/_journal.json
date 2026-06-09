@@ -225,6 +225,27 @@
       "when": 1780929755813,
       "tag": "0031_puzzling_penance",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1780988960777,
+      "tag": "0032_left_klaw",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1780996813298,
+      "tag": "0033_broad_silvermane",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1780998357076,
+      "tag": "0034_marvelous_tusk",
+      "breakpoints": true
     }
   ]
 }

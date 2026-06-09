@@ -28,9 +28,10 @@ import type {
   FloodRiskZone,
   GistdaLayerKey,
 } from '@/types'
-import { CMU_FLOOD_LAYERS, CR_FLOOD_LAYERS, FLOOD_MARK_LEVELS, GISTDA_LAYERS } from '@/types'
+import { CMU_FLOOD_LAYERS, CR_FLOOD_LAYERS, FLOOD_MARK_LEVELS, GISTDA_LAYERS, LIFE_SUPPORT_LABEL } from '@/types'
 import { buildEvacRoute, nearestShelter } from '@/lib/geo'
 import type { CrFloodDepthHit } from '@/lib/geo'
+import { FALLBACK_HAZARD } from '@/lib/risk-zone'
 
 type LeafletContainer = HTMLDivElement & { _leaflet_id?: number | null }
 
@@ -112,6 +113,18 @@ const GROUP_COLOR: Record<string, string> = {
   'ผู้พิการ': 'oklch(0.62 0.18 305)',
   'โรคเรื้อรัง': 'oklch(0.66 0.20 30)',
   'ทั่วไป': 'var(--fg-subtle)',
+}
+
+// ระดับความเร่งด่วนทางการแพทย์ — A วิกฤต, B เร่งด่วน (C ไม่แสดง badge)
+const PRIORITY_COLOR: Record<'A' | 'B' | 'C', string> = {
+  A: 'oklch(0.58 0.22 25)',  // แดง
+  B: 'oklch(0.70 0.17 65)',  // ส้ม-เหลือง
+  C: 'var(--fg-subtle)',
+}
+const PRIORITY_LABEL: Record<'A' | 'B' | 'C', string> = {
+  A: 'วิกฤต A',
+  B: 'เร่งด่วน B',
+  C: 'C',
 }
 
 // ลำดับความรุนแรง — ใช้เลือกสี cluster ตามบ้านที่เสี่ยงสุดในกลุ่ม
@@ -237,14 +250,30 @@ function householdPopupHtml(h: VulnerableHouseholdMarker, risk: RiskLevel, canRe
     const shelterBadge = m.shelterName
       ? `<span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:9.5px;background:#0ea5e9;color:#fff;font-weight:bold;margin-top:2px">พักที่: ${escapeHtml(m.shelterName)}</span>`
       : ''
+    // ระดับความเร่งด่วน — A วิกฤต (แดง), B เร่งด่วน (เหลือง). C/ว่าง ไม่แสดง (กลุ่มทั่วไป)
+    const priorityBadge = m.medicalPriority === 'A' || m.medicalPriority === 'B'
+      ? `<span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:9.5px;font-weight:bold;background:${PRIORITY_COLOR[m.medicalPriority]};color:#fff">${PRIORITY_LABEL[m.medicalPriority]}</span>`
+      : ''
+    // เหตุผลที่จัดเป็นกลุ่มวิกฤต — อุปกรณ์พยุงชีพที่ใช้จริง (oxygen/ventilator/dialysis/...)
+    const lifeSupportChips = (m.lifeSupport ?? [])
+      .map((code) => {
+        const label = LIFE_SUPPORT_LABEL[code] ?? code
+        return `<span style="display:inline-flex;align-items:center;gap:3px;padding:1px 6px;border-radius:4px;font-size:9.5px;font-weight:600;background:color-mix(in oklch, ${PRIORITY_COLOR.A} 14%, transparent);color:${PRIORITY_COLOR.A};border:1px solid color-mix(in oklch, ${PRIORITY_COLOR.A} 35%, transparent)">⛑ ${escapeHtml(label)}</span>`
+      })
+      .join('')
+    const lifeSupportRow = lifeSupportChips
+      ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:3px">${lifeSupportChips}</div>`
+      : ''
     return `<div style="display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:6px 0;border-left:2.5px solid ${gColor};padding-left:8px">
       <div>
         <div style="font-size:12.5px;font-weight:600;color:var(--fg)">${name}</div>
         ${meta ? `<div style="font-size:10.5px;color:var(--fg-subtle)">${escapeHtml(meta)}</div>` : ''}
         <div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-top:2px">
+          ${priorityBadge}
           <span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:9.5px;background:color-mix(in oklch, ${gColor} 18%, transparent);color:${gColor}">${m.group}</span>
           ${shelterBadge}
         </div>
+        ${lifeSupportRow}
       </div>
       <div style="align-self:center">${phoneCell(m.phone)}</div>
     </div>`
@@ -353,6 +382,8 @@ interface Props {
   drawMode?: boolean
   draftZone?: [number, number][] // [lat, lng][] ระหว่างวาด
   onDrawVertex?: (lat: number, lng: number) => void
+  onMoveVertex?: (index: number, lat: number, lng: number) => void // ลากจุด (แก้ไขรูปร่าง)
+  onRemoveVertex?: (index: number) => void // คลิกจุดเพื่อลบ (เหลือ ≥ 3)
   evacPinMode?: boolean
   onEvacPlace?: (lat: number, lng: number) => void
   crFlood?: Partial<Record<CrFloodLayerKey, boolean>>
@@ -382,6 +413,8 @@ export function FloodMap({
   drawMode = false,
   draftZone = [],
   onDrawVertex,
+  onMoveVertex,
+  onRemoveVertex,
   evacPinMode = false,
   onEvacPlace,
   crFlood = {},
@@ -835,9 +868,15 @@ export function FloodMap({
       riskZones.forEach((z) => {
         const latlng = z.polygon.map(([lng, lat]) => [lat, lng] as [number, number])
         if (latlng.length < 3) return
-        const color = zoneColor(z.priority)
-        L.polygon(latlng, { color, weight: 2, fillColor: color, fillOpacity: 0.18, dashArray: '4,4' })
-          .bindTooltip(`${z.name} · ลำดับ ${z.priority}`, { sticky: true })
+        // น้ำท่วม: ไล่สีตามลำดับการท่วม · ภัยอื่น: ใช้สีประจำชนิดภัย (denormalize จาก hazard_types)
+        // · โซนชั่วคราว: เส้นประถี่กว่า
+        const label = z.hazardLabel ?? FALLBACK_HAZARD.label
+        const emoji = z.hazardEmoji ?? FALLBACK_HAZARD.emoji
+        // สีที่ผู้วาดเลือกเอง override สีตามลำดับ(น้ำท่วม)/ชนิดภัย
+        const color = z.color ?? (z.hazardType === 'flood' ? zoneColor(z.priority) : (z.hazardColor ?? FALLBACK_HAZARD.color))
+        const dashArray = z.category === 'temporary' ? '2,4' : '4,4'
+        L.polygon(latlng, { color, weight: 2, fillColor: color, fillOpacity: 0.18, dashArray })
+          .bindTooltip(`${emoji} ${z.name} · ${label} · ลำดับ ${z.priority}`, { sticky: true })
           .addTo(g)
       })
     })()
@@ -858,14 +897,36 @@ export function FloodMap({
       if (draftZone.length >= 2) {
         L.polygon(draftZone, { color, weight: 2, fillColor: color, fillOpacity: 0.1, dashArray: '5,5' }).addTo(g)
       }
+      // จุดลากได้ (แก้ไขรูปร่าง) เมื่อมี handler — ไม่งั้น circleMarker แบบเดิม (วาดใหม่)
+      const editable = !!onMoveVertex
+      const canRemove = !!onRemoveVertex && draftZone.length > 3
       draftZone.forEach(([la, ln], i) => {
-        L.circleMarker([la, ln], { radius: 4, color: '#fff', weight: 2, fillColor: color, fillOpacity: 1 })
-          .bindTooltip(String(i + 1), { permanent: true, direction: 'top', className: 'draft-vertex-label' })
-          .addTo(g)
+        if (editable) {
+          const icon = L.divIcon({
+            className: 'draft-vertex-handle',
+            html: `<span style="display:flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:9999px;background:${color};color:#fff;border:2px solid #fff;font-size:9px;font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.4);cursor:grab">${i + 1}</span>`,
+            iconSize: [16, 16],
+            iconAnchor: [8, 8],
+          })
+          const m = L.marker([la, ln], { draggable: true, icon, keyboard: false })
+          m.on('dragend', () => {
+            const ll = m.getLatLng()
+            onMoveVertex?.(i, ll.lat, ll.lng)
+          })
+          if (canRemove) {
+            m.bindTooltip('คลิกเพื่อลบจุดนี้', { direction: 'top' })
+            m.on('click', () => onRemoveVertex?.(i))
+          }
+          m.addTo(g)
+        } else {
+          L.circleMarker([la, ln], { radius: 4, color: '#fff', weight: 2, fillColor: color, fillOpacity: 1 })
+            .bindTooltip(String(i + 1), { permanent: true, direction: 'top', className: 'draft-vertex-label' })
+            .addTo(g)
+        }
       })
     })()
     return () => { cancelled = true }
-  }, [mapReady, draftZone])
+  }, [mapReady, draftZone, onMoveVertex, onRemoveVertex])
 
   // โหมดวาดโซน — คลิกบนแผนที่เพื่อเพิ่มจุด
   useEffect(() => {

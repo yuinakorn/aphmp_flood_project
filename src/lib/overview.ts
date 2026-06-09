@@ -414,9 +414,7 @@ export async function getOverviewData(
         oxygenSupport: s.oxygenSupport,
       }
     })
-    .filter((s) => s.pct >= 80)
     .sort((a, b) => b.pct - a.pct)
-    .slice(0, 5)
 
   return {
     mode,

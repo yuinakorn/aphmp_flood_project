@@ -18,7 +18,7 @@ export function RescueTeamsClient({
 }) {
   const router = useRouter()
   return (
-    <div className="mx-auto max-w-3xl">
+    <div>
       <div className="mb-1 flex items-center gap-2">
         <span className="gx-icon-tile size-9 shrink-0" style={{ ['--tile' as string]: 'var(--signal-data)' }}>
           <Anchor size={16} />

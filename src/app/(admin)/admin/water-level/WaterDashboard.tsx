@@ -1,7 +1,13 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Droplets, TrendingUp, TrendingDown, Minus, Sliders } from 'lucide-react'
+import { Droplets, TrendingUp, TrendingDown, Minus, Sliders, Info } from 'lucide-react'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import {
   ALERT_STYLES,
   classifyAlert,
@@ -106,26 +112,70 @@ function StationCard({
         </span>
       </div>
 
-      <dl className="mt-3 grid grid-cols-3 gap-2 border-t border-[var(--border)] pt-2.5">
-        <div className="flex flex-col">
-          <dt className="text-[var(--fg-subtle)] text-[11px]">เทียบ 3 ชม.ก่อน</dt>
-          <dd className={`mt-0.5 font-mono text-xs font-bold ${rise3h !== null && rise3h > 0 ? "text-[var(--risk-near)]" : rise3h !== null && rise3h < 0 ? "text-[var(--risk-safe)]" : "text-[var(--fg)]"}`}>
-            {rise3h == null ? '—' : `${rise3h > 0 ? '+' : ''}${rise3h.toFixed(2)}`} m
-          </dd>
-        </div>
-        <div className="flex flex-col">
-          <dt className="text-[var(--fg-subtle)] text-[11px]">Discharge</dt>
-          <dd className="mt-0.5 font-mono text-xs font-bold text-[var(--fg)]">
-            {discharge == null ? '—' : discharge.toFixed(1)}
-          </dd>
-        </div>
-        <div className="flex flex-col">
-          <dt className="text-[var(--fg-subtle)] text-[11px]">วิกฤต</dt>
-          <dd className="mt-0.5 font-mono text-xs font-bold text-[var(--fg)]">
-            {t.critical > 0 ? `${t.critical.toFixed(1)} m` : 'ยังไม่กำหนด'}
-          </dd>
-        </div>
-      </dl>
+      <TooltipProvider delay={150}>
+        <dl className="mt-3 grid grid-cols-3 gap-2 border-t border-[var(--border)] pt-2.5">
+          <div className="flex flex-col">
+            <dt className="text-[var(--fg-subtle)] text-[11px] flex items-center gap-1">
+              <span>เทียบ 3 ชม.ก่อน</span>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <button type="button" className="inline-flex cursor-help text-[var(--fg-subtle)] hover:text-[var(--fg)] focus:outline-none" aria-label="ข้อมูลเพิ่มเติม">
+                      <Info size={11} strokeWidth={2.2} />
+                    </button>
+                  }
+                />
+                <TooltipContent className="max-w-[200px] text-xs leading-normal p-2.5" side="top">
+                  ระดับน้ำที่เปลี่ยนแปลง (เพิ่มขึ้น/ลดลง) เมื่อเทียบกับ 3 ชั่วโมงก่อนหน้า
+                </TooltipContent>
+              </Tooltip>
+            </dt>
+            <dd className={`mt-0.5 font-mono text-xs font-bold ${rise3h !== null && rise3h > 0 ? "text-[var(--risk-near)]" : rise3h !== null && rise3h < 0 ? "text-[var(--risk-safe)]" : "text-[var(--fg)]"}`}>
+              {rise3h == null ? '—' : `${rise3h > 0 ? '+' : ''}${rise3h.toFixed(2)}`} m
+            </dd>
+          </div>
+          <div className="flex flex-col">
+            <dt className="text-[var(--fg-subtle)] text-[11px] flex items-center gap-1">
+              <span>Discharge (m³/s)</span>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <button type="button" className="inline-flex cursor-help text-[var(--fg-subtle)] hover:text-[var(--fg)] focus:outline-none" aria-label="ข้อมูลเพิ่มเติม">
+                      <Info size={11} strokeWidth={2.2} />
+                    </button>
+                  }
+                />
+                <TooltipContent className="max-w-[200px] text-xs leading-normal p-2.5" side="top">
+                  อัตราการไหลของน้ำผ่านจุดวัดน้ำ มีหน่วยเป็นลูกบาศก์เมตรต่อวินาที (m³/s)
+                </TooltipContent>
+              </Tooltip>
+            </dt>
+            <dd className="mt-0.5 font-mono text-xs font-bold text-[var(--fg)]">
+              {discharge == null ? '—' : discharge.toFixed(1)}
+            </dd>
+          </div>
+          <div className="flex flex-col">
+            <dt className="text-[var(--fg-subtle)] text-[11px] flex items-center gap-1">
+              <span>วิกฤต</span>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <button type="button" className="inline-flex cursor-help text-[var(--fg-subtle)] hover:text-[var(--fg)] focus:outline-none" aria-label="ข้อมูลเพิ่มเติม">
+                      <Info size={11} strokeWidth={2.2} />
+                    </button>
+                  }
+                />
+                <TooltipContent className="max-w-[200px] text-xs leading-normal p-2.5" side="top">
+                  ระดับน้ำที่เป็นจุดเฝ้าระวังสูงสุด หากสูงกว่านี้เสี่ยงน้ำล้นตลิ่งเข้าท่วมพื้นที่
+                </TooltipContent>
+              </Tooltip>
+            </dt>
+            <dd className="mt-0.5 font-mono text-xs font-bold text-[var(--fg)]">
+              {t.critical > 0 ? `${t.critical.toFixed(1)} m` : 'ยังไม่กำหนด'}
+            </dd>
+          </div>
+        </dl>
+      </TooltipProvider>
     </div>
   )
 }

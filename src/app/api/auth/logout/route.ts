@@ -6,7 +6,10 @@ export async function GET(req: Request) {
   // ล้าง NextAuth session (JWT cookie) ฝั่ง server
   await signOut({ redirect: false })
 
-  const appOrigin = new URL(req.url).origin
+  // ใช้ public origin จาก NEXTAUTH_URL เป็นหลัก — req.url หลัง reverse proxy
+  // จะได้ internal bind address (เช่น https://0.0.0.0:3006) ซึ่งไม่ตรงกับ
+  // redirect URI ที่ลงทะเบียนไว้ใน SSO และจะถูกปฏิเสธ
+  const appOrigin = new URL(process.env.NEXTAUTH_URL ?? req.url).origin
   const loginUrl = new URL('/login', appOrigin).toString()
 
   const ssoUrl = process.env.SSO_URL

@@ -12,6 +12,7 @@ import { resolveCidAction } from './actions'
 interface LoginClientProps {
   ssoEnabled: boolean
   error: string | null
+  version: string
 }
 
 type Notice = { kind: 'error' | 'info'; text: string } | null
@@ -25,7 +26,7 @@ const DEMO_HINTS = [
   { cid: '5901100112238', label: 'ถูกระงับ (เชียงใหม่)' },
 ]
 
-export function LoginClient({ ssoEnabled, error: ssoError }: LoginClientProps) {
+export function LoginClient({ ssoEnabled, error: ssoError, version }: LoginClientProps) {
   const router = useRouter()
   const [cid, setCid] = useState('')
   const [thaidLoading, setThaidLoading] = useState(false)
@@ -295,6 +296,10 @@ export function LoginClient({ ssoEnabled, error: ssoError }: LoginClientProps) {
               {error}
             </div>
           )}
+
+          <p className="mt-8 text-center font-mono text-[10.5px] uppercase tracking-[0.12em] text-[var(--fg-subtle)]">
+            build v{version}
+          </p>
         </div>
       </div>
     </div>

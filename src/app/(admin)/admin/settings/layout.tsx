@@ -15,14 +15,13 @@ export default async function SettingsLayout({ children }: { children: React.Rea
 
   return (
     <div className="mx-auto max-w-6xl">
-      <div>
-        <p className="gx-eyebrow">ตั้งค่าระบบ</p>
-        <h1 className="gx-title mt-1.5">ตั้งค่า</h1>
+      <div className="mb-4">
+        <h1 className="gx-title">ตั้งค่าระบบ</h1>
       </div>
 
       <SettingsTabs canManageStaff={manageStaff} canTriage={triage} />
 
-      <div className="mt-6">{children}</div>
+      <div className="mt-5">{children}</div>
     </div>
   )
 }

@@ -31,21 +31,23 @@ function buildSections(canManageStaff: boolean, canTriage: boolean, pendingRepor
   const topItems: Item[] = [
     { href: '/admin/eoc', icon: Siren, label: 'ศูนย์บัญชาการ EOC' },
     { href: '/map', icon: Map, label: 'แผนที่ปฏิบัติการ' },
-    { href: '/admin/rescue-missions', icon: LifeBuoy, label: 'ปฏิบัติการกู้ภัย' },
   ]
-  if (canTriage) {
-    topItems.push({ href: '/admin/help-reports', icon: Inbox, label: 'รับแจ้งเหตุประชาชน', badge: pendingReports })
-  }
   if (canManageStaff || canTriage) {
     systemItems.push({ href: '/admin/settings', icon: Settings, label: 'ตั้งค่า' })
   }
-  const healthItems: Item[] = [
+  const opsItems: Item[] = [
+    { href: '/admin/rescue-missions', icon: LifeBuoy, label: 'ปฏิบัติการกู้ภัย' },
+  ]
+  if (canTriage) {
+    opsItems.push({ href: '/admin/help-reports', icon: Inbox, label: 'รับแจ้งเหตุประชาชน', badge: pendingReports })
+  }
+  opsItems.push(
     { href: '/admin/vulnerable', icon: Users, label: 'กลุ่มเปราะบาง' },
     { href: '/admin/family-folder', icon: FolderHeart, label: 'Family Folder' },
     { href: '/admin/shelters', icon: Tent, label: 'ศูนย์พักพิง' },
-  ]
+  )
   if (canTriage) {
-    healthItems.push({ href: '/admin/referrals', icon: Hospital, label: 'ส่งต่อโรงพยาบาล' })
+    opsItems.push({ href: '/admin/referrals', icon: Hospital, label: 'ส่งต่อโรงพยาบาล' })
   }
   return [
     {
@@ -53,8 +55,8 @@ function buildSections(canManageStaff: boolean, canTriage: boolean, pendingRepor
       items: topItems,
     },
     {
-      label: 'ทะเบียนสุขภาพ',
-      items: healthItems,
+      label: 'การปฏิบัติการ',
+      items: opsItems,
     },
     {
       label: 'ข้อมูล & ระบบ',

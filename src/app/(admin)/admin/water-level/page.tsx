@@ -90,23 +90,25 @@ export default async function WaterLevelPage({
   return (
     <div className="mx-auto max-w-6xl">
       {/* ── Header ── */}
-      <div className="flex flex-wrap items-end justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] pb-3.5 mb-4">
         <div>
-          <p className="gx-eyebrow">{config.river} · {config.s1} → {config.s2}</p>
-          <h1 className="gx-title mt-1.5 flex items-center gap-2.5">
-            <Droplets size={26} strokeWidth={1.75} className="text-[var(--signal-data)]" />
-            ระดับน้ำรายชั่วโมง
-          </h1>
-          <p className="mt-1.5 text-sm text-[var(--fg-muted)]">
-            <span className="font-mono text-[var(--fg)]">{rows.length}</span> ชั่วโมงล่าสุด · อัปเดต{' '}
-            <span className="font-mono text-[var(--fg)]">{last?.date} {last?.time}</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <Droplets size={20} strokeWidth={1.85} className="text-[var(--signal-data)] shrink-0" />
+            <h1 className="gx-title text-lg leading-none">ระดับน้ำรายชั่วโมง</h1>
+            <span className="text-[11px] text-[var(--fg-muted)] font-medium bg-[var(--bg-sunken)] px-2 py-0.5 rounded-full border border-[var(--border)] ml-1 whitespace-nowrap">
+              {config.river} · {config.s1} → {config.s2}
+            </span>
+          </div>
+          <p className="mt-1 text-xs text-[var(--fg-subtle)]">
+            <span className="font-mono">{rows.length}</span> ชั่วโมงล่าสุด · อัปเดต{' '}
+            <span className="font-mono">{last?.date} {last?.time}</span>
           </p>
         </div>
         <ProvinceSelector current={provinceId} />
       </div>
 
       {/* ── KPI cards + flow animation + simulator (shared state) ── */}
-      <div className="mt-6">
+      <div>
         <WaterDashboard
           liveS1={{
             level: last?.s1 ?? null,

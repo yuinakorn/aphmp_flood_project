@@ -68,57 +68,60 @@ function StationCard({
     rise1h == null || rise1h === 0 ? Minus : rise1h > 0 ? TrendingUp : TrendingDown
 
   return (
-    <div className={`rounded-md border px-5 py-4 ${style.bg} transition-colors`}>
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="font-mono text-[10.5px] uppercase tracking-[0.12em] text-[var(--fg-subtle)]">
-            {code}
+    <div className={`rounded-lg border px-4 py-3 ${style.bg} transition-colors`}>
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[13px] font-semibold tracking-tight truncate flex items-center">
+            <span className="font-mono text-[10.5px] uppercase tracking-wider text-[var(--fg-subtle)] mr-1.5">
+              {code}
+            </span>
+            {t.name}
             {simulating && (
-              <span className="ml-2 font-sans normal-case tracking-normal text-[var(--fg-subtle)] opacity-70">
-                sim
+              <span className="ml-1.5 font-sans normal-case text-[10px] text-[var(--fg-subtle)] opacity-70">
+                (sim)
               </span>
             )}
           </p>
-          <p className="mt-0.5 text-[13px] font-medium tracking-tight">{t.name}</p>
         </div>
         <span
-          className={`inline-flex items-center gap-1.5 rounded-full border border-current/30 px-2 py-0.5 text-[10.5px] font-medium ${style.text}`}
+          className={`inline-flex items-center gap-1 shrink-0 rounded-full border border-current/30 px-2 py-0.5 text-[10px] font-semibold ${style.text}`}
         >
           <span className={`size-1.5 rounded-full ${style.dot}`} />
           {style.label}
         </span>
       </div>
 
-      <div className="mt-4 flex items-end gap-2">
-        <span className="font-mono text-[32px] font-semibold leading-none tracking-tight">
+      <div className="mt-2.5 flex items-baseline gap-1.5">
+        <span className="font-mono text-[28px] font-bold leading-none tracking-tight">
           {level == null ? '—' : level.toFixed(2)}
         </span>
-        <span className="pb-1 text-[11px] text-[var(--fg-muted)]">m</span>
-        <span className="ml-auto inline-flex items-center gap-1 pb-1.5 text-[11px] text-[var(--fg-muted)]">
-          <TrendIcon size={12} strokeWidth={2} />
-          <span className="font-mono">
+        <span className="text-[11px] text-[var(--fg-muted)]">m</span>
+        <span className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-[var(--border)]/70 bg-[var(--bg-sunken)] px-2 py-0.5 text-[11px] text-[var(--fg-muted)] shadow-2xs">
+          <span className="text-[10px] text-[var(--fg-subtle)] font-medium">เทียบ 1 ชม.ก่อน</span>
+          <TrendIcon size={11} strokeWidth={2.25} className={rise1h !== null && rise1h > 0 ? "text-[var(--risk-near)]" : rise1h !== null && rise1h < 0 ? "text-[var(--risk-safe)]" : "text-[var(--fg-subtle)]"} />
+          <span className={`font-mono font-semibold ${rise1h !== null && rise1h > 0 ? "text-[var(--risk-near)]" : rise1h !== null && rise1h < 0 ? "text-[var(--risk-safe)]" : "text-[var(--fg)]"}`}>
             {rise1h == null ? '—' : `${rise1h > 0 ? '+' : ''}${rise1h.toFixed(2)}`}
           </span>
-          /1h
+          <span className="text-[10px] text-[var(--fg-subtle)]">m</span>
         </span>
       </div>
 
-      <dl className="mt-4 grid grid-cols-3 gap-2 border-t border-[var(--border)] pt-3 text-[11px]">
-        <div>
-          <dt className="text-[var(--fg-subtle)]">เพิ่ม 3 ชม.</dt>
-          <dd className="mt-0.5 font-mono text-[var(--fg)]">
+      <dl className="mt-3 grid grid-cols-3 gap-2 border-t border-[var(--border)] pt-2.5">
+        <div className="flex flex-col">
+          <dt className="text-[var(--fg-subtle)] text-[11px]">เทียบ 3 ชม.ก่อน</dt>
+          <dd className={`mt-0.5 font-mono text-xs font-bold ${rise3h !== null && rise3h > 0 ? "text-[var(--risk-near)]" : rise3h !== null && rise3h < 0 ? "text-[var(--risk-safe)]" : "text-[var(--fg)]"}`}>
             {rise3h == null ? '—' : `${rise3h > 0 ? '+' : ''}${rise3h.toFixed(2)}`} m
           </dd>
         </div>
-        <div>
-          <dt className="text-[var(--fg-subtle)]">Discharge</dt>
-          <dd className="mt-0.5 font-mono text-[var(--fg)]">
+        <div className="flex flex-col">
+          <dt className="text-[var(--fg-subtle)] text-[11px]">Discharge</dt>
+          <dd className="mt-0.5 font-mono text-xs font-bold text-[var(--fg)]">
             {discharge == null ? '—' : discharge.toFixed(1)}
           </dd>
         </div>
-        <div>
-          <dt className="text-[var(--fg-subtle)]">วิกฤต</dt>
-          <dd className="mt-0.5 font-mono text-[var(--fg)]">
+        <div className="flex flex-col">
+          <dt className="text-[var(--fg-subtle)] text-[11px]">วิกฤต</dt>
+          <dd className="mt-0.5 font-mono text-xs font-bold text-[var(--fg)]">
             {t.critical > 0 ? `${t.critical.toFixed(1)} m` : 'ยังไม่กำหนด'}
           </dd>
         </div>
@@ -260,10 +263,10 @@ export function WaterDashboard({ liveS1, liveS2, config, t1, t2 }: Props) {
     <div className="space-y-4">
       {/* ── Rise-speed methodology note (Mae Sai only) ── */}
       {config.alertMode === 'rise_speed' && (
-        <div className="flex items-start gap-2 rounded-md border border-fuchsia-500/25 bg-fuchsia-500/8 px-3 py-2.5 text-[11.5px] text-fuchsia-300">
-          <span className="mt-px shrink-0 font-bold">⚡</span>
+        <div className="flex items-start gap-2.5 rounded-lg border border-fuchsia-200 bg-fuchsia-50/40 px-3.5 py-2.5 text-xs text-fuchsia-800 dark:border-fuchsia-500/25 dark:bg-fuchsia-500/10 dark:text-fuchsia-300">
+          <span className="mt-px shrink-0 font-bold text-fuchsia-600 dark:text-fuchsia-400">⚡</span>
           <span>
-            <span className="font-semibold">ระบบใช้อัตราการขึ้นของน้ำ (rise speed) เป็นตัวชี้วัดหลัก</span>
+            <span className="font-semibold text-fuchsia-900 dark:text-fuchsia-200">ระบบใช้อัตราการขึ้นของน้ำ (rise speed) เป็นตัวชี้วัดหลัก</span>
             {' '}— แม่น้ำสายเป็นแม่น้ำสายสั้นจากภูเขา เสี่ยงน้ำป่าไหลหลากฉับพลัน
             สัญญาณเตือนจะเปิดใช้เมื่ออัตราขึ้น ≥ 0.10 m/h (เฝ้าระวัง) / 0.25 m/h (เตรียมพร้อม) /
             0.50 m/h (วิกฤต) / 1.00 m/h (อันตราย) แม้ระดับน้ำยังไม่ถึง threshold สัมบูรณ์

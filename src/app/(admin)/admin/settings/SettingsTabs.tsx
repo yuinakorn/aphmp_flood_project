@@ -4,7 +4,12 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { UserCog, Tent, ShieldAlert, Anchor, Building2, AlertTriangle } from 'lucide-react'
 
-type Tab = { href: string; label: string; icon: typeof UserCog; show: boolean }
+type Tab = {
+  href: string
+  label: string
+  icon: typeof UserCog
+  show: boolean
+}
 
 export function SettingsTabs({ canManageStaff, canTriage }: { canManageStaff: boolean; canTriage: boolean }) {
   const pathname = usePathname() ?? ''
@@ -17,11 +22,17 @@ export function SettingsTabs({ canManageStaff, canTriage }: { canManageStaff: bo
     { href: '/admin/settings/incidents', label: 'เหตุการณ์ภัยพิบัติ', icon: AlertTriangle, show: canManageStaff || canTriage },
   ]
 
+  const activeTabs = tabs.filter((t) => t.show)
+
   return (
-    <div className="mt-5 flex gap-1 overflow-x-auto border-b border-[var(--border)]">
-      {tabs
-        .filter((t) => t.show)
-        .map((t) => {
+    <div className="relative w-full">
+      {/* Left Fade Indicator */}
+      <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-[var(--bg)] to-transparent pointer-events-none z-10" />
+      {/* Right Fade Indicator */}
+      <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-[var(--bg)] to-transparent pointer-events-none z-10" />
+
+      <div className="flex gap-1 overflow-x-auto scrollbar-none p-1 bg-[var(--bg-sunken)] rounded-xl border border-[var(--border)]">
+        {activeTabs.map((t) => {
           const Icon = t.icon
           const on = pathname === t.href || pathname.startsWith(t.href + '/')
           return (
@@ -29,17 +40,20 @@ export function SettingsTabs({ canManageStaff, canTriage }: { canManageStaff: bo
               key={t.href}
               href={t.href}
               aria-current={on ? 'page' : undefined}
-              className={`-mb-px flex shrink-0 items-center gap-2 border-b-2 px-3.5 py-2.5 text-sm font-medium transition-colors ${
+              className={`flex shrink-0 items-center gap-2 px-4.5 py-2 text-sm font-semibold rounded-lg transition-all duration-200 border ${
                 on
-                  ? 'border-[var(--accent)] text-[var(--fg)]'
-                  : 'border-transparent text-[var(--fg-muted)] hover:text-[var(--fg)]'
+                  ? 'bg-[var(--bg-elevated)] text-[var(--accent)] shadow-xs border-[var(--border)]'
+                  : 'border-transparent text-[var(--fg-muted)] hover:text-[var(--fg)] hover:bg-[color-mix(in_oklch,var(--accent)_5%,var(--bg-elevated))]'
               }`}
             >
-              <Icon size={16} strokeWidth={1.85} />
-              {t.label}
+              <Icon size={15} strokeWidth={1.85} />
+              <span>{t.label}</span>
             </Link>
           )
         })}
+      </div>
     </div>
   )
 }
+
+

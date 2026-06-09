@@ -93,6 +93,93 @@ export async function createPendingStaff(
   return { ok: true, id: created.id }
 }
 
+/**
+ * SSO (Provider ID / ThaiD จริง) — resolve จาก cid_hash ที่ IdP ส่งมา
+ * - เจอ record → คืนสถานะจริงจาก DB (active/pending/suspended) + อัปเดต name ถ้าเปลี่ยน
+ * - ไม่เจอ → สร้าง record ใหม่ status=pending, role=viewer (placeholder), province=null
+ *   ผู้ใช้จะถูกพาไปหน้า /request-access เพื่อเลือกจังหวัด + role ที่ขอ
+ *
+ * หมายเหตุความปลอดภัย: role/จังหวัด ที่ใช้จริงต้องมาจาก DB เท่านั้น —
+ * ห้าม trust role ที่ derive จาก SSO profile (เช่น is_director) ให้ผ่านโดยไม่อนุมัติ
+ */
+export async function resolveOrCreateSsoStaff(input: {
+  cidHash: string
+  name: string
+}): Promise<StaffRecord> {
+  const db = getDb()
+  const [row] = await db.select().from(users).where(eq(users.cidHash, input.cidHash)).limit(1)
+
+  if (row) {
+    // sync ชื่อจาก IdP ถ้าเปลี่ยน (fire-and-forget)
+    if (input.name && input.name !== row.name) {
+      void db.update(users).set({ name: input.name }).where(eq(users.id, row.id)).catch(() => {})
+    }
+    return {
+      id: row.id,
+      name: input.name || row.name,
+      role: row.role as UserRole,
+      province: row.province,
+      unitCode: row.unitCode,
+      unitName: row.unitName,
+      status: row.status as StaffRecord['status'],
+    }
+  }
+
+  const [created] = await db
+    .insert(users)
+    .values({
+      cidHash: input.cidHash,
+      name: input.name || 'ผู้ใช้ SSO',
+      role: 'viewer',
+      province: null,
+      status: 'pending',
+      registeredVia: 'sso',
+    })
+    .returning({ id: users.id })
+
+  return {
+    id: created.id,
+    name: input.name || 'ผู้ใช้ SSO',
+    role: 'viewer',
+    province: null,
+    unitCode: null,
+    unitName: null,
+    status: 'pending',
+  }
+}
+
+/**
+ * ผู้ใช้ที่ login แล้วแต่ status=pending ส่งคำขอสิทธิ์ (เลือกจังหวัด + role ที่ขอ)
+ * — อัปเดต record ของตัวเองเท่านั้น, คงสถานะ pending ไว้ให้ผู้ดูแลอนุมัติ
+ */
+export async function submitAccessRequest(input: {
+  userId: string
+  province: string
+  role: UserRole
+  unitName?: string | null
+}): Promise<{ ok: true } | { ok: false; reason: 'not_found' | 'not_pending' }> {
+  const db = getDb()
+  const [row] = await db
+    .select({ status: users.status })
+    .from(users)
+    .where(eq(users.id, input.userId))
+    .limit(1)
+  if (!row) return { ok: false, reason: 'not_found' }
+  if (row.status !== 'pending') return { ok: false, reason: 'not_pending' }
+
+  await db
+    .update(users)
+    .set({
+      province: input.province,
+      role: input.role,
+      unitName: input.unitName?.trim() || null,
+      status: 'pending',
+    })
+    .where(eq(users.id, input.userId))
+
+  return { ok: true }
+}
+
 /* ───────── ฝั่ง admin: จัดการทะเบียนเจ้าหน้าที่ ───────── */
 
 export interface StaffListRow {

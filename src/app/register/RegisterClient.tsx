@@ -4,12 +4,14 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { ArrowLeft, Loader2, UserPlus, CheckCircle2, Ban } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { ROLE_LABEL, REQUESTABLE_ROLES } from '@/lib/roles'
 import { registerStaffAction, type RegisterResult } from './actions'
 
 const ERROR_TEXT: Record<NonNullable<RegisterResult['error']>, string> = {
   invalid_cid: 'เลขประจำตัวประชาชนไม่ถูกต้อง (13 หลัก)',
   invalid_province: 'กรุณาเลือกจังหวัดที่สังกัด',
   missing_name: 'กรุณากรอกชื่อ-นามสกุล',
+  invalid_role: 'กรุณาเลือกสิทธิ์ที่ต้องการ',
   exists: 'เลขบัตรนี้ลงทะเบียนไว้แล้ว — กลับไปเข้าสู่ระบบ',
 }
 
@@ -17,6 +19,7 @@ export function RegisterClient({ initialCid, provinces }: { initialCid: string; 
   const [cid, setCid] = useState(initialCid)
   const [name, setName] = useState('')
   const [province, setProvince] = useState('')
+  const [role, setRole] = useState('')
   const [unitName, setUnitName] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -26,7 +29,7 @@ export function RegisterClient({ initialCid, provinces }: { initialCid: string; 
     setError('')
     setLoading(true)
     try {
-      const res = await registerStaffAction({ cid: cid.replace(/\D/g, ''), name, province, unitName })
+      const res = await registerStaffAction({ cid: cid.replace(/\D/g, ''), name, province, role, unitName })
       if (res.ok) setDone(true)
       else setError(ERROR_TEXT[res.error ?? 'invalid_cid'])
     } catch {
@@ -105,6 +108,19 @@ export function RegisterClient({ initialCid, provinces }: { initialCid: string; 
               <option value="">— เลือกจังหวัด —</option>
               {provinces.map((p) => (
                 <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label="สิทธิ์ที่ต้องการ">
+            <select
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+              className="h-10 w-full rounded-md border border-[var(--border)] bg-[var(--bg-elevated)] px-3 text-[14px] outline-none focus:border-[var(--accent)]"
+            >
+              <option value="">— เลือกสิทธิ์ —</option>
+              {REQUESTABLE_ROLES.map((r) => (
+                <option key={r} value={r}>{ROLE_LABEL[r]}</option>
               ))}
             </select>
           </Field>

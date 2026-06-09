@@ -17,6 +17,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const session = await auth()
   if (!session) redirect('/login')
 
+  // ยังไม่ได้รับอนุมัติ (pending/suspended) → ไม่เห็นเมนูใด ๆ ไปหน้าขอสิทธิ์
+  if (session.user?.status !== 'active') redirect('/request-access')
+
   const role = session.user?.role ?? 'viewer'
   const province = session.user?.province ?? null
   const [activeIncident, selectableIncidents] = await Promise.all([

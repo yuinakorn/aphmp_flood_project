@@ -16,6 +16,11 @@ export default auth((req) => {
     return NextResponse.redirect(new URL('/login', req.url))
   }
 
+  // login แล้ว แต่ยังไม่ได้รับอนุมัติ (pending/suspended) → ไปหน้าขอสิทธิ์ (ไม่เห็นเมนู)
+  if (isAdminRoute && req.auth && req.auth.user?.status !== 'active') {
+    return NextResponse.redirect(new URL('/request-access', req.url))
+  }
+
   // login แล้ว แต่ยังไม่เลือก scope → บังคับไปหน้าเลือกเหตุการณ์ก่อน
   // ยกเว้น: หน้าเลือกเอง + หน้าที่ไม่ผูกกับเหตุการณ์ (จัดการระบบ)
   const SCOPE_FREE_PATHS = [SELECT_SCOPE_PATH, '/admin/staff', '/admin/settings', '/admin/incidents', '/admin/water-level', '/admin/infra', '/admin/help-reports', '/admin/rescue-teams']

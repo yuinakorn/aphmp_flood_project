@@ -112,32 +112,37 @@ export function providerIdSsoProvider(): OAuthConfig<ProviderIdSsoProfile> {
     },
     async profile(profile) {
       const providerId = profile.provider_id ?? profile.sub ?? profile.id ?? profile.account_id
+      const name = profileName(profile)
+      const email = providerId ? `${providerId}@provider-id.local` : `${crypto.randomUUID()}@provider-id.local`
 
-      // ถ้า SSO profile มี hash_cid → ตรวจ whitelist DB ก่อน (hash ตรงกับ users.cid_hash)
-      // ถ้าเจอและ active → ใช้ role จาก DB; ถ้าไม่เจอหรือ suspended → fallback profile-based
-      let role: UserRole = mapProviderProfileRole(profile)
+      // มี hash_cid → resolve กับทะเบียน users (สร้าง record pending ถ้ายังไม่มี)
+      // เพื่อ gate คนใหม่ให้ไปหน้าขอสิทธิ์ + ไม่ trust role จาก profile โดยไม่อนุมัติ
       if (profile.hash_cid) {
         try {
-          const { getDb } = await import('@/lib/db')
-          const { users } = await import('@/db/schema')
-          const { eq } = await import('drizzle-orm')
-          const db = getDb()
-          const [staff] = await db
-            .select({ role: users.role, status: users.status })
-            .from(users)
-            .where(eq(users.cidHash, profile.hash_cid))
-            .limit(1)
-          if (staff?.status === 'active') role = staff.role as UserRole
+          const { resolveOrCreateSsoStaff } = await import('@/lib/staff-auth')
+          const staff = await resolveOrCreateSsoStaff({ cidHash: profile.hash_cid, name })
+          return {
+            id: staff.id,
+            email,
+            name: staff.name,
+            role: staff.role,
+            province: staff.province,
+            unitCode: staff.unitCode,
+            status: staff.status,
+          }
         } catch {
-          // DB ไม่พร้อม → ใช้ role จาก profile ต่อไป
+          // DB ไม่พร้อม → ปล่อยเป็น pending (ไม่เห็นเมนู) เพื่อความปลอดภัย
         }
       }
 
+      // ไม่มี hash_cid หรือ DB ล่ม → เข้าได้แต่สถานะ pending (ถูก gate ไปหน้าขอสิทธิ์)
       return {
         id: providerId ?? crypto.randomUUID(),
-        email: providerId ? `${providerId}@provider-id.local` : `${crypto.randomUUID()}@provider-id.local`,
-        name: profileName(profile),
-        role,
+        email,
+        name,
+        role: 'viewer' as UserRole,
+        province: null,
+        status: 'pending',
       }
     },
     async [customFetch](input, init) {

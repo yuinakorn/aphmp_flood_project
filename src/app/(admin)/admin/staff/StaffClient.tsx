@@ -54,6 +54,7 @@ const ROLE_LABEL: Record<string, string> = {
 
 const VIA_LABEL: Record<string, string> = {
   thaid: 'ThaiD',
+  sso: 'SSO (ProviderID/ThaiD)',
   whitelist: 'whitelist',
   credentials: 'dev',
 }

@@ -9,6 +9,7 @@ import { requestAccessAction, type RequestAccessResult } from './actions'
 
 const ERROR_TEXT: Record<NonNullable<RequestAccessResult['error']>, string> = {
   unauthorized: 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่',
+  stale_session: 'เซสชันไม่ตรงกับทะเบียน กรุณาออกจากระบบแล้วเข้าสู่ระบบใหม่อีกครั้ง',
   invalid_province: 'กรุณาเลือกจังหวัดที่สังกัด',
   invalid_role: 'กรุณาเลือกสิทธิ์ที่ต้องการ',
   not_pending: 'บัญชีนี้ได้รับการพิจารณาแล้ว',

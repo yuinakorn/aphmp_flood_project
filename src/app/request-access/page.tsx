@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { auth } from '@/lib/auth'
 import { getStaffById } from '@/lib/staff-auth'
 import { ALLOWED_PROVINCES } from '@/lib/provinces'
+import { isUuid } from '@/lib/field-api'
 import { RequestAccessClient } from './RequestAccessClient'
 
 export const metadata = { title: 'ขอสิทธิ์เข้าใช้งาน' }
@@ -12,7 +13,8 @@ export default async function RequestAccessPage() {
   if (session.user.status === 'active') redirect('/admin')
 
   // โหลด record ปัจจุบัน — รู้ว่าส่งคำขอไปแล้วหรือยัง (province ถูกตั้งค่า = ส่งแล้ว)
-  const record = session.user.id ? await getStaffById(session.user.id) : null
+  // guard: id ต้องเป็น uuid (เลี่ยง pg error กรณี session เก่าที่ id ไม่ใช่ uuid)
+  const record = session.user.id && isUuid(session.user.id) ? await getStaffById(session.user.id) : null
 
   return (
     <RequestAccessClient

@@ -103,11 +103,12 @@ export async function createPendingStaff(
  * ห้าม trust role ที่ derive จาก SSO profile (เช่น is_director) ให้ผ่านโดยไม่อนุมัติ
  */
 export async function resolveOrCreateSsoStaff(input: {
-  cidHash: string
+  /** กุญแจระบุตัวตนจาก IdP — hash_cid ถ้ามี, ไม่งั้น hash ของ provider_id (เก็บใน users.cid_hash) */
+  subjectHash: string
   name: string
 }): Promise<StaffRecord> {
   const db = getDb()
-  const [row] = await db.select().from(users).where(eq(users.cidHash, input.cidHash)).limit(1)
+  const [row] = await db.select().from(users).where(eq(users.cidHash, input.subjectHash)).limit(1)
 
   if (row) {
     // sync ชื่อจาก IdP ถ้าเปลี่ยน (fire-and-forget)
@@ -128,7 +129,7 @@ export async function resolveOrCreateSsoStaff(input: {
   const [created] = await db
     .insert(users)
     .values({
-      cidHash: input.cidHash,
+      cidHash: input.subjectHash,
       name: input.name || 'ผู้ใช้ SSO',
       role: 'viewer',
       province: null,

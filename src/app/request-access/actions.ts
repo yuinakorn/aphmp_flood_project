@@ -4,10 +4,11 @@ import { auth } from '@/lib/auth'
 import { submitAccessRequest } from '@/lib/staff-auth'
 import { ALLOWED_PROVINCES } from '@/lib/provinces'
 import { isRequestableRole } from '@/lib/roles'
+import { isUuid } from '@/lib/field-api'
 
 export interface RequestAccessResult {
   ok: boolean
-  error?: 'unauthorized' | 'invalid_province' | 'invalid_role' | 'not_pending' | 'failed'
+  error?: 'unauthorized' | 'stale_session' | 'invalid_province' | 'invalid_role' | 'not_pending' | 'failed'
 }
 
 export async function requestAccessAction(input: {
@@ -17,6 +18,8 @@ export async function requestAccessAction(input: {
 }): Promise<RequestAccessResult> {
   const session = await auth()
   if (!session?.user?.id) return { ok: false, error: 'unauthorized' }
+  // session.user.id ต้องเป็น DB uuid — ถ้าไม่ใช่ แปลว่า session เก่า (ก่อนผูกทะเบียน) ต้อง login ใหม่
+  if (!isUuid(session.user.id)) return { ok: false, error: 'stale_session' }
 
   if (!(ALLOWED_PROVINCES as readonly string[]).includes(input.province)) {
     return { ok: false, error: 'invalid_province' }
@@ -32,6 +35,10 @@ export async function requestAccessAction(input: {
     unitName: input.unitName,
   })
 
-  if (!res.ok) return { ok: false, error: res.reason === 'not_pending' ? 'not_pending' : 'failed' }
+  if (!res.ok) {
+    if (res.reason === 'not_pending') return { ok: false, error: 'not_pending' }
+    // not_found = ไม่มี record ตาม id นี้ (session ไม่ตรงทะเบียน) → ให้ login ใหม่
+    return { ok: false, error: 'stale_session' }
+  }
   return { ok: true }
 }

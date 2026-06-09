@@ -12,6 +12,8 @@ const ERROR_TEXT: Record<NonNullable<RequestAccessResult['error']>, string> = {
   stale_session: 'เซสชันไม่ตรงกับทะเบียน กรุณาออกจากระบบแล้วเข้าสู่ระบบใหม่อีกครั้ง',
   invalid_province: 'กรุณาเลือกจังหวัดที่สังกัด',
   invalid_role: 'กรุณาเลือกสิทธิ์ที่ต้องการ',
+  invalid_cid: 'เลขประจำตัวประชาชนไม่ถูกต้อง (13 หลัก)',
+  cid_required: 'กรุณากรอกเลขประจำตัวประชาชน',
   not_pending: 'บัญชีนี้ได้รับการพิจารณาแล้ว',
   failed: 'เกิดข้อผิดพลาด ลองใหม่อีกครั้ง',
 }
@@ -20,6 +22,7 @@ interface Props {
   name: string
   status: 'pending' | 'suspended'
   submitted: boolean
+  needsCid: boolean
   currentProvince: string
   currentRole: string
   currentUnitName: string
@@ -30,6 +33,7 @@ export function RequestAccessClient({
   name,
   status,
   submitted,
+  needsCid,
   currentProvince,
   currentRole,
   currentUnitName,
@@ -37,25 +41,36 @@ export function RequestAccessClient({
 }: Props) {
   const router = useRouter()
   const [editing, setEditing] = useState(!submitted)
+  const [cid, setCid] = useState('')
   const [province, setProvince] = useState(currentProvince)
   const [role, setRole] = useState(currentRole || '')
   const [unitName, setUnitName] = useState(currentUnitName)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [debug, setDebug] = useState('')
+  // เชื่อมกับบัญชีเดิมสำเร็จ → ต้อง login ใหม่
+  const [linked, setLinked] = useState<{ active: boolean } | null>(null)
 
   const onSubmit = async () => {
     setError('')
+    setDebug('')
     setLoading(true)
     try {
-      const res = await requestAccessAction({ province, role, unitName })
+      const res = await requestAccessAction({ province, role, unitName, cid: needsCid ? cid : undefined })
       if (res.ok) {
-        setEditing(false)
-        router.refresh()
+        if (res.linked) {
+          setLinked({ active: Boolean(res.linkedActive) })
+        } else {
+          setEditing(false)
+          router.refresh()
+        }
       } else {
         setError(ERROR_TEXT[res.error ?? 'failed'])
+        if (res.debug) setDebug(res.debug)
       }
-    } catch {
+    } catch (e) {
       setError('เกิดข้อผิดพลาด ลองใหม่อีกครั้ง')
+      setDebug(e instanceof Error ? `${e.name}: ${e.message}` : String(e))
     } finally {
       setLoading(false)
     }
@@ -82,7 +97,24 @@ export function RequestAccessClient({
           </p>
         )}
 
-        {status === 'suspended' ? (
+        {linked ? (
+          <>
+            <Banner kind="info" icon={<CheckCircle2 size={15} className="mt-px shrink-0" />}>
+              พบบัญชีเดิมที่ผูกกับเลขบัตรนี้ — เชื่อมบัญชี SSO เข้ากับบัญชีเดิมเรียบร้อยแล้ว
+              {linked.active
+                ? ' บัญชีนี้ได้รับอนุมัติแล้ว กรุณาออกจากระบบแล้วเข้าสู่ระบบใหม่เพื่อใช้งาน'
+                : ' บัญชียังรอการอนุมัติ กรุณาออกจากระบบแล้วเข้าสู่ระบบใหม่เพื่อตรวจสอบสถานะ'}
+            </Banner>
+            <Button
+              type="button"
+              onClick={() => { window.location.href = '/api/auth/logout' }}
+              className="mt-5 h-10 w-full bg-[var(--accent)] px-4 text-[13px] text-[var(--accent-fg)] hover:opacity-90"
+            >
+              <LogOut size={15} strokeWidth={1.9} />
+              ออกจากระบบแล้วเข้าใหม่
+            </Button>
+          </>
+        ) : status === 'suspended' ? (
           <Banner kind="error" icon={<Ban size={15} className="mt-px shrink-0" />}>
             บัญชีนี้ถูกระงับสิทธิ์ — กรุณาติดต่อผู้ดูแลระบบหรือผู้บัญชาการ EOC ของจังหวัด
           </Banner>
@@ -123,10 +155,29 @@ export function RequestAccessClient({
         ) : (
           <>
             <p className="mt-4 text-[12.5px] leading-relaxed text-[var(--fg-muted)]">
-              เลือกจังหวัดที่สังกัดและสิทธิ์ที่ต้องการ ผู้ดูแลระบบหรือผู้บัญชาการ EOC จะตรวจสอบและอนุมัติ
+              {needsCid
+                ? 'กรอกเลขบัตรประชาชน เลือกจังหวัดที่สังกัดและสิทธิ์ที่ต้องการ ผู้ดูแลระบบหรือผู้บัญชาการ EOC จะตรวจสอบและอนุมัติ'
+                : 'เลือกจังหวัดที่สังกัดและสิทธิ์ที่ต้องการ ผู้ดูแลระบบหรือผู้บัญชาการ EOC จะตรวจสอบและอนุมัติ'}
             </p>
 
             <div className="mt-6 flex flex-col gap-4">
+              {needsCid && (
+                <Field label="เลขประจำตัวประชาชน">
+                  <input
+                    inputMode="numeric"
+                    autoComplete="off"
+                    value={cid}
+                    onChange={(e) => setCid(e.target.value)}
+                    placeholder="x-xxxx-xxxxx-xx-x"
+                    maxLength={17}
+                    className="h-10 w-full rounded-md border border-[var(--border)] bg-[var(--bg-elevated)] px-3 font-mono text-[14px] tracking-wide outline-none focus:border-[var(--accent)]"
+                  />
+                  <p className="mt-1.5 text-[11px] leading-relaxed text-[var(--fg-subtle)]">
+                    ใช้เชื่อมกับทะเบียนเจ้าหน้าที่ — หากมีบัญชีเดิม (เช่น เคยลงทะเบียน ThaiD) ระบบจะรวมเป็นบัญชีเดียวอัตโนมัติ
+                  </p>
+                </Field>
+              )}
+
               <Field label="จังหวัดที่สังกัด">
                 <select
                   value={province}
@@ -177,6 +228,12 @@ export function RequestAccessClient({
               <Banner kind="error" icon={<Ban size={14} className="mt-px shrink-0" />}>{error}</Banner>
             )}
           </>
+        )}
+
+        {debug && (
+          <pre className="mt-5 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded-md border border-[var(--border)] bg-[var(--bg-sunken)] px-3 py-2 font-mono text-[10.5px] leading-relaxed text-[var(--fg-muted)]">
+            <span className="text-[var(--fg-subtle)]">debug · </span>{debug}
+          </pre>
         )}
 
         <button

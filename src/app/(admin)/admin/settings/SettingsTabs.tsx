@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { UserCog, Tent, ShieldAlert, Anchor, Building2, AlertTriangle } from 'lucide-react'
+import { UserCog, Tent, ShieldAlert, Anchor, Building2, AlertTriangle, ListChecks } from 'lucide-react'
 
 type Tab = {
   href: string
@@ -15,6 +15,7 @@ export function SettingsTabs({ canManageStaff, canTriage }: { canManageStaff: bo
   const pathname = usePathname() ?? ''
   const tabs: Tab[] = [
     { href: '/admin/settings/staff', label: 'จัดการเจ้าหน้าที่', icon: UserCog, show: canManageStaff },
+    { href: '/admin/settings/menus', label: 'สิทธิ์การเห็นเมนู', icon: ListChecks, show: canManageStaff },
     { href: '/admin/settings/shelter-managers', label: 'ผู้ดูแลศูนย์พักพิง', icon: Tent, show: canManageStaff },
     { href: '/admin/settings/hazard-types', label: 'ชนิดภัย', icon: ShieldAlert, show: canManageStaff },
     { href: '/admin/settings/rescue-teams', label: 'ทีมกู้ภัย', icon: Anchor, show: canTriage },

@@ -30,6 +30,11 @@ export default auth((req) => {
       return NextResponse.redirect(new URL(SELECT_SCOPE_PATH, req.url))
     }
   }
+
+  // ส่ง pathname ผ่าน header ให้ server layout ใช้ทำ route guard (เมนูที่ถูกซ่อน)
+  const requestHeaders = new Headers(req.headers)
+  requestHeaders.set('x-pathname', pathname)
+  return NextResponse.next({ request: { headers: requestHeaders } })
 })
 
 export const config = {

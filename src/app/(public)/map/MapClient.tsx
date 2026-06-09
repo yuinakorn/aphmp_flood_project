@@ -147,13 +147,12 @@ const PROVINCE_BOUNDS: Record<string, [[number, number], [number, number]]> = {
 
 interface Props {
   session?: { id: string; role: string; name: string } | null
-  canManageStaff?: boolean
-  canTriage?: boolean
+  visibleKeys?: string[]
   userProvince?: string | null
   isNational?: boolean
 }
 
-export function MapClient({ session, canManageStaff = false, canTriage = false, userProvince = null, isNational = false }: Props) {
+export function MapClient({ session, visibleKeys = [], userProvince = null, isNational = false }: Props) {
   const [layers, setLayers] = useState<LayerState>(DEFAULT_LAYERS)
   const [activePanel, setActivePanel] = useState<RailPanel>('roster')
   const [vulnerable, setVulnerable] = useState<VulnerablePerson[]>([])
@@ -937,7 +936,7 @@ export function MapClient({ session, canManageStaff = false, canTriage = false, 
       </a>
       <Masthead session={session} />
       <div className="flex flex-1 overflow-hidden">
-      <AppSidebar canManageStaff={canManageStaff} canTriage={canTriage} />
+      <AppSidebar visibleKeys={visibleKeys} />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
       <StatusStrip
         waterLevel={summarySnap[effectiveProvince]?.s2?.level ?? waterLevel}

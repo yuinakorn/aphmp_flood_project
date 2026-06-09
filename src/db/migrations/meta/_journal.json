@@ -246,6 +246,20 @@
       "when": 1780998357076,
       "tag": "0034_marvelous_tusk",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1781013191066,
+      "tag": "0035_cloudy_gargoyle",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1781016917351,
+      "tag": "0036_certain_wiccan",
+      "breakpoints": true
     }
   ]
 }

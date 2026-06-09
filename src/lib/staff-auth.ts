@@ -4,9 +4,9 @@
  * ThaiD ยืนยันว่า "คุณคือ CID นี้" → ฟังก์ชันที่นี่ตอบว่า "CID นี้มีสิทธิ์อะไร จังหวัดไหน"
  * ดู docs/new/AUTH-SPEC.md
  */
-import { desc, eq } from 'drizzle-orm'
+import { desc, eq, sql } from 'drizzle-orm'
 import { getDb } from '@/lib/db'
-import { users } from '@/db/schema'
+import { users, accessLog } from '@/db/schema'
 import { hashCid, normalizeCid } from '@/lib/cid'
 import type { UserRole } from '@/types'
 
@@ -94,91 +94,170 @@ export async function createPendingStaff(
 }
 
 /**
- * SSO (Provider ID / ThaiD จริง) — resolve จาก cid_hash ที่ IdP ส่งมา
- * - เจอ record → คืนสถานะจริงจาก DB (active/pending/suspended) + อัปเดต name ถ้าเปลี่ยน
- * - ไม่เจอ → สร้าง record ใหม่ status=pending, role=viewer (placeholder), province=null
- *   ผู้ใช้จะถูกพาไปหน้า /request-access เพื่อเลือกจังหวัด + role ที่ขอ
+ * SSO (Provider ID / ThaiD จริง) — resolve ตัวตนตอน login
+ * กุญแจ: cid_hash (ถ้า IdP ส่งมา) เป็นหลัก, ไม่งั้น sso_subject (provider_id)
+ * - เจอ record → คืนสถานะจริงจาก DB + backfill กุญแจที่ขาด (เชื่อมช่องทาง) + sync ชื่อ
+ * - ไม่เจอ → สร้าง record ใหม่ status=pending, role=viewer, ผูก sso_subject
+ *   ผู้ใช้จะถูกพาไปหน้า /request-access เพื่อกรอก CID + เลือกจังหวัด/role
  *
  * หมายเหตุความปลอดภัย: role/จังหวัด ที่ใช้จริงต้องมาจาก DB เท่านั้น —
  * ห้าม trust role ที่ derive จาก SSO profile (เช่น is_director) ให้ผ่านโดยไม่อนุมัติ
  */
-export async function resolveOrCreateSsoStaff(input: {
-  /** กุญแจระบุตัวตนจาก IdP — hash_cid ถ้ามี, ไม่งั้น hash ของ provider_id (เก็บใน users.cid_hash) */
-  subjectHash: string
+export async function resolveSsoIdentity(input: {
+  providerId: string
+  cidHash?: string | null
   name: string
 }): Promise<StaffRecord> {
   const db = getDb()
-  const [row] = await db.select().from(users).where(eq(users.cidHash, input.subjectHash)).limit(1)
 
-  if (row) {
-    // sync ชื่อจาก IdP ถ้าเปลี่ยน (fire-and-forget)
-    if (input.name && input.name !== row.name) {
-      void db.update(users).set({ name: input.name }).where(eq(users.id, row.id)).catch(() => {})
+  // หาด้วย cid_hash ก่อน (กุญแจตัวตนหลัก) แล้วค่อย sso_subject
+  const findRow = async () => {
+    if (input.cidHash) {
+      const [r] = await db.select().from(users).where(eq(users.cidHash, input.cidHash)).limit(1)
+      if (r) return r
     }
-    return {
-      id: row.id,
-      name: input.name || row.name,
-      role: row.role as UserRole,
-      province: row.province,
-      unitCode: row.unitCode,
-      unitName: row.unitName,
-      status: row.status as StaffRecord['status'],
-    }
+    const [r2] = await db.select().from(users).where(eq(users.ssoSubject, input.providerId)).limit(1)
+    return r2 ?? null
   }
 
-  const [created] = await db
-    .insert(users)
-    .values({
-      cidHash: input.subjectHash,
-      name: input.name || 'ผู้ใช้ SSO',
-      role: 'viewer',
-      province: null,
-      status: 'pending',
-      registeredVia: 'sso',
-    })
-    .returning({ id: users.id })
+  let row = await findRow()
+
+  // ไม่เจอ → สร้างใหม่ (upsert-safe: ถ้าชน unique จาก login ซ้อน ให้ re-select แทน throw)
+  if (!row) {
+    try {
+      await db.insert(users).values({
+        cidHash: input.cidHash ?? null,
+        ssoSubject: input.providerId,
+        name: input.name || 'ผู้ใช้ SSO',
+        role: 'viewer',
+        province: null,
+        status: 'pending',
+        registeredVia: 'sso',
+      })
+    } catch {
+      // unique violation (race) — record ถูกสร้างโดย call อื่นแล้ว
+    }
+    row = await findRow()
+  }
+
+  if (!row) throw new Error('resolveSsoIdentity: could not resolve or create user')
+
+  // backfill กุญแจที่ยังว่าง → เชื่อม login ช่องทางนี้เข้ากับ record เดิม
+  const patch: Partial<typeof users.$inferInsert> = {}
+  if (input.cidHash && !row.cidHash) patch.cidHash = input.cidHash
+  if (!row.ssoSubject) patch.ssoSubject = input.providerId
+  if (input.name && input.name !== row.name) patch.name = input.name
+  if (Object.keys(patch).length > 0) {
+    void db.update(users).set(patch).where(eq(users.id, row.id)).catch(() => {})
+  }
 
   return {
-    id: created.id,
-    name: input.name || 'ผู้ใช้ SSO',
-    role: 'viewer',
-    province: null,
-    unitCode: null,
-    unitName: null,
-    status: 'pending',
+    id: row.id,
+    name: input.name || row.name,
+    role: row.role as UserRole,
+    province: row.province,
+    unitCode: row.unitCode,
+    unitName: row.unitName,
+    status: row.status as StaffRecord['status'],
   }
 }
 
 /**
- * ผู้ใช้ที่ login แล้วแต่ status=pending ส่งคำขอสิทธิ์ (เลือกจังหวัด + role ที่ขอ)
- * — อัปเดต record ของตัวเองเท่านั้น, คงสถานะ pending ไว้ให้ผู้ดูแลอนุมัติ
+ * หา users.id จาก sso_subject (provider_id) — ใช้กู้ session ที่ id ไม่ตรง (stale/fallback)
+ * match แบบ case-insensitive เพราะ provider_id อาจมาคนละ case (Auth.js บังคับ email เป็นตัวเล็ก)
+ */
+export async function findStaffIdBySsoSubject(providerId: string): Promise<string | null> {
+  const db = getDb()
+  const [row] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(sql`lower(${users.ssoSubject}) = lower(${providerId})`)
+    .limit(1)
+  return row?.id ?? null
+}
+
+export type AccessRequestOutcome =
+  | { ok: true; linked: false }
+  /** เชื่อมเข้ากับบัญชีเดิม (CID ตรงกับ record ที่มีอยู่) → ต้อง login ใหม่ */
+  | { ok: true; linked: true; canonicalActive: boolean }
+  | { ok: false; reason: 'not_found' | 'not_pending' | 'cid_required' }
+
+/**
+ * ผู้ใช้ที่ login แล้วแต่ status=pending ส่งคำขอสิทธิ์ (จังหวัด + role + CID)
+ *
+ * dedupe ข้ามช่องทาง: ถ้า CID (cidHash) ตรงกับ record เดิมที่ไม่ใช่ตัวเอง →
+ *   ย้าย sso_subject ไปผูกกับ record เดิม (canonical) แล้วลบ record SSO ที่เพิ่งสร้าง
+ *   - canonical active → ผู้ใช้ได้สิทธิ์เดิมทันที (login ใหม่)
+ *   - canonical pending → รวมคำขอเข้า canonical (ยังรออนุมัติ)
+ * ถ้าไม่มี record เดิม → เซ็ต cid_hash/national_id ลง record ตัวเอง
  */
 export async function submitAccessRequest(input: {
   userId: string
   province: string
   role: UserRole
   unitName?: string | null
-}): Promise<{ ok: true } | { ok: false; reason: 'not_found' | 'not_pending' }> {
+  /** CID ดิบ (normalize แล้ว) — บังคับสำหรับผู้ใช้ SSO ที่ยังไม่มี cid_hash */
+  cid?: string | null
+}): Promise<AccessRequestOutcome> {
   const db = getDb()
-  const [row] = await db
-    .select({ status: users.status })
-    .from(users)
-    .where(eq(users.id, input.userId))
-    .limit(1)
-  if (!row) return { ok: false, reason: 'not_found' }
-  if (row.status !== 'pending') return { ok: false, reason: 'not_pending' }
+  const [current] = await db.select().from(users).where(eq(users.id, input.userId)).limit(1)
+  if (!current) return { ok: false, reason: 'not_found' }
+  if (current.status !== 'pending') return { ok: false, reason: 'not_pending' }
 
+  // ผู้ใช้ที่ยังไม่มี cid_hash (SSO) ต้องกรอก CID เพื่อใช้เป็นกุญแจ dedupe
+  if (!current.cidHash && !input.cid) return { ok: false, reason: 'cid_required' }
+
+  const unitName = input.unitName?.trim() || null
+  const cidHash = input.cid ? hashCid(input.cid) : null
+
+  // กรณีมี CID → ตรวจหา record เดิมที่ผูก CID นี้ไว้แล้ว
+  if (cidHash) {
+    const [canonical] = await db.select().from(users).where(eq(users.cidHash, cidHash)).limit(1)
+
+    if (canonical && canonical.id !== current.id) {
+      // เจอบัญชีเดิม → เชื่อม sso_subject ของ current เข้ากับ canonical แล้วลบ current
+      const canonicalActive = canonical.status === 'active'
+      await db.transaction(async (tx) => {
+        // ย้าย audit log ของ current ไปที่ canonical (กัน log ลอย)
+        await tx.update(accessLog).set({ userId: canonical.id }).where(eq(accessLog.userId, current.id))
+        // ลบ current ก่อน เพื่อปลดล็อก unique(sso_subject) ให้ canonical รับช่วงได้
+        await tx.delete(users).where(eq(users.id, current.id))
+        const patch: Partial<typeof users.$inferInsert> = {}
+        if (current.ssoSubject && !canonical.ssoSubject) patch.ssoSubject = current.ssoSubject
+        // ถ้า canonical ยัง pending → อัปเดตคำขอ (จังหวัด/role/หน่วยงาน) ให้ด้วย
+        if (!canonicalActive) {
+          patch.province = input.province
+          patch.role = input.role
+          patch.unitName = unitName
+        }
+        if (Object.keys(patch).length > 0) {
+          await tx.update(users).set(patch).where(eq(users.id, canonical.id))
+        }
+      })
+      return { ok: true, linked: true, canonicalActive }
+    }
+
+    // ไม่มีบัญชีเดิม (หรือ canonical คือตัวเอง) → ผูก CID ลง record ตัวเอง
+    await db
+      .update(users)
+      .set({
+        cidHash,
+        nationalId: normalizeCid(input.cid!),
+        province: input.province,
+        role: input.role,
+        unitName,
+        status: 'pending',
+      })
+      .where(eq(users.id, current.id))
+    return { ok: true, linked: false }
+  }
+
+  // ไม่มี CID (ผู้ใช้ที่มี cid_hash อยู่แล้ว) → อัปเดตคำขอตามปกติ
   await db
     .update(users)
-    .set({
-      province: input.province,
-      role: input.role,
-      unitName: input.unitName?.trim() || null,
-      status: 'pending',
-    })
+    .set({ province: input.province, role: input.role, unitName, status: 'pending' })
     .where(eq(users.id, input.userId))
-
-  return { ok: true }
+  return { ok: true, linked: false }
 }
 
 /* ───────── ฝั่ง admin: จัดการทะเบียนเจ้าหน้าที่ ───────── */

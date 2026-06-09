@@ -14,6 +14,7 @@ import {
   varchar,
   uniqueIndex,
   index,
+  primaryKey,
 } from 'drizzle-orm/pg-core'
 import { sql } from 'drizzle-orm'
 
@@ -81,7 +82,8 @@ export const floodPolygons = pgTable('flood_polygons', {
 // ดู docs/new/AUTH-SPEC.md — แยก authentication (ThaiD) ออกจาก authorization (ตารางนี้)
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
-  cidHash: text('cid_hash').unique(),       // SHA-256 ของ CID 13 หลัก · match กับ ThaiD
+  cidHash: text('cid_hash').unique(),       // SHA-256 ของ CID 13 หลัก · กุญแจตัวตนหลัก (match ทุกช่องทาง)
+  ssoSubject: text('sso_subject').unique(), // provider_id จาก SSO · กุญแจ login รอง (ไม่มี hash_cid → match ด้วยตัวนี้) ใช้ dedupe ข้ามช่องทาง
   nationalId: text('national_id'),          // เลขบัตร 13 หลัก (raw) — แสดงแบบ masked ในทะเบียน + ใช้ค้นหา; ทุก access ถูก log
   name: text('name').notNull(),             // เติมจาก ThaiD ได้
   role: text('role').notNull().default('viewer'), // admin | eoc | officer | vhv | ems | rescue | ddpm | shelter_manager | viewer
@@ -607,4 +609,14 @@ export const accessLog = pgTable('access_log', {
   index('idx_access_log_user').on(t.userId),
   index('idx_access_log_entity_target').on(t.entity, t.targetId),
   index('idx_access_log_at').on(t.at),
+])
+
+// สิทธิ์การเห็นเมนูต่อ role — เก็บเฉพาะ "override" ที่ admin ตั้งค่าเอง
+// ถ้าไม่มี row สำหรับ (role, menu_key) → ใช้ค่า default จาก registry (lib/menus.ts)
+export const menuRoleAccess = pgTable('menu_role_access', {
+  role: text('role').notNull(),         // UserRole 9 ค่า
+  menuKey: text('menu_key').notNull(),  // คีย์เมนูจาก MENU_ITEMS
+  visible: boolean('visible').notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.role, t.menuKey] }),
 ])

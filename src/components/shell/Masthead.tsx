@@ -12,16 +12,11 @@ import {
   AlertTriangle,
   Tent,
   ClipboardList,
-  Eye,
-  Check,
   LogOut,
   Menu,
 } from 'lucide-react'
-import {
-  useRoleView,
-  ROLE_LABELS,
-  type ViewRole,
-} from '@/components/shell/RoleViewProvider'
+import { ROLE_LABEL } from '@/lib/roles'
+import type { UserRole } from '@/types'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { ThemeToggle } from '@/components/ThemeToggle'
@@ -40,10 +35,8 @@ interface Props {
   session?: { role: string; name: string } | null
 }
 
-const ROLE_ORDER: ViewRole[] = ['vhv', 'officer', 'admin']
-
-function RoleSwitcher({ name }: { name: string }) {
-  const { realRole, viewRole, setViewRole, isPreview } = useRoleView()
+function UserMenu({ role, name }: { role: string; name: string }) {
+  const label = ROLE_LABEL[role as UserRole] ?? role
 
   return (
     <DropdownMenu>
@@ -55,37 +48,17 @@ function RoleSwitcher({ name }: { name: string }) {
           />
         }
       >
-        <Eye className="size-3.5 text-slate-400" strokeWidth={1.75} />
-        <span className="hidden font-medium sm:inline">{ROLE_LABELS[viewRole]}</span>
-        {isPreview && (
-          <span className="rounded bg-amber-500/20 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-300">
-            preview
-          </span>
-        )}
+        <span className="hidden font-medium sm:inline">{label}</span>
         <ChevronDown className="size-3 opacity-60" />
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className="w-64 border border-[var(--border)] bg-[var(--bg-elevated)] p-1 text-[var(--fg)] shadow-md"
+        className="w-56 border border-[var(--border)] bg-[var(--bg-elevated)] p-1 text-[var(--fg)] shadow-md"
       >
-        <div className="px-2.5 py-2 text-[11px] text-[var(--fg-subtle)]">
-          ดูในมุมมองบทบาท · <span className="text-[var(--fg-muted)]">{name}</span>
+        <div className="px-2.5 py-2">
+          <p className="truncate text-[12.5px] font-medium text-[var(--fg)]">{name}</p>
+          <p className="text-[11px] text-[var(--fg-subtle)]">{label}</p>
         </div>
-        {ROLE_ORDER.map((r) => (
-          <DropdownMenuItem
-            key={r}
-            onClick={() => setViewRole(r)}
-            className="flex items-center justify-between gap-2 px-2.5 py-2 text-[12.5px] cursor-pointer"
-          >
-            <span>{ROLE_LABELS[r]}</span>
-            {r === viewRole && <Check className="size-4 shrink-0 text-[var(--accent)]" />}
-          </DropdownMenuItem>
-        ))}
-        {isPreview && (
-          <p className="border-t border-[var(--border)] px-2.5 py-2 text-[10.5px] leading-relaxed text-[var(--risk-near)]">
-            * แสดงผลเท่านั้น — สิทธิ์จริงของคุณคือ {ROLE_LABELS[realRole]} ระบบยังตัดสินสิทธิ์จากบัญชีจริงเสมอ
-          </p>
-        )}
         <DropdownMenuSeparator className="my-1 bg-[var(--border)]" />
         <DropdownMenuItem
           onClick={() => { window.location.href = '/api/auth/logout' }}
@@ -289,7 +262,7 @@ export function Masthead({ session }: Props) {
         {session ? (
           <>
             <IncidentSwitcher />
-            <RoleSwitcher name={session.name} />
+            <UserMenu role={session.role} name={session.name} />
           </>
         ) : (
           <Link

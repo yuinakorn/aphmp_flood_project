@@ -27,7 +27,6 @@ import {
   ShoppingBag,
   Home,
 } from 'lucide-react'
-import { useRoleView } from '@/components/shell/RoleViewProvider'
 import { FieldActionSheet, type FieldActionMode } from '@/components/forms/FieldActionSheet'
 import { Button } from '@/components/ui/button'
 import {
@@ -150,8 +149,8 @@ const STATUS_META: Record<string, { label: string; tone: string; icon?: React.Re
 export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, coverageRows, counters, dispositionSummary, overview, casualties, surveillanceEntries, incidentId, mapHiddenDefault, realRole }: Props) {
   const router = useRouter()
   const isMobile = useIsMobile()
-  const { viewRole } = useRoleView()
-  const canCommand = viewRole === 'officer' || viewRole === 'admin'
+  // สิทธิ์สั่งการในแดชบอร์ด EOC — ตัดสินจาก role จริงของบัญชี (server enforce ซ้ำเสมอ)
+  const canCommand = ['officer', 'ddpm', 'admin', 'eoc'].includes(realRole)
 
   // โหมดวิกฤต → เริ่มที่ "คิวสั่งการ" (ไปเอาใครก่อน); โหมดปกติ → "พื้นที่" (ความครอบคลุม)
   const [seg, setSeg] = useState<Segment>(activeIncidents.length === 0 ? 'roster' : 'queue')

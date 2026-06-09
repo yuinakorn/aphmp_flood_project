@@ -115,19 +115,12 @@ export function providerIdSsoProvider(): OAuthConfig<ProviderIdSsoProfile> {
       const name = profileName(profile)
       const email = providerId ? `${providerId}@provider-id.local` : `${crypto.randomUUID()}@provider-id.local`
 
-      // กุญแจระบุตัวตนที่เสถียร: ใช้ hash_cid ถ้ามี ไม่งั้น hash ของ provider_id
-      // (เพื่อ dedupe ผู้ใช้เดิม + ผูก record ทะเบียนกับ session เสมอ ไม่ว่าจะมี hash_cid ไหม)
-      const subjectHash = profile.hash_cid || (providerId ? `sso:${providerId}` : null)
-
-      // resolve กับทะเบียน users (สร้าง record pending ถ้ายังไม่มี)
-      // — gate คนใหม่ให้ไปหน้าขอสิทธิ์ + ไม่ trust role จาก profile โดยไม่อนุมัติ
-      if (subjectHash) {
+      // resolve กับทะเบียน users — กุญแจ: hash_cid (ถ้า IdP ส่งมา) ไม่งั้น provider_id (sso_subject)
+      // สร้าง record pending ถ้ายังไม่มี → gate คนใหม่ไปหน้าขอสิทธิ์ + ไม่ trust role จาก profile
+      if (providerId) {
         try {
-          const { resolveOrCreateSsoStaff } = await import('@/lib/staff-auth')
-          const { hashCid } = await import('@/lib/cid')
-          // hash_cid จาก IdP เป็น hash อยู่แล้ว; provider_id ดิบต้อง hash ก่อนเก็บ
-          const key = profile.hash_cid || hashCid(subjectHash)
-          const staff = await resolveOrCreateSsoStaff({ subjectHash: key, name })
+          const { resolveSsoIdentity } = await import('@/lib/staff-auth')
+          const staff = await resolveSsoIdentity({ providerId, cidHash: profile.hash_cid ?? null, name })
           return {
             id: staff.id,
             email,
@@ -142,7 +135,7 @@ export function providerIdSsoProvider(): OAuthConfig<ProviderIdSsoProfile> {
         }
       }
 
-      // ไม่มี providerId/hash_cid หรือ DB ล่ม → เข้าได้แต่สถานะ pending (ถูก gate)
+      // ไม่มี providerId หรือ DB ล่ม → เข้าได้แต่สถานะ pending (ถูก gate)
       return {
         id: providerId ?? crypto.randomUUID(),
         email,

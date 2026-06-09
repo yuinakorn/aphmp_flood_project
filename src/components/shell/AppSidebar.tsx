@@ -20,49 +20,38 @@ import {
   LifeBuoy,
 } from 'lucide-react'
 import { useSidebar } from '@/components/shell/SidebarProvider'
+import { MENU_ITEMS, MENU_SECTION_LABEL, type MenuSection } from '@/lib/menus'
 
 type Item = { href: string; icon: typeof LayoutDashboard; label: string; badge?: number }
 type Section = { label: string | null; items: Item[] }
 
-function buildSections(canManageStaff: boolean, canTriage: boolean, pendingReports: number): Section[] {
-  const systemItems: Item[] = [
-    { href: '/admin/water-level', icon: Droplets, label: 'ระดับน้ำ' },
-  ]
-  const topItems: Item[] = [
-    { href: '/admin/eoc', icon: Siren, label: 'ศูนย์บัญชาการ EOC' },
-    { href: '/map', icon: Map, label: 'แผนที่ปฏิบัติการ' },
-  ]
-  if (canManageStaff || canTriage) {
-    systemItems.push({ href: '/admin/settings', icon: Settings, label: 'ตั้งค่า' })
-  }
-  const opsItems: Item[] = [
-    { href: '/admin/rescue-missions', icon: LifeBuoy, label: 'ปฏิบัติการกู้ภัย' },
-  ]
-  if (canTriage) {
-    opsItems.push({ href: '/admin/help-reports', icon: Inbox, label: 'รับแจ้งเหตุประชาชน', badge: pendingReports })
-  }
-  opsItems.push(
-    { href: '/admin/vulnerable', icon: Users, label: 'กลุ่มเปราะบาง' },
-    { href: '/admin/family-folder', icon: FolderHeart, label: 'Family Folder' },
-    { href: '/admin/shelters', icon: Tent, label: 'ศูนย์พักพิง' },
-  )
-  if (canTriage) {
-    opsItems.push({ href: '/admin/referrals', icon: Hospital, label: 'ส่งต่อโรงพยาบาล' })
-  }
-  return [
-    {
-      label: null,
-      items: topItems,
-    },
-    {
-      label: 'การปฏิบัติการ',
-      items: opsItems,
-    },
-    {
-      label: 'ข้อมูล & ระบบ',
-      items: systemItems,
-    },
-  ]
+const MENU_ICONS: Record<string, typeof LayoutDashboard> = {
+  eoc: Siren,
+  map: Map,
+  'rescue-missions': LifeBuoy,
+  'help-reports': Inbox,
+  vulnerable: Users,
+  'family-folder': FolderHeart,
+  shelters: Tent,
+  referrals: Hospital,
+  'water-level': Droplets,
+  settings: Settings,
+}
+
+const SECTION_ORDER: MenuSection[] = ['top', 'ops', 'system']
+
+/** สร้าง sections จาก registry โดยกรองเฉพาะเมนูที่ role เห็นได้ (visibleKeys จาก server) */
+function buildSections(visibleKeys: string[], pendingReports: number): Section[] {
+  const visible = new Set(visibleKeys)
+  return SECTION_ORDER.map((section) => ({
+    label: MENU_SECTION_LABEL[section],
+    items: MENU_ITEMS.filter((m) => m.section === section && visible.has(m.key)).map((m) => ({
+      href: m.href,
+      icon: MENU_ICONS[m.key] ?? LayoutDashboard,
+      label: m.label,
+      badge: m.key === 'help-reports' ? pendingReports : undefined,
+    })),
+  })).filter((s) => s.items.length > 0)
 }
 
 function useIsActive() {
@@ -125,10 +114,10 @@ function NavList({ sections, showLabels, onNavigate }: { sections: Section[]; sh
   )
 }
 
-export function AppSidebar({ canManageStaff = false, canTriage = false, pendingReports = 0 }: { canManageStaff?: boolean; canTriage?: boolean; pendingReports?: number }) {
+export function AppSidebar({ visibleKeys = [], pendingReports = 0 }: { visibleKeys?: string[]; pendingReports?: number }) {
   const { collapsed, toggleCollapsed, mobileOpen, setMobileOpen } = useSidebar()
   const pathname = usePathname()
-  const sections = buildSections(canManageStaff, canTriage, pendingReports)
+  const sections = buildSections(visibleKeys, pendingReports)
 
   // ปิด drawer อัตโนมัติเมื่อเปลี่ยนหน้า
   useEffect(() => {

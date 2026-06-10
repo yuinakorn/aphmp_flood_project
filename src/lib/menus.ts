@@ -24,8 +24,8 @@ export const MENU_SECTION_LABEL: Record<MenuSection, string | null> = {
 }
 
 export const MENU_ITEMS: readonly MenuItem[] = [
-  { key: 'eoc', href: '/admin/eoc', label: 'ศูนย์บัญชาการ EOC', section: 'top' },
   { key: 'map', href: '/map', label: 'แผนที่ปฏิบัติการ', section: 'top' },
+  { key: 'eoc', href: '/admin/eoc', label: 'ศูนย์บัญชาการ EOC', section: 'top' },
   { key: 'rescue-missions', href: '/admin/rescue-missions', label: 'ปฏิบัติการกู้ภัย', section: 'ops' },
   { key: 'help-reports', href: '/admin/help-reports', label: 'รับแจ้งเหตุประชาชน', section: 'ops' },
   { key: 'vulnerable', href: '/admin/vulnerable', label: 'กลุ่มเปราะบาง', section: 'ops' },

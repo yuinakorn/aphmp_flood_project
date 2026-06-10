@@ -71,7 +71,7 @@ function Field({ label, value, delta, color = 'var(--fg)', onClick }: FieldProps
       <button
         type="button"
         onClick={onClick}
-        className="group flex min-w-[96px] shrink-0 flex-col justify-center gap-1.5 rounded-md px-2 -mx-2 transition-colors hover:bg-[var(--bg-elevated)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/40 md:min-w-[112px]"
+        className="group flex shrink-0 flex-col justify-center gap-1.5 rounded-md px-2 -mx-2 transition-colors hover:bg-[var(--bg-elevated)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/40"
         title="คลิกเพื่อดูรายชื่อ"
       >
         {inner}
@@ -80,7 +80,7 @@ function Field({ label, value, delta, color = 'var(--fg)', onClick }: FieldProps
   }
 
   return (
-    <div className="flex min-w-[96px] shrink-0 flex-col justify-center gap-1.5 md:min-w-[112px]">
+    <div className="flex shrink-0 flex-col justify-center gap-1.5">
       {inner}
     </div>
   )
@@ -110,9 +110,9 @@ export function StatusStrip({ waterLevel, s1Level, s1Alert, activeZone, alertLev
     : null
 
   return (
-    <div className="scrollbar-none flex h-[64px] shrink-0 items-stretch gap-5 overflow-x-auto border-b border-[var(--border)] bg-[var(--bg)] px-4 md:h-[76px] md:gap-10 md:overflow-x-visible md:px-8">
+    <div className="scrollbar-none flex h-[64px] shrink-0 items-stretch gap-3.5 overflow-x-auto border-b border-[var(--border)] bg-[var(--bg)] px-3 md:h-[76px] md:gap-x-4 md:overflow-x-clip md:px-4 lg:gap-x-6 lg:px-6">
       {/* Province selector */}
-      <div className="flex min-w-[120px] shrink-0 flex-col justify-center gap-1.5 md:min-w-[130px]">
+      <div className="flex min-w-[104px] shrink-0 flex-col justify-center gap-1.5">
         <span className="text-[10px] font-medium uppercase leading-none tracking-[0.1em] text-[var(--fg-subtle)]">
           จังหวัด
         </span>
@@ -147,7 +147,7 @@ export function StatusStrip({ waterLevel, s1Level, s1Alert, activeZone, alertLev
       </div>
       <Divider />
       {/* Dual-station water level */}
-      <div className="flex shrink-0 items-stretch gap-4 md:gap-5">
+      <div className="flex shrink-0 items-stretch gap-3 md:gap-4">
         <div className="flex flex-col justify-center gap-1">
           <span className="text-[10px] font-medium uppercase leading-none tracking-[0.1em] text-[var(--fg-subtle)]">
             ต้นน้ำ <span className="font-mono">{cfg.s1}</span>
@@ -214,8 +214,8 @@ export function StatusStrip({ waterLevel, s1Level, s1Alert, activeZone, alertLev
         color="var(--risk-safe)"
       />
 
-      <div className="flex shrink-0 items-center gap-3.5 self-center pl-4 md:ml-auto md:pl-6">
-        <span className="text-[10px] font-medium uppercase tracking-[0.1em] text-[var(--fg-subtle)]">
+      <div className="flex shrink-0 items-center gap-2.5 self-center pl-3 md:ml-auto md:pl-4 lg:gap-3.5 lg:pl-6">
+        <span className="hidden text-[10px] font-medium uppercase tracking-[0.1em] text-[var(--fg-subtle)] lg:inline">
           {timeDisplay ? 'อัปเดต' : 'CMU Water Center'}
         </span>
         <div className="flex items-center gap-2.5">

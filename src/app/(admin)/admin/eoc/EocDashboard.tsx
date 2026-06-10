@@ -47,7 +47,6 @@ import {
 } from '@/components/ui/sheet'
 import { OpsPanel } from './OpsPanel'
 import { CommandQueue } from './CommandQueue'
-import { RescueTeamManager } from '@/components/rescue/RescueTeamManager'
 import type { OverviewData } from '@/lib/overview'
 import type {
   CoverageRow,
@@ -98,7 +97,7 @@ interface Props {
   realRole: string
 }
 
-type Segment = 'queue' | 'roster' | 'requests' | 'teams' | 'ops'
+type Segment = 'queue' | 'roster' | 'requests' | 'ops'
 
 export const MAP_HIDDEN_COOKIE = 'gx-eoc-map-hidden'
 
@@ -234,8 +233,8 @@ export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, 
     const open = requests.filter((r) => r.status !== 'resolved' && r.status !== 'cancelled').length
     const admitted = persons.filter((p) => p.isAdmitted).length
     const unadmitted = persons.length - admitted
-    return { total: persons.length, flood, near, safe, open, teams: rescueTeams.length, admitted, unadmitted }
-  }, [persons, requests, rescueTeams])
+    return { total: persons.length, flood, near, safe, open, admitted, unadmitted }
+  }, [persons, requests])
 
   // ── geo drill: amphoe → tambon → village → people ──
   const isSearching = search.trim().length > 0
@@ -476,7 +475,6 @@ export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, 
                 พื้นที่
               </SegBtn>
               <SegBtn active={seg === 'requests'} onClick={() => setSeg('requests')} count={counts.open} urgent={counts.open > 0}>คำร้อง / Triage</SegBtn>
-              <SegBtn active={seg === 'teams'} onClick={() => setSeg('teams')} count={counts.teams}>ทีมกู้ภัย</SegBtn>
               {counters && incidentId && (
                 <SegBtn active={seg === 'ops'} onClick={() => setSeg('ops')}>ปฏิบัติการ / Sit Rep</SegBtn>
               )}
@@ -1060,7 +1058,6 @@ export function EocDashboard({ persons, activeIncidents, rescueTeams, requests, 
             </div>
           )}
 
-          {seg === 'teams' && <RescueTeamManager teams={rescueTeams} canManage={canCommand} mode="dispatch" onChange={() => router.refresh()} />}
 
           {seg === 'ops' && counters && incidentId && (
             <OpsPanel

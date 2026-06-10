@@ -10,9 +10,15 @@ interface Props {
   filterRisk: Set<RiskLevel>
   filterGroups: Set<string>
   filterTambons: Set<string>
+  filterPriority: Set<string>
+  filterLifeSupport: Set<string>
+  filterShelter: Set<string>
   onToggleRisk: (v: RiskLevel) => void
   onToggleGroup: (v: string) => void
   onToggleTambon: (v: string) => void
+  onTogglePriority: (v: string) => void
+  onToggleLifeSupport: (v: string) => void
+  onToggleShelter: (v: string) => void
   onClear: () => void
   resultCount: number
   onClose: () => void
@@ -33,6 +39,29 @@ const CATEGORY_META: { key: string; label: string; color: string }[] = [
   { key: 'pregnant', label: 'สตรีมีครรภ์', color: 'oklch(0.72 0.14 350)' },
   { key: 'elderly', label: 'ผู้สูงอายุ (≥70)', color: 'oklch(0.78 0.16 75)' },
   { key: 'child', label: 'เด็กเล็ก (≤5)', color: 'oklch(0.74 0.13 140)' },
+]
+
+// ระดับความเร่งด่วนทางการแพทย์ (member.medicalPriority) — A=วิกฤต ต้องอพยพก่อน
+const PRIORITY_META: { key: string; label: string; color: string }[] = [
+  { key: 'A', label: 'A · วิกฤต', color: 'oklch(0.62 0.24 25)' },
+  { key: 'B', label: 'B · เฝ้าระวัง', color: 'oklch(0.78 0.16 75)' },
+  { key: 'C', label: 'C · ทั่วไป', color: 'oklch(0.74 0.10 145)' },
+]
+
+// อุปกรณ์พยุงชีพ (member.lifeSupport[]) — vocab ตรงกับฟอร์ม Add/Edit/FieldActionSheet
+const LIFE_SUPPORT_META: { key: string; label: string; color: string }[] = [
+  { key: 'oxygen', label: 'ออกซิเจน', color: 'oklch(0.68 0.16 200)' },
+  { key: 'ventilator', label: 'เครื่องช่วยหายใจ', color: 'oklch(0.62 0.20 250)' },
+  { key: 'dialysis_hd', label: 'ฟอกไตเลือด (HD)', color: 'oklch(0.60 0.20 300)' },
+  { key: 'dialysis_capd', label: 'ฟอกไต (CAPD)', color: 'oklch(0.64 0.18 325)' },
+  { key: 'feeding_tube', label: 'สายให้อาหาร', color: 'oklch(0.70 0.14 160)' },
+  { key: 'anti_seizure', label: 'ยากันชัก', color: 'oklch(0.74 0.15 55)' },
+]
+
+// ที่พักปัจจุบัน — derive จาก member.shelterId (มาจาก shelter_admissions status=admitted)
+const SHELTER_META: { key: string; label: string; color: string }[] = [
+  { key: 'at_shelter', label: 'อยู่ศูนย์พักพิงแล้ว', color: 'oklch(0.66 0.16 230)' },
+  { key: 'at_home', label: 'ยังอยู่บ้าน', color: 'oklch(0.74 0.10 145)' },
 ]
 
 function Chip({
@@ -57,8 +86,9 @@ function Chip({
 }
 
 export function FilterPanel({
-  households, filterRisk, filterGroups, filterTambons,
-  onToggleRisk, onToggleGroup, onToggleTambon, onClear, resultCount, onClose,
+  households, filterRisk, filterGroups, filterTambons, filterPriority, filterLifeSupport, filterShelter,
+  onToggleRisk, onToggleGroup, onToggleTambon, onTogglePriority, onToggleLifeSupport, onToggleShelter,
+  onClear, resultCount, onClose,
 }: Props) {
   const riskCounts = useMemo(() => {
     const c: Record<RiskLevel, number> = { flood: 0, near: 0, safe: 0 }
@@ -80,13 +110,54 @@ export function FilterPanel({
     return c
   }, [households])
 
+  // นับ "บ้าน" ที่มีสมาชิกอย่างน้อย 1 คนในแต่ละระดับความเร่งด่วน
+  const priorityCounts = useMemo(() => {
+    const c: Record<string, number> = {}
+    households.forEach((h) => {
+      const seen = new Set<string>()
+      h.members.forEach((m) => {
+        const p = m.medicalPriority
+        if (p && !seen.has(p)) { seen.add(p); c[p] = (c[p] ?? 0) + 1 }
+      })
+    })
+    return c
+  }, [households])
+
+  // นับ "บ้าน" ที่มีสมาชิกใช้อุปกรณ์พยุงชีพแต่ละชนิด
+  const lifeSupportCounts = useMemo(() => {
+    const c: Record<string, number> = {}
+    households.forEach((h) => {
+      const seen = new Set<string>()
+      h.members.forEach((m) => {
+        (m.lifeSupport ?? []).forEach((ls) => {
+          if (!seen.has(ls)) { seen.add(ls); c[ls] = (c[ls] ?? 0) + 1 }
+        })
+      })
+    })
+    return c
+  }, [households])
+
+  // นับ "บ้าน" ตามที่พักปัจจุบัน — บ้านหนึ่งอาจนับทั้งสองฝั่งถ้าสมาชิกกระจายตัว
+  const shelterCounts = useMemo(() => {
+    let atShelter = 0, atHome = 0
+    households.forEach((h) => {
+      if (h.members.some((m) => m.shelterId)) atShelter += 1
+      if (h.members.some((m) => !m.shelterId)) atHome += 1
+    })
+    return { at_shelter: atShelter, at_home: atHome } as Record<string, number>
+  }, [households])
+
   const tambons = useMemo(() => {
     const c: Record<string, number> = {}
     households.forEach((h) => { if (h.tambon) c[h.tambon] = (c[h.tambon] ?? 0) + 1 })
     return Object.entries(c).sort((a, b) => a[0].localeCompare(b[0], 'th'))
   }, [households])
 
-  const hasActive = filterRisk.size + filterGroups.size + filterTambons.size > 0
+  // อุปกรณ์พยุงชีพ: แสดงเฉพาะชนิดที่มีข้อมูลจริง (graceful degradation — ไม่ขึ้น chip ตาย)
+  const lifeSupportShown = LIFE_SUPPORT_META.filter((g) => (lifeSupportCounts[g.key] ?? 0) > 0)
+
+  const hasActive = filterRisk.size + filterGroups.size + filterTambons.size
+    + filterPriority.size + filterLifeSupport.size + filterShelter.size > 0
 
   return (
     <PanelShell title="ตัวกรองหมุด" hint={`แสดง ${resultCount} / ${households.length} บ้าน`} onClose={onClose}>
@@ -117,6 +188,38 @@ export function FilterPanel({
             {CATEGORY_META.map((g) => (
               <Chip key={g.key} label={g.label} color={g.color} count={categoryCounts[g.key] ?? 0}
                 active={filterGroups.has(g.key)} onClick={() => onToggleGroup(g.key)} />
+            ))}
+          </div>
+        </section>
+
+        <section className="flex flex-col gap-2">
+          <span className="text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--fg-subtle)]">ความเร่งด่วน</span>
+          <div className="flex flex-wrap gap-1.5">
+            {PRIORITY_META.map((g) => (
+              <Chip key={g.key} label={g.label} color={g.color} count={priorityCounts[g.key] ?? 0}
+                active={filterPriority.has(g.key)} onClick={() => onTogglePriority(g.key)} />
+            ))}
+          </div>
+        </section>
+
+        {lifeSupportShown.length > 0 && (
+          <section className="flex flex-col gap-2">
+            <span className="text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--fg-subtle)]">อุปกรณ์พยุงชีพ</span>
+            <div className="flex flex-wrap gap-1.5">
+              {lifeSupportShown.map((g) => (
+                <Chip key={g.key} label={g.label} color={g.color} count={lifeSupportCounts[g.key] ?? 0}
+                  active={filterLifeSupport.has(g.key)} onClick={() => onToggleLifeSupport(g.key)} />
+              ))}
+            </div>
+          </section>
+        )}
+
+        <section className="flex flex-col gap-2">
+          <span className="text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--fg-subtle)]">ที่พักปัจจุบัน</span>
+          <div className="flex flex-wrap gap-1.5">
+            {SHELTER_META.map((g) => (
+              <Chip key={g.key} label={g.label} color={g.color} count={shelterCounts[g.key] ?? 0}
+                active={filterShelter.has(g.key)} onClick={() => onToggleShelter(g.key)} />
             ))}
           </div>
         </section>

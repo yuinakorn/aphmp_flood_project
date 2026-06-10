@@ -254,6 +254,9 @@ export function MapClient({ session, visibleKeys = [], userProvince = null, isNa
   const [filterRisk, setFilterRisk] = useState<Set<RiskLevel>>(new Set())
   const [filterGroups, setFilterGroups] = useState<Set<string>>(new Set())
   const [filterTambons, setFilterTambons] = useState<Set<string>>(new Set())
+  const [filterPriority, setFilterPriority] = useState<Set<string>>(new Set())
+  const [filterLifeSupport, setFilterLifeSupport] = useState<Set<string>>(new Set())
+  const [filterShelter, setFilterShelter] = useState<Set<string>>(new Set())
 
   const toggleIn = <T,>(setter: React.Dispatch<React.SetStateAction<Set<T>>>, v: T) =>
     setter((prev) => {
@@ -267,6 +270,9 @@ export function MapClient({ session, visibleKeys = [], userProvince = null, isNa
     setFilterRisk(new Set())
     setFilterGroups(new Set())
     setFilterTambons(new Set())
+    setFilterPriority(new Set())
+    setFilterLifeSupport(new Set())
+    setFilterShelter(new Set())
   }, [])
 
   // ── โซนเสี่ยงน้ำท่วม (วาดเอง) ──
@@ -406,14 +412,24 @@ export function MapClient({ session, visibleKeys = [], userProvince = null, isNa
   }, [])
 
   const filteredHouseholds = useMemo(() => {
-    if (filterRisk.size === 0 && filterGroups.size === 0 && filterTambons.size === 0) return provinceHouseholds
+    const noFilters = filterRisk.size === 0 && filterGroups.size === 0 && filterTambons.size === 0
+      && filterPriority.size === 0 && filterLifeSupport.size === 0 && filterShelter.size === 0
+    if (noFilters) return provinceHouseholds
     return provinceHouseholds.filter((h) => {
       if (filterRisk.size > 0 && !filterRisk.has((h.risk ?? 'safe') as RiskLevel)) return false
       if (filterTambons.size > 0 && !(h.tambon && filterTambons.has(h.tambon))) return false
       if (filterGroups.size > 0 && !h.members.some((m) => (m.categories ?? []).some((c) => filterGroups.has(c)))) return false
+      if (filterPriority.size > 0 && !h.members.some((m) => m.medicalPriority && filterPriority.has(m.medicalPriority))) return false
+      if (filterLifeSupport.size > 0 && !h.members.some((m) => (m.lifeSupport ?? []).some((ls) => filterLifeSupport.has(ls)))) return false
+      if (filterShelter.size > 0) {
+        const matchShelter =
+          (filterShelter.has('at_shelter') && h.members.some((m) => m.shelterId)) ||
+          (filterShelter.has('at_home') && h.members.some((m) => !m.shelterId))
+        if (!matchShelter) return false
+      }
       return true
     })
-  }, [provinceHouseholds, filterRisk, filterGroups, filterTambons])
+  }, [provinceHouseholds, filterRisk, filterGroups, filterTambons, filterPriority, filterLifeSupport, filterShelter])
 
   // ผู้ป่วยกลุ่มวิกฤต (priority A) ที่อยู่ในเขตน้ำท่วม และยังไม่อพยพเข้าศูนย์ — ใช้ขึ้นแถบเตือนเชิงปฏิบัติการ
   const criticalCount = useMemo(
@@ -978,9 +994,15 @@ export function MapClient({ session, visibleKeys = [], userProvince = null, isNa
             filterRisk={filterRisk}
             filterGroups={filterGroups}
             filterTambons={filterTambons}
+            filterPriority={filterPriority}
+            filterLifeSupport={filterLifeSupport}
+            filterShelter={filterShelter}
             onToggleRisk={(v) => toggleIn(setFilterRisk, v)}
             onToggleGroup={(v) => toggleIn(setFilterGroups, v)}
             onToggleTambon={(v) => toggleIn(setFilterTambons, v)}
+            onTogglePriority={(v) => toggleIn(setFilterPriority, v)}
+            onToggleLifeSupport={(v) => toggleIn(setFilterLifeSupport, v)}
+            onToggleShelter={(v) => toggleIn(setFilterShelter, v)}
             onClear={clearFilters}
             resultCount={filteredHouseholds.length}
             onClose={() => setActivePanel(null)}

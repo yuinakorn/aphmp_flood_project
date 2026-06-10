@@ -206,6 +206,19 @@ export async function PATCH(
     }
   }
 
+  // พิกัดหมุด — ข้อมูลภาคสนาม (household-map principle): อสม./จนท. ที่เขียน field ได้
+  // (canWriteFieldData ผ่าน guard แล้ว) แก้/ปักหมุดได้ ไม่จำกัดเฉพาะ admin/officer
+  if ('lat' in body) {
+    const n = body.lat === null ? null : Number(body.lat)
+    if (n !== null && !Number.isFinite(n)) return badRequest('lat must be a number or null')
+    patch.lat = n !== null ? String(n) : null
+  }
+  if ('lng' in body) {
+    const n = body.lng === null ? null : Number(body.lng)
+    if (n !== null && !Number.isFinite(n)) return badRequest('lng must be a number or null')
+    patch.lng = n !== null ? String(n) : null
+  }
+
   // ── core fields (admin/officer เท่านั้น) ──────────────────────────────────
   const isAdmin = session.user.role === 'admin' || session.user.role === 'officer'
 
@@ -234,8 +247,6 @@ export async function PATCH(
     if ('tambon' in body) patch.tambon = typeof body.tambon === 'string' ? body.tambon : null
     if ('amphoe' in body) patch.amphoe = typeof body.amphoe === 'string' ? body.amphoe : null
     if ('province' in body) patch.province = typeof body.province === 'string' ? body.province : null
-    if ('lat' in body) patch.lat = body.lat !== null ? String(body.lat) : null
-    if ('lng' in body) patch.lng = body.lng !== null ? String(body.lng) : null
     if ('caregiverPhone' in body) {
       patch.caregiverPhone = typeof body.caregiverPhone === 'string' ? body.caregiverPhone : null
     }

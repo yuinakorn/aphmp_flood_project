@@ -1,3 +1,5 @@
+import type { ChannelGeometry } from './hydraulics'
+
 export type AlertLevel =
   | 'normal'
   | 'warning'
@@ -17,6 +19,10 @@ export type StationThreshold = {
 }
 
 
+// channel = หน้าตัดช่องน้ำโดยประมาณ (trapezoid) สำหรับสมการ Manning —
+// เป็นค่า config เชิงสมมติฐานทางวิศวกรรม (ความกว้างท้องน้ำ/ลาดตลิ่ง/n/ความลาด)
+// ใช้เป็น fallback ประมาณความเร็วน้ำ+เวลาเดินทางเมื่อหา lag จากข้อมูลจริงไม่ได้
+// ค่าที่ขับ simulation จริงคือ level/discharge จาก water_level_observation
 export const PROVINCE_CONFIGS = {
   chiangmai: {
     label: 'เชียงใหม่',
@@ -27,6 +33,8 @@ export const PROVINCE_CONFIGS = {
     distanceLabel: 'ระยะ ~20 กม.',
     alertMode: 'threshold' as const,
     bounds: [[18.60, 98.85], [19.00, 99.15]] as [[number, number], [number, number]],
+    fallbackTravelHours: [4, 6] as [number, number],
+    channel: { bottomWidthM: 40, sideSlope: 2, manningN: 0.035, bedSlope: 0.0015, lengthKm: 20 } as ChannelGeometry,
   },
   nan: {
     label: 'น่าน',
@@ -37,6 +45,8 @@ export const PROVINCE_CONFIGS = {
     distanceLabel: 'ระยะ ~35 กม.',
     alertMode: 'threshold' as const,
     bounds: [[18.55, 100.65], [19.00, 101.00]] as [[number, number], [number, number]],
+    fallbackTravelHours: [6, 8] as [number, number],
+    channel: { bottomWidthM: 45, sideSlope: 2, manningN: 0.035, bedSlope: 0.0012, lengthKm: 35 } as ChannelGeometry,
   },
   chiangrai: {
     label: 'เชียงราย (เมือง)',
@@ -47,6 +57,8 @@ export const PROVINCE_CONFIGS = {
     distanceLabel: 'ระยะ ~25 กม.',
     alertMode: 'threshold' as const,
     bounds: [[19.75, 99.70], [20.10, 100.10]] as [[number, number], [number, number]],
+    fallbackTravelHours: [3, 5] as [number, number],
+    channel: { bottomWidthM: 35, sideSlope: 2, manningN: 0.035, bedSlope: 0.002, lengthKm: 25 } as ChannelGeometry,
   },
   chiangrai_maesai: {
     label: 'เชียงราย (แม่สาย)',
@@ -57,6 +69,9 @@ export const PROVINCE_CONFIGS = {
     distanceLabel: 'ระยะ ~12 กม.',
     alertMode: 'rise_speed' as const,
     bounds: [[20.30, 99.70], [20.55, 100.00]] as [[number, number], [number, number]],
+    fallbackTravelHours: [1, 2] as [number, number],
+    // แม่น้ำสายภูเขา: แคบ ชัน ขรุขระ — น้ำป่ามาเร็ว
+    channel: { bottomWidthM: 15, sideSlope: 1.5, manningN: 0.04, bedSlope: 0.006, lengthKm: 12 } as ChannelGeometry,
   },
 } as const
 

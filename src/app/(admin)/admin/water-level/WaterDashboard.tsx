@@ -1,7 +1,7 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { Droplets, TrendingUp, TrendingDown, Minus, Sliders, Info } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { TrendingUp, TrendingDown, Minus, Info } from 'lucide-react'
 import {
   Tooltip,
   TooltipContent,
@@ -16,7 +16,26 @@ import {
   type StationThreshold,
   type ProvinceConfig,
 } from '@/lib/water-level'
-import { WaterFlowAnimation } from './WaterFlowAnimation'
+import {
+  computeForecast,
+  sampleForecast,
+  flowVelocity,
+  ratingQ,
+  ratingH,
+  ratingOutOfRange,
+  type PulseShape,
+  type Scenario,
+} from '@/lib/hydraulics'
+import type { WaterLevelPoint } from '@/app/api/water-level/route'
+import { FlowSimulation } from './FlowSimulation'
+import { SimTimeline } from './SimTimeline'
+import { ForecastStrip } from './ForecastStrip'
+import {
+  ScenarioPanel,
+  type ManualField,
+  type ManualValues,
+  type SimMode,
+} from './ScenarioPanel'
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -33,24 +52,31 @@ type Props = {
   config: ProvinceConfig
   t1: StationThreshold
   t2: StationThreshold
+  series: WaterLevelPoint[]
 }
 
-type Preset = {
+const HORIZON_HOURS = 12
+const DT_HOURS = 0.25
+const SIM_HOURS_PER_SEC = 0.8 // 1 ชม.จำลอง ≈ 1.25 วินาทีจริง
+
+// preset = เหตุการณ์ต้นน้ำที่พาระดับไปถึงเกณฑ์นั้น ๆ (ไม่ teleport ค่าเหมือนเดิม —
+// ระบบจะ route ไปปลายน้ำด้วยฟิสิกส์เอง)
+type ScenarioPreset = {
   id: string
   label: string
-  values?: { s1Level: number; s2Level: number; s1Q: number; s2Q: number }
+  target: (t: StationThreshold) => number
+  guard: (t: StationThreshold) => boolean
+  shape: PulseShape
+  durationHours: number
 }
 
-function buildPresets(t1: StationThreshold, t2: StationThreshold): Preset[] {
-  return [
-    { id: 'live', label: 'Live' },
-    { id: 'dry',     label: 'แล้ง',        values: { s1Level: t1.warning * 0.05, s2Level: t2.warning * 0.1, s1Q: 40,  s2Q: 55  } },
-    { id: 'warning', label: 'เฝ้าระวัง',    values: { s1Level: t1.warning + 0.1,  s2Level: t2.warning + 0.1,  s1Q: 120, s2Q: 140 } },
-    { id: 'prepare', label: 'เตรียมพร้อม',  values: { s1Level: t1.prepare + 0.1,  s2Level: t2.prepare + 0.1,  s1Q: 200, s2Q: 230 } },
-    { id: 'critical',label: 'วิกฤต',        values: { s1Level: t1.critical + 0.1, s2Level: t2.critical + 0.1, s1Q: 280, s2Q: 320 } },
-    { id: 'danger',  label: 'อันตราย',      values: { s1Level: t1.danger + 0.15,  s2Level: t2.danger + 0.15,  s1Q: 360, s2Q: 410 } },
-  ]
-}
+const SCENARIO_PRESETS: ScenarioPreset[] = [
+  { id: 'dry',      label: 'แล้ง',       target: (t) => t.warning * 0.05,  guard: (t) => t.warning > 0,  shape: 'ramp',  durationHours: 4 },
+  { id: 'warning',  label: 'เฝ้าระวัง',   target: (t) => t.warning + 0.1,   guard: (t) => t.warning > 0,  shape: 'ramp',  durationHours: 3 },
+  { id: 'prepare',  label: 'เตรียมพร้อม', target: (t) => t.prepare + 0.1,   guard: (t) => t.prepare > 0,  shape: 'ramp',  durationHours: 3 },
+  { id: 'critical', label: 'วิกฤต',       target: (t) => t.critical + 0.1,  guard: (t) => t.critical > 0, shape: 'ramp',  durationHours: 3 },
+  { id: 'danger',   label: 'อันตราย',     target: (t) => t.danger + 0.15,   guard: (t) => t.danger > 0,   shape: 'spike', durationHours: 2 },
+]
 
 type ClassifyFn = (level: number | null, rise1h: number | null, rise3h: number | null, t: StationThreshold) => AlertLevel
 
@@ -180,137 +206,249 @@ function StationCard({
   )
 }
 
-// ── Slider controls ──────────────────────────────────────────────────────────
-
-function StationControls({
-  code, label, level, setLevel, levelMax, discharge, setDischarge, t,
-}: {
-  code: string; label: string
-  level: number; setLevel: (v: number) => void; levelMax: number
-  discharge: number; setDischarge: (v: number) => void
-  t: StationThreshold
-}) {
-  const ticks = [
-    { v: t.warning,  color: '#facc15', label: 'W' },
-    { v: t.prepare,  color: '#fb923c', label: 'P' },
-    { v: t.critical, color: '#f87171', label: 'C' },
-    { v: t.danger,   color: '#ef4444', label: 'D' },
-  ]
-  const DISCHARGE_MAX = 500
-
-  return (
-    <div className="rounded-md border border-[var(--border)] bg-[var(--bg-sunken)] p-3">
-      <div className="mb-3 flex items-baseline gap-2">
-        <span className="font-mono text-[12px] font-semibold">{code}</span>
-        <span className="text-[10.5px] text-[var(--fg-muted)]">{label}</span>
-      </div>
-
-      <div className="mb-3">
-        <div className="mb-1 flex items-baseline justify-between">
-          <label className="text-[11px] text-[var(--fg-muted)]">ระดับน้ำ</label>
-          <span className="font-mono text-[12.5px] font-semibold tabular-nums">
-            {level.toFixed(2)}
-            <span className="ml-0.5 text-[10px] text-[var(--fg-muted)]">m</span>
-          </span>
-        </div>
-        <input
-          type="range" min={0} max={levelMax} step={0.01} value={level}
-          onChange={(e) => setLevel(Number(e.target.value))}
-          className="w-full" style={{ accentColor: 'var(--accent)' }}
-        />
-        <div className="relative mt-0.5 h-3 select-none">
-          {ticks.map((m) => (
-            <span
-              key={m.label}
-              className="absolute top-0 -translate-x-1/2 font-mono text-[9px] font-bold"
-              style={{ left: `${(m.v / levelMax) * 100}%`, color: m.color }}
-              title={`${m.label} · ${m.v.toFixed(1)} m`}
-            >
-              {m.label}
-            </span>
-          ))}
-        </div>
-      </div>
-
-      <div>
-        <div className="mb-1 flex items-baseline justify-between">
-          <label className="text-[11px] text-[var(--fg-muted)]">
-            ปริมาณการไหล <span className="font-mono">(Q)</span>
-          </label>
-          <span className="font-mono text-[12.5px] font-semibold tabular-nums">
-            {discharge.toFixed(0)}
-            <span className="ml-0.5 text-[10px] text-[var(--fg-muted)]">m³/s</span>
-          </span>
-        </div>
-        <input
-          type="range" min={0} max={DISCHARGE_MAX} step={1} value={discharge}
-          onChange={(e) => setDischarge(Number(e.target.value))}
-          className="w-full" style={{ accentColor: 'var(--accent)' }}
-        />
-      </div>
-    </div>
-  )
-}
-
 // ── Main dashboard ───────────────────────────────────────────────────────────
 
-export function WaterDashboard({ liveS1, liveS2, config, t1, t2 }: Props) {
-  const PRESETS = useMemo(() => buildPresets(t1, t2), [t1, t2])
-  const LEVEL_MAX_S1 = t1.danger + 0.5
-  const LEVEL_MAX_S2 = t2.danger + 0.5
+export function WaterDashboard({ liveS1, liveS2, config, t1, t2, series }: Props) {
+  const [mode, setMode] = useState<SimMode>('live')
+  const [activePreset, setActivePreset] = useState('live')
+  const [scenario, setScenario] = useState<Scenario>({
+    shape: 'ramp', riseMeters: 1.0, durationHours: 3, startHour: 0,
+  })
+  const [manual, setManual] = useState<ManualValues>({
+    s1Level: liveS1.level ?? 0,
+    s1Q: liveS1.discharge ?? 0,
+    s2Level: liveS2.level ?? 0,
+    s2Q: liveS2.discharge ?? 0,
+  })
+  const [simTime, setSimTime] = useState(0)
+  const [playing, setPlaying] = useState(false)
+  const reducedMotion = useRef(false)
 
-  const [s1Level, setS1Level] = useState(liveS1.level ?? 0)
-  const [s1Q,     setS1Q]     = useState(liveS1.discharge ?? 0)
-  const [s2Level, setS2Level] = useState(liveS2.level ?? 0)
-  const [s2Q,     setS2Q]     = useState(liveS2.discharge ?? 0)
-  const [activePreset, setActivePreset] = useState<string>('live')
+  useEffect(() => {
+    reducedMotion.current = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  }, [])
 
-  const isLive = activePreset === 'live'
+  // ── Physics: rating curves + lag + routing (คำนวณใหม่เฉพาะตอน input เปลี่ยน) ──
+  const history = useMemo(
+    () => series.map((r) => ({ h1: r.s1, q1: r.s1Discharge, h2: r.s2, q2: r.s2Discharge })),
+    [series],
+  )
 
-  // Pick classifier: rise-speed-first for flash-flood rivers (Mae Sai)
+  const forecast = useMemo(
+    () =>
+      computeForecast({
+        history,
+        scenario: mode === 'scenario' ? scenario : null,
+        manual: mode === 'manual' ? { s1Level: manual.s1Level } : null,
+        geometry: config.channel,
+        thresholds2: t2,
+        fallbackTravelHours: config.fallbackTravelHours,
+        horizonHours: HORIZON_HOURS,
+        dtHours: DT_HOURS,
+      }),
+    [history, mode, scenario, manual.s1Level, config, t2],
+  )
+
+  // ── Animation loop (rAF, pause เมื่อ tab hidden) ──
+  useEffect(() => {
+    if (!playing || mode !== 'scenario') return
+    let raf = 0
+    let last = performance.now()
+    const tick = (now: number) => {
+      const dt = (now - last) / 1000
+      last = now
+      setSimTime((t) => {
+        const nt = t + dt * SIM_HOURS_PER_SEC
+        if (nt >= HORIZON_HOURS) {
+          setPlaying(false)
+          return HORIZON_HOURS
+        }
+        return nt
+      })
+      raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    const onVis = () => {
+      if (document.hidden) setPlaying(false)
+    }
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      cancelAnimationFrame(raf)
+      document.removeEventListener('visibilitychange', onVis)
+    }
+  }, [playing, mode])
+
+  // ── ค่าต่อเฟรม: lookup จาก forecast ณ simTime (ถูก — ไม่คำนวณฟิสิกส์ซ้ำ) ──
+  const histH1 = useMemo(() => series.map((r) => r.s1), [series])
+  const histH2 = useMemo(() => series.map((r) => r.s2), [series])
+
+  const frame = useMemo(() => {
+    const sampleHistory = (arr: (number | null)[], hoursBack: number): number | null => {
+      const idx = arr.length - 1 - hoursBack
+      const lo = Math.floor(idx)
+      const hi = Math.ceil(idx)
+      if (lo < 0 || hi >= arr.length) return null
+      const a = arr[lo]
+      const b = arr[hi]
+      if (a == null || b == null) return null
+      return a + (b - a) * (idx - lo)
+    }
+    // ระดับน้ำจำลอง ณ เวลา t (t<0 = ย้อนเข้า observed history)
+    const simLevel = (which: 1 | 2, t: number): number | null => {
+      if (t >= 0) {
+        return sampleForecast(which === 1 ? forecast.s1Level : forecast.s2Level, DT_HOURS, t)
+      }
+      return sampleHistory(which === 1 ? histH1 : histH2, -t)
+    }
+
+    if (mode === 'live') {
+      return {
+        s1: { level: liveS1.level, discharge: liveS1.discharge, rise1h: liveS1.rise1h, rise3h: liveS1.rise3h },
+        s2: { level: liveS2.level, discharge: liveS2.discharge, rise1h: liveS2.rise1h, rise3h: liveS2.rise3h },
+      }
+    }
+    if (mode === 'manual') {
+      return {
+        s1: { level: manual.s1Level, discharge: manual.s1Q, rise1h: null, rise3h: null },
+        s2: { level: manual.s2Level, discharge: manual.s2Q, rise1h: null, rise3h: null },
+      }
+    }
+    // scenario: rise สังเคราะห์จาก simulated series → classifier จริง
+    // (สำคัญกับแม่สายที่ใช้ rise-speed เป็นตัวชี้วัดหลัก)
+    const rise = (which: 1 | 2, back: number) => {
+      const cur = simLevel(which, simTime)
+      const prev = simLevel(which, simTime - back)
+      return cur != null && prev != null ? cur - prev : null
+    }
+    return {
+      s1: {
+        level: simLevel(1, simTime),
+        discharge: sampleForecast(forecast.s1Q, DT_HOURS, simTime),
+        rise1h: rise(1, 1),
+        rise3h: rise(1, 3),
+      },
+      s2: {
+        level: simLevel(2, simTime),
+        discharge: sampleForecast(forecast.s2Q, DT_HOURS, simTime),
+        rise1h: rise(2, 1),
+        rise3h: rise(2, 3),
+      },
+    }
+  }, [mode, simTime, forecast, manual, liveS1, liveS2, histH1, histH2])
+
+  // ── Alert classification ──
   const classify: ClassifyFn = config.alertMode === 'rise_speed'
     ? classifyAlertMaesai
     : (level, _rise1h, rise3h, t) => classifyAlert(level, rise3h, t)
 
-  // Cards show live data in live mode, simulator values otherwise
-  const cardS1 = isLive
-    ? liveS1
-    : { level: s1Level, discharge: s1Q, rise1h: null, rise3h: null }
-  const cardS2 = isLive
-    ? liveS2
-    : { level: s2Level, discharge: s2Q, rise1h: null, rise3h: null }
+  const s1Alert = classify(frame.s1.level, frame.s1.rise1h, frame.s1.rise3h, t1)
+  const s2Alert = classify(frame.s2.level, frame.s2.rise1h, frame.s2.rise3h, t2)
 
-  const { s1Alert, s2Alert } = useMemo(() => ({
-    s1Alert: classify(s1Level, null, 0, t1),
-    s2Alert: classify(s2Level, null, 0, t2),
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [s1Level, s2Level, t1, t2, config.alertMode])
+  // ── ความเร็วน้ำ ณ เฟรมปัจจุบัน (Manning จาก Q จริง/จำลอง) ──
+  const frameVelocity = useMemo(() => {
+    const q = frame.s1.discharge
+    if (q != null && q > 1) return flowVelocity(q, config.channel)
+    return forecast.velocityMs
+  }, [frame.s1.discharge, config, forecast.velocityMs])
 
-  function applyPreset(preset: Preset) {
-    if (preset.id === 'live') {
-      setS1Level(liveS1.level ?? 0)
-      setS1Q(liveS1.discharge ?? 0)
-      setS2Level(liveS2.level ?? 0)
-      setS2Q(liveS2.discharge ?? 0)
-    } else if (preset.values) {
-      setS1Level(preset.values.s1Level)
-      setS1Q(preset.values.s1Q)
-      setS2Level(preset.values.s2Level)
-      setS2Q(preset.values.s2Q)
+  // ── ก้อนคลื่นเดินทาง (เฉพาะ scenario ขาขึ้น) ──
+  const packet = useMemo(() => {
+    if (mode !== 'scenario' || scenario.riseMeters <= 0) return null
+    const prog = (simTime - scenario.startHour) / forecast.travelHours
+    if (prog <= 0 || prog > 1.08) return null
+    return { progress: Math.min(1, prog), amplitudeM: scenario.riseMeters }
+  }, [mode, scenario, simTime, forecast.travelHours])
+
+  // ── ForecastStrip data ──
+  const observedS2 = useMemo(() => {
+    const len = series.length
+    const start = Math.max(0, len - 13)
+    const out: { t: number; v: number | null }[] = []
+    for (let i = start; i < len; i++) out.push({ t: i - (len - 1), v: series[i].s2 })
+    return out
+  }, [series])
+
+  const predictedS2 = useMemo(
+    () => forecast.times.map((t, i) => ({ t, v: forecast.s2Level[i] })),
+    [forecast],
+  )
+
+  const outOfRange = !!(
+    forecast.rating2 &&
+    forecast.peak &&
+    ratingOutOfRange(forecast.rating2, forecast.peak.level)
+  )
+
+  const forecastModeLabel =
+    mode === 'live'
+      ? '(สมมติต้นน้ำคงระดับปัจจุบัน)'
+      : mode === 'scenario'
+        ? '(จากเหตุการณ์จำลอง)'
+        : '(จากระดับต้นน้ำที่ตั้ง)'
+
+  // ── Preset / mode handlers ──
+  const presets = useMemo(
+    () => [
+      { id: 'live', label: 'Live' },
+      ...SCENARIO_PRESETS.filter((p) => p.guard(t1)).map(({ id, label }) => ({ id, label })),
+    ],
+    [t1],
+  )
+
+  function applyPreset(id: string) {
+    if (id === 'live') {
+      setMode('live')
+      setActivePreset('live')
+      setPlaying(false)
+      setSimTime(0)
+      return
     }
-    setActivePreset(preset.id)
+    const p = SCENARIO_PRESETS.find((x) => x.id === id)
+    if (!p) return
+    const baseline = forecast.baseline1 ?? liveS1.level ?? 0
+    setScenario({
+      shape: p.shape,
+      riseMeters: Math.round((p.target(t1) - baseline) * 10) / 10,
+      durationHours: p.durationHours,
+      startHour: 0,
+    })
+    setMode('scenario')
+    setActivePreset(id)
+    setSimTime(0)
+    setPlaying(!reducedMotion.current)
   }
 
-  function userChange(setter: (v: number) => void, v: number) {
-    setter(v)
+  function changeScenario(s: Scenario) {
+    setScenario(s)
     setActivePreset('custom')
+    if (mode !== 'scenario') setMode('scenario')
   }
 
-  const s1ShortName = t1.name.replace(' (ต้นน้ำ)', '').replace(' (upstream)', '')
-  const s2ShortName = t2.name.replace(' (ตัวเมือง)', '').replace(' (downstream)', '')
+  function enterManualMode() {
+    setMode('manual')
+    setActivePreset('custom')
+    setPlaying(false)
+    setSimTime(0)
+  }
+
+  // slider ผูก Q↔h ด้วย rating curve ของสถานีนั้นเมื่อ fit ได้
+  function changeManual(field: ManualField, value: number) {
+    setManual((m) => {
+      const next = { ...m, [field]: value }
+      const r1 = forecast.rating1
+      const r2 = forecast.rating2
+      if (field === 's1Level' && r1) next.s1Q = Math.min(500, Math.round(ratingQ(r1, value) * 10) / 10)
+      if (field === 's1Q' && r1) next.s1Level = Math.round(ratingH(r1, value) * 100) / 100
+      if (field === 's2Level' && r2) next.s2Q = Math.min(500, Math.round(ratingQ(r2, value) * 10) / 10)
+      if (field === 's2Q' && r2) next.s2Level = Math.round(ratingH(r2, value) * 100) / 100
+      return next
+    })
+  }
+
+  const showTimeline = mode === 'scenario' && forecast.tier !== 'none'
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* ── Rise-speed methodology note (Mae Sai only) ── */}
       {config.alertMode === 'rise_speed' && (
         <div className="flex items-start gap-2.5 rounded-lg border border-fuchsia-200 bg-fuchsia-50/40 px-3.5 py-2.5 text-xs text-fuchsia-800 dark:border-fuchsia-500/25 dark:bg-fuchsia-500/10 dark:text-fuchsia-300">
@@ -328,86 +466,92 @@ export function WaterDashboard({ liveS1, liveS2, config, t1, t2 }: Props) {
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <StationCard
           code={config.s1}
-          level={cardS1.level}
-          rise1h={cardS1.rise1h}
-          rise3h={cardS1.rise3h}
-          discharge={cardS1.discharge}
+          level={frame.s1.level}
+          rise1h={frame.s1.rise1h}
+          rise3h={frame.s1.rise3h}
+          discharge={frame.s1.discharge}
           t={t1}
-          simulating={!isLive}
+          simulating={mode !== 'live'}
           classify={classify}
         />
         <StationCard
           code={config.s2}
-          level={cardS2.level}
-          rise1h={cardS2.rise1h}
-          rise3h={cardS2.rise3h}
-          discharge={cardS2.discharge}
+          level={frame.s2.level}
+          rise1h={frame.s2.rise1h}
+          rise3h={frame.s2.rise3h}
+          discharge={frame.s2.discharge}
           t={t2}
-          simulating={!isLive}
+          simulating={mode !== 'live'}
           classify={classify}
         />
       </div>
 
-      {/* ── Flow animation ── */}
-      <WaterFlowAnimation
-        s1={{ level: s1Level, discharge: s1Q, alert: s1Alert }}
-        s2={{ level: s2Level, discharge: s2Q, alert: s2Alert }}
+      {/* ── Flow simulation (physics-driven) ── */}
+      <FlowSimulation
+        s1={{ level: frame.s1.level, discharge: frame.s1.discharge, alert: s1Alert }}
+        s2={{ level: frame.s2.level, discharge: frame.s2.discharge, alert: s2Alert }}
         t1={t1}
         t2={t2}
         config={config}
+        velocityMs={frameVelocity}
+        travelHours={forecast.travelHours}
+        travelSource={forecast.travelSource}
+        packet={packet}
       />
 
-      {/* ── Simulator controls ── */}
-      <div className="rounded-md border border-[var(--border)] bg-[var(--bg-elevated)] p-4">
-        <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
-          <h3 className="inline-flex items-center gap-1.5 text-[13px] font-medium tracking-tight">
-            <Sliders size={13} strokeWidth={1.75} />
-            แผงจำลองสถานการณ์
-            <span className="ml-1 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--fg-subtle)]">
-              {isLive ? 'live data' : 'simulating'}
-            </span>
-          </h3>
-          <div className="ml-auto flex flex-wrap gap-1.5">
-            {PRESETS.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => applyPreset(p)}
-                className={
-                  activePreset === p.id
-                    ? 'rounded-md border border-[var(--accent)] bg-[var(--accent)]/15 px-2.5 py-1 text-[11px] font-medium text-[var(--accent)]'
-                    : 'rounded-md border border-[var(--border)] px-2.5 py-1 text-[11px] text-[var(--fg-muted)] transition-colors hover:border-[var(--accent)] hover:text-[var(--fg)]'
-                }
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-        </div>
+      {/* ── Timeline (เฉพาะโหมดจำลองเหตุการณ์) ── */}
+      {showTimeline && (
+        <SimTimeline
+          simTime={simTime}
+          horizonHours={HORIZON_HOURS}
+          playing={playing}
+          onScrub={(t) => {
+            setSimTime(t)
+            setPlaying(false)
+          }}
+          onTogglePlay={() => setPlaying((p) => !p)}
+          onReset={() => {
+            setSimTime(0)
+            setPlaying(false)
+          }}
+          etas={forecast.thresholdEtas}
+          stationCode={config.s2}
+        />
+      )}
 
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <StationControls
-            code={config.s1}
-            label={`ต้นน้ำ · ${s1ShortName}`}
-            level={s1Level}
-            setLevel={(v) => userChange(setS1Level, v)}
-            levelMax={LEVEL_MAX_S1}
-            discharge={s1Q}
-            setDischarge={(v) => userChange(setS1Q, v)}
-            t={t1}
-          />
-          <StationControls
-            code={config.s2}
-            label={`ปลายน้ำ · ${s2ShortName}`}
-            level={s2Level}
-            setLevel={(v) => userChange(setS2Level, v)}
-            levelMax={LEVEL_MAX_S2}
-            discharge={s2Q}
-            setDischarge={(v) => userChange(setS2Q, v)}
-            t={t2}
-          />
-        </div>
-      </div>
+      {/* ── แผงจำลองสถานการณ์ (ติดกับกราฟิก — ปรับแล้วเห็นผลไม่ต้องเลื่อนจอ) ── */}
+      <ScenarioPanel
+        mode={mode}
+        activePreset={activePreset}
+        presets={presets}
+        onPreset={applyPreset}
+        onManualMode={enterManualMode}
+        scenario={scenario}
+        onScenarioChange={changeScenario}
+        manual={manual}
+        onManual={changeManual}
+        t1={t1}
+        t2={t2}
+        config={config}
+        rating1={forecast.rating1}
+        rating2={forecast.rating2}
+      />
+
+      {/* ── พยากรณ์ปลายน้ำจาก routing ── */}
+      <ForecastStrip
+        observed={observedS2}
+        predicted={predictedS2}
+        tier={forecast.tier}
+        t2={t2}
+        stationCode={config.s2}
+        simTime={mode === 'scenario' ? simTime : null}
+        outOfRange={outOfRange}
+        modeLabel={forecastModeLabel}
+        rating2={forecast.rating2}
+        lag={forecast.lag}
+        travelHours={forecast.travelHours}
+        travelSource={forecast.travelSource}
+      />
     </div>
   )
 }

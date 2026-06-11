@@ -125,6 +125,7 @@ export default async function WaterLevelPage({
           config={config}
           t1={t1}
           t2={t2}
+          series={chartData}
         />
       </div>
 
